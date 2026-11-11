@@ -1,7 +1,7 @@
 import type { Config } from "../domain/config.js"
-import { MODULES, type ConnectionState, type Rule, type StatusView } from "../domain/ids.js"
-import { PLANNED, TOOL_NAMES, actionOf } from "../domain/registry.js"
-import { implemented } from "../domain/registry.js"
+import { INTEGRATION_ID, MODULES, type ConnectionState, type Rule, type StatusView } from "../domain/ids.js"
+import { actionOf, implemented, PLANNED, TOOL_NAMES } from "../domain/registry.js"
+import { OPERATION_MODULE } from "../domain/routing.js"
 import { completeStatus } from "../rpc.js"
 import { fixtureAgeDays, STALE_AFTER_DAYS, type CapabilityFixture } from "../providers/openrouter/capabilities.js"
 import type { HostCheck } from "./versions.js"
@@ -21,7 +21,7 @@ export interface StatusSources {
 
 /** True when some enabled route of an implemented operation, with its module on, would send with the key. */
 export function keyRequired(config: Config, fixture: CapabilityFixture) {
-  return fixture.routes.some((route) => route.enabled && implemented(route.operation) && config.modules[PLANNED.find((operation) => operation.name === route.operation)!.module])
+  return fixture.routes.some((route) => route.enabled && implemented(route.operation) && config.modules[OPERATION_MODULE[route.operation]])
 }
 
 /** Joins the plugin's facts with the host's. No provider is called and no key is read. */
@@ -33,7 +33,7 @@ export async function buildStatus(sources: StatusSources): Promise<StatusView> {
     version: sources.version,
     host: sources.host,
     unguardedAgents: unguardedAgents(agents, config.access),
-    connection: { integration: "inference-openrouter", state: connection.state, required: keyRequired(config, fixture), ...(connection.next ? { next: connection.next } : {}) },
+    connection: { integration: INTEGRATION_ID, state: connection.state, required: keyRequired(config, fixture), ...(connection.next ? { next: connection.next } : {}) },
     access: config.access,
     modules: Object.fromEntries(MODULES.map((name) => [name, { enabled: config.modules[name] }])) as StatusView["modules"],
     tools: { registered: TOOL_NAMES.map(actionOf), planned: PLANNED.map((operation) => operation.tool) },

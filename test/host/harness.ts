@@ -90,6 +90,8 @@ export interface Host {
   readonly location: { readonly directory: string }
   /** The plugin context of the host's location, kept by the observer (embedded hosts only). */
   readonly context?: () => Plugin.Context | undefined
+  /** How many times the plugin set up and cleaned up in this host (embedded hosts only). */
+  readonly lifecycle?: { setups: number; cleanups: number }
   readonly log?: () => string
   close(): Promise<void>
 }
@@ -119,9 +121,21 @@ export async function startHost(input: HostInput = {}): Promise<Host> {
   expectInsideRoot("The embedded host's home, temp folder and working directory", { ...Object.fromEntries(sources.map((key) => [key, process.env[key]])), tmpdir: tmpdir(), cwd: process.cwd() })
   const { OpenCode } = (await import(pathToFileURL(join(SDK, "dist", "index.js")).href)) as typeof import("@opencode/sdk")
   const contexts = new Map<string, Plugin.Context>()
+  const lifecycle = { setups: 0, cleanups: 0 }
+  const counted = Plugin.define({
+    id: plugin.id,
+    setup: async (ctx) => {
+      const cleanup = await plugin.setup({ ...ctx, options: input.options ?? {} })
+      lifecycle.setups++
+      return async () => {
+        await cleanup?.()
+        lifecycle.cleanups++
+      }
+    },
+  })
   const observer = Plugin.define({ id: "test.observer", setup: (ctx) => void contexts.set(realpathSync(ctx.location.directory), ctx) })
   const client = await OpenCode.create({
-    plugins: [Plugin.define({ id: plugin.id, setup: (ctx) => plugin.setup({ ...ctx, options: input.options ?? {} }) }), observer],
+    plugins: [counted, observer],
     app: { version: HOST_VERSION },
     config: { content: JSON.stringify({ ...QUIET, ...input.config }), directory: join(base, "config"), project: false, claude: false },
     database: { path: join(base, "opencode.db") },
@@ -133,6 +147,7 @@ export async function startHost(input: HostInput = {}): Promise<Host> {
     client: client as unknown as OpenCodeClient,
     location: { directory: work },
     context: () => contexts.get(realpathSync(work)),
+    lifecycle,
     async close() {
       await client.close()
       if (offLoopback.length) throw new Error(`the host tried to leave loopback: ${[...new Set(offLoopback)].join(", ")}`)

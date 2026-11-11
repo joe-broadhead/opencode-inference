@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "
 import { jsonSchemaOf, TOOL_NAMES, TOOLS } from "../../src/domain/registry.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
-import { Inference } from "../../src/rpc.js"
+import { AGENT_FIX, Inference } from "../../src/rpc.js"
 import { cleanup, HOST_VERSION, startHost, until, type Host } from "./harness.js"
 
 setDefaultTimeout(300_000)
@@ -147,6 +147,34 @@ seen.state = status.state`,
   })
 })
 
+describe(`reload on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
+  let host: Host
+  beforeAll(async () => {
+    host = await startHost()
+  })
+  afterAll(() => host?.close())
+
+  test("a location reload cleans up and sets up again, leaving one block per agent and working RPCs", async () => {
+    const sessionID = (await host.client.session.create({ agent: "build", location: host.location })).id
+    await until("the plugin has set up", async () => host.lifecycle!.setups >= 1)
+    const { setups, cleanups } = host.lifecycle!
+    await (host.client as any).location.reload({ headers: { "x-opencode-directory": host.location.directory } })
+    await until("the plugin set up again after its cleanup", async () => {
+      await host.client.plugin.list({ location: host.location })
+      return host.lifecycle!.cleanups > cleanups && host.lifecycle!.setups > setups
+    })
+    const { data: agents } = await host.client.agent.list({ location: host.location })
+    const build = agents.find((agent) => agent.id === "build")!.permissions
+    const block = JSON.stringify(defaultRules()).slice(1, -1)
+    expect(JSON.stringify(build).split(block).length - 1).toBe(1)
+    expect((await status(host)).state).toBe("local_only")
+    expect((await script(host, "describe", {})).value.methods.length).toBe(TOOL_NAMES.length)
+    expect((await script(host, "plan", { sessionID, input: planInput })).value.task).toBe("extract")
+    const { data: integrations } = await host.client.integration.list({ location: host.location })
+    expect(integrations.filter((entry) => entry.id === "inference-openrouter").length).toBe(1)
+  })
+})
+
 describe(`access: ask-changes on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
   let host: Host
   beforeAll(async () => {
@@ -162,7 +190,9 @@ describe(`access: ask-changes on OpenCode ${HOST_VERSION} (embedded SDK)`, () =>
     const view = await status(host)
     expect(view.access).toBe("ask-changes")
     expect(view.permissions.block).toEqual(defaultRules("ask-changes"))
-    // Whether a config-only agent got the block depends on when the host creates it; status names it only when it lacks it.
-    if (view.unguardedAgents.length) expect(view.unguardedAgents).toEqual(["reviewer"])
+    // OpenCode creates agents defined only in user config after plugins set up, so this one lacks the block, and its
+    // base allow would run a send without asking: status names it, with the fix.
+    expect(view.unguardedAgents).toEqual(["reviewer"])
+    expect(view.nextStep).toBe(AGENT_FIX)
   })
 })
