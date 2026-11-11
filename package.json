@@ -1,0 +1,149 @@
+{
+  "name": "@joe-broadhead/opencode-inference",
+  "version": "0.0.0",
+  "description": "Unofficial OpenCode plugin: typed extraction and bounded decisions with evidence, planned locally",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "inference",
+    "extraction"
+  ],
+  "homepage": "https://github.com/joe-broadhead/opencode-inference#readme",
+  "bugs": {
+    "url": "https://github.com/joe-broadhead/opencode-inference/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joe-broadhead/opencode-inference.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js",
+    "./icon.svg": "./assets/icon.svg",
+    "./icon-128.png": "./assets/icon-128.png",
+    "./icon-256.png": "./assets/icon-256.png"
+  },
+  "files": [
+    "dist",
+    "assets/icon.svg",
+    "assets/icon-128.png",
+    "assets/icon-256.png",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md"
+  ],
+  "opencode": {
+    "host": ">=2.2.3 <2.3.0",
+    "icons": [
+      {
+        "src": "assets/icon.svg",
+        "mimeType": "image/svg+xml",
+        "sizes": [
+          "any"
+        ]
+      },
+      {
+        "src": "assets/icon-128.png",
+        "mimeType": "image/png",
+        "sizes": [
+          "128x128"
+        ]
+      },
+      {
+        "src": "assets/icon-256.png",
+        "mimeType": "image/png",
+        "sizes": [
+          "256x256"
+        ]
+      }
+    ],
+    "vendor": {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "domain": "openrouter.ai"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "test": "bun test test/unit",
+    "test:kit": "node --test scripts/release-kit.test.mjs",
+    "test:tui": "bun test --preload @opentui/solid/preload test/tui",
+    "test:host": "node scripts/host-tests.mjs",
+    "test:pack": "bun test test/pack",
+    "lint": "node scripts/check-forbidden.mjs && node scripts/check-copies.mjs && node scripts/check-icons.mjs",
+    "check": "npm run typecheck && npm test && npm run test:kit && npm run build && npm run test:tui && npm run test:host && npm run lint && npm run test:pack"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-typescript": "7.27.1",
+    "@opencode/client": "2.2.3",
+    "@opencode/plugin": "2.2.3",
+    "@opencode/sdk": "2.2.3",
+    "@opentui/core": "0.8.0",
+    "@opentui/solid": "0.8.0",
+    "@types/bun": "1.4.4",
+    "babel-preset-solid": "1.9.16",
+    "esbuild": "0.28.2",
+    "solid-js": "1.9.16",
+    "typescript": "5.9.3",
+    "zod": "4.6.7"
+  },
+  "jelly": {
+    "title": "Inference",
+    "summary": "Typed extraction and bounded decisions over supplied content, planned locally.",
+    "icon": "assets/icon.svg",
+    "tools": [
+      {
+        "name": "inference.status",
+        "permission": "inference_status",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "inference.capabilities",
+        "permission": "inference_capabilities",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "inference.plan",
+        "permission": "inference_plan",
+        "effect": "allow",
+        "readOnly": true
+      }
+    ],
+    "skills": [],
+    "rpc": [],
+    "views": [],
+    "signIns": [
+      {
+        "id": "openrouter",
+        "label": "OpenRouter",
+        "integration": "inference-openrouter",
+        "required": false,
+        "help": {
+          "url": "https://openrouter.ai/settings/keys",
+          "label": "Create an OpenRouter API key"
+        }
+      }
+    ],
+    "contributes": {
+      "homeFeeds": [],
+      "homeWidgets": [],
+      "workKinds": [],
+      "settings": [
+        {
+          "key": "access",
+          "label": "Access",
+          "type": "string",
+          "default": "all",
+          "description": "all, ask-changes or read-only. Generates default rules for agents with a base allow rule; the three local reads always run."
+        }
+      ]
+    }
+  }
+}
