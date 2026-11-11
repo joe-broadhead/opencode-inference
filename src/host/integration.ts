@@ -22,15 +22,6 @@ export function registerIntegration(integration: Pick<Integration, "transform">)
       method: {
         type: "key",
         label: INTEGRATION_KEY_LABEL,
-        form: [
-          {
-            key: "note",
-            type: "string",
-            title: "What it is used for",
-            description: "Inference's extraction and decision calls to OpenRouter, in a later release. This version stores the key and never sends it.",
-            required: false,
-          },
-        ],
       },
     })
   })

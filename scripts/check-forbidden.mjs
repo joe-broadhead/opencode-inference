@@ -39,6 +39,8 @@ const RULES = [
   // No network in this version. The transport boundary a later release adds (src/providers/<provider>/http.ts) is the
   // one place allowed to fetch; until it exists nothing in src/ may.
   { pattern: /\bfetch\s*\(|["']node:(?:http|https|net|tls|dgram|http2)["']|\bWebSocket\b|\bXMLHttpRequest\b/, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "network access outside the transport boundary" },
+  // The domain and the runtime are pure: the filesystem is the host layer's business.
+  { pattern: /(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["'](?:node:)?fs(?:\/promises)?["']/, scope: ["src/domain/", "src/runtime/"], message: "filesystem access in the domain or runtime; keep fs in src/host/" },
   // The key is resolved only at the transport boundary, at dispatch. Status and planning never read it.
   { pattern: /\bconnection\s*\.\s*resolve\s*\(/, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "the OpenRouter key is resolved only at the transport boundary" },
 ]

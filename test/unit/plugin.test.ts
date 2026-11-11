@@ -53,7 +53,7 @@ describe("setup", () => {
     const cleanup = await plugin().setup(fake.context)
     expect(fake.live().map((item) => item.kind)).toEqual(["integration", "agent", "tool", `rpc:${PLUGIN_ID}`, `rpc:${TOOLS_RPC_ID}`, "hook:evaluate", "command"])
     expect(fake.integrations.get("inference-openrouter")).toEqual({ id: "inference-openrouter", name: "OpenRouter for Inference" })
-    expect(fake.methods).toEqual([{ integrationID: "inference-openrouter", method: expect.objectContaining({ type: "key", label: "OpenRouter API key" }) }])
+    expect(fake.methods).toEqual([{ integrationID: "inference-openrouter", method: { type: "key", label: "OpenRouter API key" } }])
     expect(fake.tools.map((tool) => tool.name)).toEqual(["status", "capabilities", "plan"])
     expect(fake.commands.map((command) => command.name)).toEqual(["inference-status"])
     // Every local surface, on both paths.

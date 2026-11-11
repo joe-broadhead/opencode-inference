@@ -1,5 +1,5 @@
 import * as z from "zod"
-import { ModelId, OPERATIONS } from "../../domain/contracts.js"
+import { Decimal, ModelId, OPERATIONS } from "../../domain/contracts.js"
 
 // The reviewed capability fixture for OpenRouter's alpha Extractions and Decisions routes.
 //
@@ -48,9 +48,9 @@ export const RouteCapability = z.strictObject({
     .strictObject({
       revision: z.string().max(64),
       currency: z.literal("USD"),
-      perRequest: z.string().optional(),
-      perMillionInputTokens: z.string().optional(),
-      perMillionOutputTokens: z.string().optional(),
+      perRequest: Decimal.optional(),
+      perMillionInputTokens: Decimal.optional(),
+      perMillionOutputTokens: Decimal.optional(),
       upperBound: z.boolean(),
     })
     .nullable()
