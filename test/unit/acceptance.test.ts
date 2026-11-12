@@ -82,6 +82,28 @@ describe("acceptance uses reported probabilities exactly", () => {
     expect(accept({ ...base, confidence: "0.01" }, q.kind!, AUTO, CONTEXT)).toEqual(accept({ ...base, confidence: "0.99" }, q.kind!, AUTO, CONTEXT))
   })
 
+  test("an unreported label is a possible runner-up, never zero; a tie is never accepted", () => {
+    const rules = (choice: { minProbability: number; minMargin?: number }) => ({ name: "p-v1", profile: { ...AUTO.profile, rules: { ...RULES, choice } } })
+    const choice = (distribution: Record<string, string>) => ({ type: "choice" as const, choice: "invoice", distribution })
+    // The reviewer's case: 0.6 reported alone leaves 0.4 unreported, which could be one label: margin 0.2, not 0.6.
+    expect(accept(choice({ invoice: "0.6" }), q.kind!, rules({ minProbability: 0.5, minMargin: 0.3 }), CONTEXT).reasons).toEqual(["AMBIGUOUS"])
+    expect(accept(choice({ invoice: "0.6", receipt: "0.4" }), q.kind!, rules({ minProbability: 0.5, minMargin: 0.3 }), CONTEXT).reasons).toEqual(["AMBIGUOUS"])
+    // A 0.5/0.5 tie with no margin rule is never accepted for whichever label comes first; nor 0.5 alone against 0.5 unreported.
+    expect(accept(choice({ invoice: "0.5", receipt: "0.5" }), q.kind!, rules({ minProbability: 0.5 }), CONTEXT).reasons).toEqual(["AMBIGUOUS"])
+    expect(accept({ type: "choice", choice: "receipt", distribution: { receipt: "0.5", invoice: "0.5" } }, q.kind!, rules({ minProbability: 0.5 }), CONTEXT).disposition).toBe("review")
+    expect(accept(choice({ invoice: "0.5" }), q.kind!, rules({ minProbability: 0.5 }), CONTEXT).reasons).toEqual(["AMBIGUOUS"])
+    // A partial report can still clear the margin legitimately: 0.9 leaves at most 0.1 for any other label.
+    expect(accept(choice({ invoice: "0.9" }), q.kind!, rules({ minProbability: 0.8, minMargin: 0.3 }), CONTEXT)).toEqual({ disposition: "accepted", outcome: "invoice", reasons: [] })
+    expect(accept(choice({ invoice: "0.65", receipt: "0.05" }), q.kind!, rules({ minProbability: 0.6, minMargin: 0.3 }), CONTEXT)).toEqual({ disposition: "accepted", outcome: "invoice", reasons: [] })
+    // Exact arithmetic at the boundary: 0.65 against 0.35 unreported is a margin of exactly 0.3.
+    expect(accept(choice({ invoice: "0.65" }), q.kind!, rules({ minProbability: 0.6, minMargin: 0.3 }), CONTEXT).disposition).toBe("accepted")
+    // Scores: a level tied with another, or with the unreported mass, is not accepted.
+    const score = (distribution: Record<string, string>) => ({ type: "score" as const, expectedIndex: "1", levels: ["low", "mid", "high"], distribution })
+    expect(accept(score({ low: "0.5", high: "0.5" }), q.urgency!, { name: "s-v1", profile: { ...AUTO.profile, rules: { score: { minProbability: 0.5 } } } }, CONTEXT).reasons).toEqual(["AMBIGUOUS"])
+    expect(accept(score({ mid: "0.5" }), q.urgency!, { name: "s-v1", profile: { ...AUTO.profile, rules: { score: { minProbability: 0.5 } } } }, CONTEXT).reasons).toEqual(["AMBIGUOUS"])
+    expect(accept(score({ mid: "0.6" }), q.urgency!, { name: "s-v1", profile: { ...AUTO.profile, rules: { score: { minProbability: 0.5 } } } }, CONTEXT)).toEqual({ disposition: "accepted", outcome: "mid", reasons: [] })
+  })
+
   test("score: a midpoint expectation over opposite extremes is not certainty", () => {
     expect(accept({ type: "score", expectedIndex: "1", levels: ["low", "mid", "high"], distribution: { low: "0.5", high: "0.5" } }, q.urgency!, AUTO, CONTEXT).reasons).toEqual(["LOW_PROBABILITY"])
     expect(accept({ type: "score", expectedIndex: "1", levels: ["low", "mid", "high"], distribution: { low: "0.1", mid: "0.85", high: "0.05" } }, q.urgency!, AUTO, CONTEXT)).toEqual({ disposition: "accepted", outcome: "mid", reasons: [] })

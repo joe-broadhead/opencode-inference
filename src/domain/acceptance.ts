@@ -14,8 +14,8 @@ import { canonical } from "./canonical.js"
 //   report for the same profile, model, question set (by digest) and thresholds, measured on held-out data with an
 //   acceptable false-accept rate. The options are refused otherwise. At run time, a different model or question set
 //   than the report's turns every answer back to review (CALIBRATION_MISMATCH): changing either invalidates calibration.
-// - Thresholds use only the reported probability or distribution, exactly as reported: never renormalised, rounded or
-//   completed. A missing probability cannot pass a probability threshold. The reported confidence is never used: it is
+// - Thresholds use only the reported probability or distribution, exactly as reported (exact decimals): never
+//   renormalised, rounded or completed. Unreported mass is a possible runner-up, never zero, and a tie is never accepted. A missing probability cannot pass a probability threshold. The reported confidence is never used: it is
 //   derived from the distribution, so counting it again would double-count the same evidence.
 // - A refusal is `refused`: not false, not zero, not review.
 // - An accepted outcome is a label. Nothing here, or anywhere in the plugin, treats a label as a permission.
@@ -110,12 +110,21 @@ type Question = z.infer<typeof QuestionInput>
 type Result = z.infer<typeof Acceptance>
 type Reason = (typeof ACCEPTANCE_REASONS)[number]
 
-/** The top two reported probabilities of a distribution, in exact 10^-64 units. */
+/**
+ * The leading label and the strongest possible challenger, in exact 10^-64 units. The mass the provider did not report
+ * (1 minus the reported total) may all belong to one unreported label, so the runner-up is at least that: a missing
+ * label is never read as zero. `tied` when the leader does not strictly exceed the runner-up: a tie is never accepted.
+ */
 function top(distribution: Readonly<Record<string, string>>) {
   const ranked = Object.entries(distribution)
     .map(([label, p]) => [label, units(p)] as const)
     .sort(([, a], [, b]) => (a > b ? -1 : a < b ? 1 : 0))
-  return { label: ranked[0]?.[0], first: ranked[0]?.[1], second: ranked[1]?.[1] ?? 0n }
+  const total = ranked.reduce((sum, [, p]) => sum + p, 0n)
+  const unreported = total < ONE ? ONE - total : 0n
+  const second = ranked[1]?.[1] ?? 0n
+  const runnerUp = second > unreported ? second : unreported
+  const first = ranked[0]?.[1]
+  return { label: ranked[0]?.[0], first, runnerUp, tied: first === undefined || first <= runnerUp }
 }
 
 /**
@@ -144,7 +153,7 @@ export function applyRules(answer: Unaccepted, question: Question, rules: z.infe
         const best = top(answer.distribution)
         if (best.label !== answer.choice) reasons.add("INCONSISTENT")
         else if (best.first === undefined || best.first < ofNumber(rules.choice.minProbability)) reasons.add("LOW_PROBABILITY")
-        else if (rules.choice.minMargin !== undefined && best.first - best.second < ofNumber(rules.choice.minMargin)) reasons.add("AMBIGUOUS")
+        else if (best.tied || (rules.choice.minMargin !== undefined && best.first - best.runnerUp < ofNumber(rules.choice.minMargin))) reasons.add("AMBIGUOUS")
         else outcome = best.label
       }
       break
@@ -154,6 +163,7 @@ export function applyRules(answer: Unaccepted, question: Question, rules: z.infe
       else if (rules.score) {
         const best = top(answer.distribution)
         if (best.first === undefined || best.first < ofNumber(rules.score.minProbability)) reasons.add("LOW_PROBABILITY")
+        else if (best.tied) reasons.add("AMBIGUOUS")
         else outcome = best.label
       }
       break

@@ -150,7 +150,9 @@ contract (`WIRE_REVISION`):
 `src/domain/acceptance.ts` decides acceptance in ordinary deterministic code. `review-first-v1` (built in) and any
 `mode: "review"` profile accept nothing. A `mode: "automatic"` profile accepts an answer only when its thresholds are
 met (noul: probability at least `accept`, or at most `1 - accept`; choice: top reported probability and margin; score:
-the most probable level), using the reported probability or distribution only: the reported confidence is derived from
+the most probable level), in exact decimal arithmetic. The mass a distribution leaves unreported counts as a possible
+runner-up (an unreported label is never zero), and a tie is never accepted. It uses the reported probability or
+distribution only: the reported confidence is derived from
 the distribution and is never counted again, and a missing probability cannot pass a threshold. It accepts only on the
 model and question set (by digest) its report measured; anything else is `CALIBRATION_MISMATCH`, and a truncated state
 is never accepted. The options are refused when an automatic profile has no held-out report for the same profile,
