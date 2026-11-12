@@ -109,15 +109,16 @@ canary passes:
   `provider.allow_fallbacks: false`. Plugin-only options (`required`, a list's `maxItems`) are never sent. The route's
   constraints are refused locally with coded errors: a null threshold where the route or the field kind does not take
   it (Clairic lists, ScaleDown, unknown support), more than 6 decimals, a duration field (its answer is a number in a
-  unit the result cannot carry yet), an image over Clairic's per-image or decoded-total limit or of a type it does not
+  unit the result cannot carry yet, so no route lists it as an eligible field type and plan reports it
+  `FIELD_TYPE_UNSUPPORTED` before any file is read), an image over Clairic's per-image or decoded-total limit or of a type it does not
   take, a PDF on a route without PDF input, a body over the route's request limit.
 - **Answer.** Read with a strict JSON reader (`src/domain/json.ts`) that keeps each number's literal and refuses
   duplicate keys. `answers` must have exactly the requested keys; each answer must name its field's `type` and its
   `value` must have that type's JSON type; `confidence`, `p_null`, `spell_confidence` and a list's `confidences` must
   lie in 0..1; a `span` (a list's `spans`, one per item, `null` for an item without one) must be a code-point range of
-  the exact text sent, and none may come back for a file; `source` must be where the answer could be read from; `model`
-  must be the route's model id or its reviewed canonical slug (`canonicalSlug` in the fixture, such as
-  `cloudflare/clairic-20261029`). Any of these failing is `PROVIDER_CONTRACT_CHANGED`. Unknown metadata is ignored,
+  the exact text sent, and none may come back for a file; a top-level `state_text` (the text spans index) must be exactly
+  the text sent; `source` must be where the answer could be read from; `model` is required and must be the route's
+  model id or its reviewed canonical slug (`canonicalSlug` in the fixture, such as `cloudflare/clairic-20261029`). Any of these failing is `PROVIDER_CONTRACT_CHANGED`. Unknown metadata is ignored,
   bounded and counted in coverage warnings.
 - **Result.** Per field: the nullable value (a number also as `exact`, its literal), `derivation`, the reported
   confidence, null probability and spelling confidence when present (absent otherwise, never 0), the diagnostic guess
@@ -154,7 +155,8 @@ refused the earlier, summary-derived request; no route is enabled until its cana
 - **Answer.** Each answer names its `type`: `{ type: "noul", noul }`, `{ type: "choice", choice, probabilities? }` keyed
   by option id, `{ type: "score", score, probabilities?, legend? }` with `score` the expected zero-based level index and
   `probabilities` keyed by level index (`"0"`, `"1"`, ...), each with an optional `confidence`, or `{ type: "refusal" }`.
-  `model` must be the route's model id or its reviewed canonical slug. Probabilities must lie in 0..1; `probabilities`
+  A score's `legend`, when present, must echo the criteria sent: every level by index with exactly its description.
+  `model` is required and must be the route's model id or its reviewed canonical slug. Probabilities must lie in 0..1; `probabilities`
   (stored as the result's `distribution`, by label) must name only asked labels and total at most 1; a complete score distribution must agree with its
   expected index. All are stored exactly as reported: never renormalised, rounded or completed, and an unreported label
   is absent, not 0. A refusal is its own outcome; a refusal that also answers is `PROVIDER_CONTRACT_CHANGED`.
@@ -238,11 +240,11 @@ entry never enables a route by itself.
 
 <!-- generated:routes -->
 
-Fixture `openrouter-2026-11-12.1`, reviewed 2026-11-11, documentation-derived, verified: false.
+Fixture `openrouter-2026-11-12.2`, reviewed 2026-11-11, documentation-derived, verified: false.
 
 | Model | Operation | Route | Status | Enabled | Text | Images | PDF | Field or question types | Price |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cloudflare/clairic` | extract | `POST /api/alpha/extractions` | documented | no | yes | 4 (image/png, image/jpeg, image/webp) | no | text, number, date, time, datetime, duration, list, estimate, forecast | unknown |
+| `cloudflare/clairic` | extract | `POST /api/alpha/extractions` | documented | no | yes | 4 (image/png, image/jpeg, image/webp) | no | text, number, date, time, datetime, list, estimate, forecast | unknown |
 | `scaledown/extract` | extract | `POST /api/alpha/extractions` | documented | no | yes | 1 (image/png, image/jpeg) | 1 file | text, list | unknown |
 | `inception/mercury-decide` | extract | `POST /api/alpha/extractions` | documented | no | yes | no | no | text, list | unknown |
 | `levanto/sage-2` | extract | `POST /api/alpha/extractions` | unconfirmed | no | unknown | no | no | unknown | unknown |

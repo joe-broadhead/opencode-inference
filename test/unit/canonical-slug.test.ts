@@ -24,7 +24,7 @@ test("the fixture records the reviewed canonical slugs from the catalog (source 
 })
 
 /** Whether the adapter refused the answer as coming from another model (it may refuse it later for other reasons). */
-const fromAnotherModel = async (kind: "extract" | "decide", capability: RouteCapability, model: string) => {
+const refusalOf = async (kind: "extract" | "decide", capability: RouteCapability, model: string | undefined) => {
   const source = await snapshot({ kind: "text", text: TEXT }, {} as FileAccess, capability, new AbortController().signal)
   const response = { status: 200, contentType: "application/json", body: new TextEncoder().encode(JSON.stringify({ model, answers: {} })), elapsedMs: 1 }
   // The input must be valid, or the test would pass without reaching the model check.
@@ -34,12 +34,13 @@ const fromAnotherModel = async (kind: "extract" | "decide", capability: RouteCap
       const input = decisionsAdapter.prepare!(DecideInput.parse({ model: capability.model, source: { kind: "text", text: TEXT }, questions: { paid: { type: "noul", prompt: "Paid?" } } }), loadConfig({}))
       decisionsAdapter.parse(response, { source, route: capability, input })
     }
-    return false
+    return ""
   } catch (error) {
     expect((error as { code?: string }).code).toBe("PROVIDER_CONTRACT_CHANGED")
-    return String((error as Error).message).includes("the answer came from another model")
+    return String((error as Error).message)
   }
 }
+const fromAnotherModel = async (kind: "extract" | "decide", capability: RouteCapability, model: string) => (await refusalOf(kind, capability, model)).includes("the answer came from another model")
 
 test("each adapter accepts exactly the model id or its reviewed canonical slug", async () => {
   const cases: ["extract" | "decide", RouteCapability, string, boolean][] = [
@@ -58,4 +59,9 @@ test("each adapter accepts exactly the model id or its reviewed canonical slug",
     ["decide", route("typesafe/jev-1.14"), "typesafe/jev-1.14-20261201", true],
   ]
   for (const [kind, capability, model, refused] of cases) expect({ kind, model, refused: await fromAnotherModel(kind, capability, model) }).toEqual({ kind, model, refused })
+})
+
+test("an answer without a model is refused: both API references require it", async () => {
+  expect(await refusalOf("extract", route("cloudflare/clairic"), undefined)).toMatch(/: model is missing\./)
+  expect(await refusalOf("decide", route("typesafe/jev-1.14"), undefined)).toMatch(/: model is missing\./)
 })

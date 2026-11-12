@@ -111,7 +111,7 @@ const NOT_RUN = { status: "not_run", on: null } as const
 export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.parse({
   schemaVersion: 1,
   provider: "openrouter",
-  revision: "openrouter-2026-11-12.1",
+  revision: "openrouter-2026-11-12.2",
   reviewedOn: "2026-11-11",
   basis: "documentation",
   verified: false,
@@ -145,14 +145,16 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       maxRequestBytes: 16 * MiB,
       effectiveContextTokens: null,
       contextAllowance: null,
-      fieldTypes: ["text", "number", "date", "time", "datetime", "duration", "list", "estimate", "forecast"],
+      // duration is documented (A2) but not adopted: its answer is a number in a unit the result cannot carry yet, so
+      // plan reports it FIELD_TYPE_UNSUPPORTED before anything is read.
+      fieldTypes: ["text", "number", "date", "time", "datetime", "list", "estimate", "forecast"],
       listItemTypes: ["text"],
       questionTypes: [],
       nullThreshold: { supported: true, unsupportedOn: ["list", "estimate", "forecast"] },
       pricing: null,
       zdr: "unknown",
       canary: NOT_RUN,
-      notes: ["Rich typed fields from text and supported images (A2).", "No direct PDF input: prepare a PDF as text or page images first.", "Image limits: four images, 4 MiB each, 8 MiB decoded in total; 16 MiB request body (A2)."],
+      notes: ["Rich typed fields from text and supported images (A2). duration is documented but not adopted in this version.", "No direct PDF input: prepare a PDF as text or page images first.", "Image limits: four images, 4 MiB each, 8 MiB decoded in total; 16 MiB request body (A2)."],
     },
     {
       id: "openrouter:extract:scaledown/extract",

@@ -29,7 +29,7 @@ import { answeredBy, countOf, entries, isObject, probabilityOf as sharedProbabil
 
 export const EXTRACTIONS_PATH = "/api/alpha/extractions"
 /** The reviewed wire contract's revision. Part of every request fingerprint. */
-export const WIRE_REVISION = "openrouter-alpha-extractions-2026-11-12.1"
+export const WIRE_REVISION = "openrouter-alpha-extractions-2026-11-12.2"
 
 type Field = z.infer<typeof ExtractField>
 type Input = z.infer<typeof ExtractInput>
@@ -339,9 +339,14 @@ function parse(response: TransportResponse, context: { readonly source: Snapshot
 
   const model = top.get("model")
   // No fallback was allowed: an answer from another model is not this route's answer.
+  if (model === undefined || model === null) throw changed("model is missing")
   if (!answeredBy(model, route)) throw changed("the answer came from another model")
   const id = top.get("id")
   if (id !== undefined && (typeof id !== "string" || !REQUEST_ID.test(id))) throw changed("id is not a request id")
+  // Spans index `state_text` when the provider returns it (A2): accepted only when it is exactly the text sent, so every
+  // span still indexes that text. For a file no text was sent, so there is nothing it could equal.
+  const stateText = top.get("state_text")
+  if (stateText !== undefined && stateText !== null && (source.modality !== "text" || stateText !== source.text())) throw changed("state_text is not the text that was sent")
   const provider = top.get("provider")
   if (provider !== undefined && provider !== null && (typeof provider !== "string" || provider.length > 128)) throw changed("provider is not a provider name")
   const truncatedTop = top.get("truncated")

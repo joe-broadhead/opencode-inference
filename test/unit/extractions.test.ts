@@ -236,6 +236,18 @@ describe("the answer", () => {
     await contractFailure(Promise.resolve().then(() => extractionsAdapter.parse(answer(FIXTURE, "text/html"), { source, route: CLAIRIC, input: input() })))
   })
 
+  test("state_text is accepted only when it is exactly the text sent: spans would otherwise index other text", async () => {
+    const answers = JSON.parse(FIXTURE).answers
+    const same = await parse(withAnswers(answers, { state_text: STATE }))
+    expect((same.data as any).fields.currency.evidence[0].textRange).toMatchObject({ start: 10, end: 13 })
+    await contractFailure(parse(withAnswers(answers, { state_text: STATE.replace("EUR", "USD") })))
+    await contractFailure(parse(withAnswers(answers, { state_text: `${STATE} ` })))
+    // A file sent no text, so no state_text can be the text sent.
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", source: "image" } }, { state_text: "x" }), { name: { type: "text" } }, CLAIRIC, imageSource(16)))
+    // null is no state_text.
+    expect((await parse(withAnswers(answers, { state_text: null }))).providerRequestId).toBeUndefined()
+  })
+
   test("image answers: read from the image, with no text span; a span or a state source is refused", async () => {
     const image = imageSource(16)
     const fields = { name: { type: "text" } }
@@ -302,6 +314,32 @@ describe("through the dispatcher, with the fake transport", () => {
       ["0.004", "upper_bound", "settled", "0.000012345679"],
     ])
     expect(JSON.parse(new TextDecoder().decode(harness.sent[0]!.body)).state).toBe(STATE)
+  })
+})
+
+describe("duration is not adopted", () => {
+  test("plan reports a duration field ineligible on Clairic, and a call with one reads, sends and reserves nothing", async () => {
+    const { plan } = await import("../../src/domain/routing.js")
+    const { loadConfig } = await import("../../src/domain/config.js")
+    const { PlanInput } = await import("../../src/domain/contracts.js")
+    const { implemented } = await import("../../src/domain/registry.js")
+    expect(CLAIRIC.fieldTypes).not.toContain("duration")
+    const planned = plan(PlanInput.parse({ task: "extract", input: { profile: "extract-typed", source: { kind: "text", text: STATE }, fields: { took: { type: "duration" } } } }), { config: loadConfig({}), fixture: OPENROUTER_CAPABILITIES, implemented, now: new Date() })
+    expect(planned.route.selected!.exclusions).toContain("FIELD_TYPE_UNSUPPORTED")
+
+    const { probeHarness, probeRoute } = await import("../support/operation-kit.js")
+    const { ExtractResult } = await import("../../src/domain/contracts.js")
+    const { writeFileSync } = await import("node:fs")
+    const { join } = await import("node:path")
+    const tool = { name: "extract", class: "send" as const, operation: "extract" as const, module: "extractions" as const, effects: { network: true, uploadsSource: true, billable: true, readsFiles: true }, description: "extract", input: ExtractInput, output: ExtractResult }
+    const route = probeRoute({ ...CLAIRIC, enabled: true, pricing: { revision: "test", currency: "USD", perRequest: "0.004", upperBound: true } })
+    const harness = await probeHarness({ route, tool, adapter: extractionsAdapter, options: { profiles: { probe: { model: "cloudflare/clairic" } } } })
+    writeFileSync(join(harness.project, "invoice.txt"), "Paid within 30 days.")
+    const error = await Promise.resolve(harness.model({ profile: "probe", source: { kind: "path", path: "invoice.txt" }, fields: { took: { type: "duration" } } })).then(() => undefined, (caught: Error) => caught)
+    expect(error?.message).toMatch(/^CAPABILITY_UNSUPPORTED: /)
+    expect(harness.counts.read).toBe(0)
+    expect(harness.sent).toEqual([])
+    expect(await harness.journal.list()).toEqual([])
   })
 })
 

@@ -34,7 +34,7 @@ import { answeredBy, entries, exactProbabilityOf, isObject, quoteOf, REQUEST_ID,
 // bytes); an unreviewed limit or an undocumented allowance refuses.
 
 export const DECISIONS_PATH = "/api/alpha/decisions"
-export const WIRE_REVISION = "openrouter-alpha-decisions-2026-11-12.1"
+export const WIRE_REVISION = "openrouter-alpha-decisions-2026-11-12.2"
 
 type Input = z.infer<typeof DecideInput>
 type Question = z.infer<typeof QuestionInput>
@@ -187,8 +187,15 @@ function answerOf(key: string, question: Question, raw: Json | undefined, warnin
       const expected = score instanceof JsonNumber ? decimalOf(score) : undefined
       if (expected === undefined || !isPlain(expected) || units(expected) > BigInt(levels.length - 1) * ONE) throw changed(`${what}.score is not a position on the rubric`)
       const distribution = distributionOf(answer.get("probabilities"), levels, what, levelAt(levels))
+      // The legend echoes the criteria sent (D1: keyed by level index, "0" for the first): every level, each with exactly
+      // the description sent for it. A legend that disagrees means the positions may not be the levels asked.
       const legend = answer.get("legend")
-      if (legend !== undefined && legend !== null && !isObject(legend)) throw changed(`${what}.legend is not an object`)
+      if (legend !== undefined && legend !== null) {
+        if (!isObject(legend)) throw changed(`${what}.legend is not an object`)
+        const sent = question.levels.map((level) => level.description)
+        const echoed = entries(legend)
+        if (echoed.size !== sent.length || sent.some((description, index) => echoed.get(String(index)) !== description)) throw changed(`${what}.legend is not the levels that were sent`)
+      }
       // A complete distribution must agree with its own expected index; it is checked, never adjusted, in exact arithmetic.
       if (distribution && Object.keys(distribution).length === levels.length) {
         const reported = new Map(Object.entries(distribution))
@@ -225,6 +232,7 @@ function parse(response: TransportResponse, context: { readonly source: Snapshot
   if (unknown.length > 32) throw changed("too many unknown top-level keys")
   if (unknown.length) warnings.push(`${unknown.length} unknown response key(s) ignored`)
   const model = top.get("model")
+  if (model === undefined || model === null) throw changed("model is missing")
   if (!answeredBy(model, route)) throw changed("the answer came from another model")
   const id = top.get("id")
   if (id !== undefined && (typeof id !== "string" || !REQUEST_ID.test(id))) throw changed("id is not a request id")

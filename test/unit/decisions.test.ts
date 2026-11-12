@@ -146,6 +146,13 @@ describe("the answer", () => {
       ["score off its own distribution", withAnswers({ ...answers, urgency: { type: "score", score: 0.2, probabilities: { "0": 0.5, "1": 0, "2": 0.5 } } })],
       ["refusal with an answer", withAnswers({ ...answers, paid: { type: "refusal", noul: 0.5 } })],
       ["legend not an object", withAnswers({ ...answers, urgency: { type: "score", score: 1, legend: ["low"] } })],
+      // The legend must echo the levels sent: every one, by index, with the description sent for it.
+      ["legend with another label", withAnswers({ ...answers, urgency: { type: "score", score: 1, legend: { "0": "low", "1": "medium", "2": "high" } } })],
+      ["legend reordered", withAnswers({ ...answers, urgency: { type: "score", score: 1, legend: { "0": "high", "1": "mid", "2": "low" } } })],
+      ["legend missing a level", withAnswers({ ...answers, urgency: { type: "score", score: 1, legend: { "0": "low", "1": "mid" } } })],
+      ["legend with an extra level", withAnswers({ ...answers, urgency: { type: "score", score: 1, legend: { "0": "low", "1": "mid", "2": "high", "3": "urgent" } } })],
+      ["legend keyed by id", withAnswers({ ...answers, urgency: { type: "score", score: 1, legend: { low: "low", mid: "mid", high: "high" } } })],
+      ["no model", JSON.stringify({ answers })],
       ["annotations not a list", withAnswers(answers, { annotations: {} })],
       ["missing answer", withAnswers({ ...answers, paid: undefined })],
       ["extra answer", withAnswers({ ...answers, extra: { type: "noul", noul: 0.5 } })],
