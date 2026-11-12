@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { createHash } from "node:crypto"
 import { mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync, appendFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
-import { TransportError } from "../../src/providers/openrouter/http.js"
+import { createTransport, TransportError } from "../../src/providers/openrouter/http.js"
 import { InferenceError } from "../../src/domain/errors.js"
 import { spyNetwork } from "../support/network-spy.js"
-import { pathInput, probeAdapter, probeHarness, probeRoute, textInput } from "../support/operation-kit.js"
+import { ACCOUNT, pathInput, probeAdapter, probeHarness, probeRoute, textInput } from "../support/operation-kit.js"
 import { tempRoot } from "../support/temp.js"
 
 let network: ReturnType<typeof spyNetwork>
@@ -409,6 +409,30 @@ describe("spend and the journal", () => {
       expect(harness.sent).toHaveLength(2)
       expect(await harness.journal.list()).toHaveLength(2)
     }
+  })
+
+  test("a path off the reviewed list is refused by the real transport as failed, nothing sent, reservation released", async () => {
+    const base = probeAdapter()
+    const adapter = { ...base, request: (...args: Parameters<typeof base.request>) => ({ ...base.request(...args), path: "/api/v1/chat/completions" }) }
+    const integration = { connection: { active: async () => ACCOUNT.connection, resolve: async () => ({ type: "key", key: "sk-test" }), status: async () => undefined } } as never
+    const harness = await probeHarness({ adapter, transport: createTransport(integration, "http://127.0.0.1:9") })
+    expect((await failure(harness.model(textInput()))).message).toMatch(/^PROVIDER_CONTRACT_CHANGED: The adapter asked for an API path that is not reviewed .*nothing was sent\./)
+    const [record] = await harness.journal.list()
+    expect(record).toMatchObject({ state: "failed", reservation: { status: "released" }, error: { code: "PROVIDER_CONTRACT_CHANGED" } })
+  })
+
+  test("a deadline that passes before sending is failed and released, not submission_unknown", async () => {
+    const harness = await probeHarness()
+    harness.replies.push(new TransportError("timeout", false))
+    expect((await failure(harness.model(textInput()))).message).toMatch(/^DEADLINE_EXCEEDED: The deadline passed before the request was sent/)
+    expect((await harness.journal.list())[0]).toMatchObject({ state: "failed", reservation: { status: "released" } })
+  })
+
+  test("a quote finer than 12 decimals is a coded error before anything is reserved", async () => {
+    const harness = await probeHarness({ adapter: probeAdapter(() => ({ kind: "upper_bound", amount: "0.0000000000001" })) })
+    expect((await failure(harness.model(textInput()))).message).toMatch(/^PROVIDER_CONTRACT_CHANGED: An amount is not an exact non-negative decimal/)
+    expect(await harness.journal.list()).toEqual([])
+    expect(harness.sent).toEqual([])
   })
 
   test("limits.concurrency queues requests in this process", async () => {

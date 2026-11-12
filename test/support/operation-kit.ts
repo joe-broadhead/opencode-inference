@@ -134,6 +134,8 @@ export interface ProbeOptions {
   readonly onAsk?: (request: AssertRequest) => Promise<"once" | "reject">
   readonly account?: Account | "needs_auth" | undefined
   readonly available?: () => InferenceError | undefined
+  /** A transport to use instead of the recording fake. */
+  readonly transport?: Transport
   readonly now?: () => Date
 }
 
@@ -165,7 +167,7 @@ export async function probeHarness(options: ProbeOptions = {}) {
       project: { id: "prj_fake", directory: project, worktree: project },
       files,
       authorize: createAuthorize((input) => fake.context.permission.assert(input)),
-      transport,
+      transport: options.transport ?? transport,
       journal: () => journal,
       adapters: { probe: options.adapter ?? probeAdapter() },
       ...(options.now ? { now: options.now } : {}),

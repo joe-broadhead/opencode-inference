@@ -188,6 +188,22 @@ describe("the transport boundary", () => {
     expect(await createTransport(integration(KEY, { ...CONNECTION, status: { type: "needs_auth" } }).integration, api.origin).account()).toBe("needs_auth")
   })
 
+  test("the key lookup is under the same deadline and cancellation as the request; nothing is sent", async () => {
+    const api = await serve((_request, response) => response.end("{}"))
+    const hanging = {
+      connection: { active: async () => CONNECTION as never, resolve: () => new Promise<never>(() => undefined), status: async () => undefined },
+    } as never
+    const transport = createTransport(hanging, api.origin)
+    const account = (await transport.account()) as Account
+    const started = Date.now()
+    expect(await failureOf(transport.post(request(account, { deadlineMs: 100 })))).toMatchObject({ kind: "timeout", sent: false })
+    expect(Date.now() - started).toBeLessThan(1500)
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 30)
+    expect(await failureOf(transport.post(request(account, { signal: controller.signal })))).toMatchObject({ kind: "cancelled", sent: false })
+    expect(api.seen).toEqual([])
+  })
+
   test("only the trusted origin and the reviewed paths: anything else is refused before a request exists", async () => {
     for (const origin of ["https://evil.example", "http://openrouter.ai", "https://openrouter.ai.evil.example", "https://openrouter.ai/api", "file:///etc"])
       expect(() => createTransport(integration().integration, origin)).toThrow()
@@ -196,7 +212,7 @@ describe("the transport boundary", () => {
     const transport = createTransport(integration().integration, api.origin)
     const account = (await transport.account()) as Account
     for (const path of ["/api/v1/chat/completions", "//evil.example/api/alpha/extractions", "https://evil.example/api/alpha/extractions", "/api/alpha/extractions?x=1"])
-      await expect(transport.post(request(account, { path }))).rejects.toThrow()
+      expect(await failureOf(transport.post(request(account, { path })))).toMatchObject({ kind: "path_refused", sent: false })
     expect(api.seen).toEqual([])
   })
 })

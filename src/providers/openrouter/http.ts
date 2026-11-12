@@ -47,6 +47,7 @@ export interface TransportResponse {
 
 export type TransportFailure =
   | "auth_missing" // no usable key: nothing was sent
+  | "path_refused" // not a reviewed API path on the trusted origin: nothing was sent
   | "request_too_large" // refused before sending
   | "not_sent" // the connection could not be opened: nothing was sent
   | "redirect" // the server answered with a redirect, which is never followed
@@ -117,16 +118,21 @@ export function createTransport(integration: Integration, origin: string = OPENR
   }
 
   const post = async (request: TransportRequest): Promise<TransportResponse> => {
-    if (!(API_PATHS as readonly string[]).includes(request.path)) throw new Error("not a reviewed API path")
+    if (!(API_PATHS as readonly string[]).includes(request.path)) throw new TransportError("path_refused", false)
     const url = new URL(request.path, base)
-    if (url.origin !== base.origin) throw new Error("the request left the trusted origin")
+    if (url.origin !== base.origin) throw new TransportError("path_refused", false)
     if (request.body.byteLength > request.maxRequestBytes) throw new TransportError("request_too_large", false)
     if (request.signal.aborted) throw new TransportError("cancelled", false)
-    const secret = await key(request.account)
-    if (request.signal.aborted) throw new TransportError("cancelled", false)
 
+    // One deadline and the caller's cancellation cover the key lookup as well as the request.
     const deadline = AbortSignal.timeout(request.deadlineMs)
     const signal = AbortSignal.any([request.signal, deadline])
+    const secret = await new Promise<string>((resolve, reject) => {
+      const stop = () => reject(new TransportError(request.signal.aborted ? "cancelled" : "timeout", false))
+      if (signal.aborted) return stop()
+      signal.addEventListener("abort", stop, { once: true })
+      key(request.account).then(resolve, reject).finally(() => signal.removeEventListener("abort", stop))
+    })
     const failure = (error: unknown, sent: boolean): TransportError => {
       if (error instanceof TransportError) return error
       if (request.signal.aborted) return new TransportError("cancelled", sent)

@@ -180,6 +180,8 @@ function transportOutcome(error: TransportError, record: OperationRecord): { out
   switch (error.kind) {
     case "auth_missing":
       return { outcome: { state: "failed", code: "AUTH_REQUIRED", sent: false }, failure: new InferenceError("AUTH_REQUIRED", "No usable OpenRouter key is connected for Inference; nothing was sent.") }
+    case "path_refused":
+      return { outcome: { state: "failed", code: "PROVIDER_CONTRACT_CHANGED", sent: false }, failure: new InferenceError("PROVIDER_CONTRACT_CHANGED", "The adapter asked for an API path that is not reviewed for the trusted origin; nothing was sent.") }
     case "request_too_large":
       return { outcome: { state: "failed", code: "CONTEXT_LIMIT", sent: false }, failure: new InferenceError("CONTEXT_LIMIT", "The request is larger than the route accepts; nothing was sent.") }
     case "not_sent":
@@ -189,7 +191,9 @@ function transportOutcome(error: TransportError, record: OperationRecord): { out
         ? { outcome: { state: "submission_unknown", code: "CANCELLED" }, failure: new InferenceError("CANCELLED", `The call was cancelled after the request may have reached OpenRouter. ${kept}`, "Do not resubmit: OpenRouter may still have run and charged it.") }
         : { outcome: { state: "failed", code: "CANCELLED", sent: false }, failure: new InferenceError("CANCELLED") }
     case "timeout":
-      return { outcome: { state: "submission_unknown", code: "DEADLINE_EXCEEDED" }, failure: new InferenceError("DEADLINE_EXCEEDED", `The request ran past its deadline and its outcome is unknown. ${kept}`) }
+      return error.sent
+        ? { outcome: { state: "submission_unknown", code: "DEADLINE_EXCEEDED" }, failure: new InferenceError("DEADLINE_EXCEEDED", `The request ran past its deadline and its outcome is unknown. ${kept}`) }
+        : { outcome: { state: "failed", code: "DEADLINE_EXCEEDED", sent: false }, failure: new InferenceError("DEADLINE_EXCEEDED", "The deadline passed before the request was sent; nothing was sent.", "Call the tool again, or raise limits.deadlineMs in the trusted options.") }
     case "ambiguous":
       return { outcome: { state: "submission_unknown", code: "SUBMISSION_UNKNOWN" }, failure: new InferenceError("SUBMISSION_UNKNOWN", `The connection failed after the request may have reached OpenRouter. ${kept}`) }
     case "redirect":
