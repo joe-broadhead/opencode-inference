@@ -1,12 +1,12 @@
 {
   "id": "gen-decide-fixture-0001",
-  "model": "typesafe/jev-1.14",
-  "object": "decision",
+  "model": "typesafe/jev-1.14-20261014",
+  "provider": "TypeSafe",
   "answers": {
-    "kind": { "choice": "invoice", "distribution": { "invoice": 0.7, "receipt": 0.2 }, "confidence": 0.81 },
-    "paid": { "probability": 0.12 },
-    "urgency": { "score": 1.0, "distribution": { "low": 0.5, "mid": 0.0, "high": 0.5 } },
-    "language": { "refusal": "The text does not show its language reliably." }
+    "kind": { "type": "choice", "choice": "invoice", "probabilities": { "invoice": 0.7, "receipt": 0.2 }, "confidence": 0.81 },
+    "paid": { "type": "noul", "noul": 0.12 },
+    "urgency": { "type": "score", "score": 1.0, "probabilities": { "0": 0.5, "1": 0.0, "2": 0.5 }, "legend": { "0": "low", "1": "mid", "2": "high" } },
+    "language": { "type": "refusal" }
   },
   "usage": { "input_tokens": 80, "output_tokens": 12, "cost": 0.0000420000000001 }
 }

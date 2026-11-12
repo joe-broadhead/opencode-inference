@@ -7,6 +7,7 @@ import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { join } from "node:path"
 import { questionSetDigest, type QuestionSet } from "../../src/domain/acceptance.js"
+import { WIRE_REVISION } from "../../src/providers/openrouter/decisions.js"
 import { createPlugin } from "../../src/host/plugin.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
@@ -42,7 +43,8 @@ const OPTIONS = {
         model: "typesafe/jev-1.14",
         questionSet: "document-kind-v1",
         questionSetDigest: questionSetDigest(SET),
-        adapterRevision: "openrouter-alpha-decisions-2026-11-11.1",
+        // The report is for this adapter's wire revision: a report for another revision would review everything.
+        adapterRevision: WIRE_REVISION,
         thresholds: RULES,
         dataset: { revision: "r1", sha256: "b".repeat(64), tuning: 100, heldOut: 50 },
         heldOut: { answers: 200, accepted: 120, falseAccepts: 1, reviewed: 70, refused: 10 },

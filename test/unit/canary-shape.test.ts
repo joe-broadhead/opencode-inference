@@ -86,14 +86,14 @@ test("the adapter's exact refusal: its path, what it expects, and the type found
   const jev = { ...OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "typesafe/jev-1.14")!, effectiveContextTokens: 2048, contextAllowance: { tokens: 1024, source: "test" } }
   const decide = decisionsAdapter.prepare!(DecideInput.parse({ model: jev.model, source: { kind: "text", text: SOURCE }, questions: { paid: { type: "noul", prompt: "Paid?" } } }), loadConfig({}))
   const decideSource = await snapshot({ kind: "text", text: SOURCE }, {} as FileAccess, jev, new AbortController().signal)
-  const response = answer({ model: jev.model, answers: { paid: { probability: [0.9] } } })
+  const response = answer({ model: jev.model, answers: { paid: { type: "noul", noul: [0.9] } } })
   let failure: ReturnType<typeof failureOf> | undefined
   try {
     decisionsAdapter.parse(response, { source: decideSource, route: jev, input: decide })
   } catch (error) {
     failure = failureOf(error, response.body)
   }
-  expect(failure).toMatchObject({ code: "PROVIDER_CONTRACT_CHANGED", path: "answers.paid.probability", received: "array" })
+  expect(failure).toMatchObject({ code: "PROVIDER_CONTRACT_CHANGED", path: "answers.paid.noul", received: "array" })
   // Anything but the plugin's own error is reported by its name only.
   expect(failureOf(new TypeError(`boom ${SOURCE}`), undefined)).toEqual({ code: "error", message: "TypeError" })
 })

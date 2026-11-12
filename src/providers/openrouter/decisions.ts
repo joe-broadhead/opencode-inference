@@ -15,12 +15,16 @@ import { answeredBy, entries, exactProbabilityOf, isObject, quoteOf, REQUEST_ID,
 
 // The OpenRouter alpha Decisions adapter (POST /api/alpha/decisions, handoff §5, §8, §15.1, §16.3).
 //
-// WIRE CONTRACT, documentation-derived and UNVERIFIED (D1-D4 as summarised in the handoff, 2026-11-11; never observed
-// from the live API): the request carries `model`, the text as `state`, named `questions` (noul, choice with `options`,
-// score with ordered `levels`) and `provider.allow_fallbacks: false`; the answer is `answers`, one per question key:
-// `{ probability }` for noul, `{ choice, distribution? }` for choice, `{ score, distribution? }` for score (the expected
-// zero-based level index), each with an optional `confidence`, or `{ refusal }` when the model declines the question.
-// Every route stays disabled until the opt-in canary (scripts/canary-decisions.ts) confirms it.
+// WIRE CONTRACT, from OpenRouter's API reference (D1, its OpenAPI DecisionsRequest and DecisionsResponse) as read on
+// 2026-11-12, after the live canary of that day refused the earlier, summary-derived request with a 400. The request
+// carries `model`, the text as `state`, named `questions` and `provider.allow_fallbacks: false`; each question has its
+// `type` and `instructions` (the prompt), a choice its `criteria` as a map of option id to description, a score its
+// `criteria` as the ordered list of level descriptions. The answer is `answers`, one per question key, each naming its
+// `type`: `{ type: "noul", noul }`; `{ type: "choice", choice, probabilities? }` keyed by option id; `{ type: "score",
+// score, probabilities?, legend? }` with the score the expected zero-based level index and probabilities keyed by level
+// index ("0", "1", ...); each with an optional `confidence`; or `{ type: "refusal" }` when the model declines. `model`
+// names the route's model id or its reviewed canonical slug; usage reports `input_tokens`, `output_tokens` and `cost`.
+// Every route stays disabled until the opt-in canary (scripts/canary-decisions.ts) passes.
 //
 // Probability semantics are kept exactly: a distribution is checked (known labels, 0..1, a total of at most 1) and
 // stored as reported, never renormalised, rounded or completed; a label the provider did not report stays absent. A
@@ -30,7 +34,7 @@ import { answeredBy, entries, exactProbabilityOf, isObject, quoteOf, REQUEST_ID,
 // bytes); an unreviewed limit or an undocumented allowance refuses.
 
 export const DECISIONS_PATH = "/api/alpha/decisions"
-export const WIRE_REVISION = "openrouter-alpha-decisions-2026-11-11.1"
+export const WIRE_REVISION = "openrouter-alpha-decisions-2026-11-12.1"
 
 type Input = z.infer<typeof DecideInput>
 type Question = z.infer<typeof QuestionInput>
@@ -67,14 +71,16 @@ function prepare(raw: unknown, config: Config): PreparedDecision {
   return { ...input, resolvedQuestions: questions ?? {}, ...(resolvedSet ? { resolvedSet } : {}), resolvedProfile: { name, profile } }
 }
 
+/** One question in the documented vocabulary (D1): `instructions`, and `criteria` keyed by option id or ordered by level. */
 function wireQuestion(question: Question): Record<string, unknown> {
   switch (question.type) {
     case "noul":
-      return { type: "noul", prompt: question.prompt }
+      return { type: "noul", instructions: question.prompt }
     case "choice":
-      return { type: "choice", prompt: question.prompt, options: question.options.map((option) => ({ id: option.id, description: option.description })) }
+      return { type: "choice", instructions: question.prompt, criteria: Object.fromEntries(question.options.map((option) => [option.id, option.description])) }
     case "score":
-      return { type: "score", prompt: question.prompt, levels: question.levels.map((level) => ({ id: level.id, description: level.description })) }
+      // Levels are positions: the answer's score and probabilities index this list, low to high.
+      return { type: "score", instructions: question.prompt, criteria: question.levels.map((level) => level.description) }
     case "box":
       throw unsupported("Box questions are not supported in this version: there is no reviewed image-region representation.")
   }
@@ -111,24 +117,32 @@ const quote = (route: RouteCapability, source: Snapshot, input: unknown) => quot
 
 // --- Answers ------------------------------------------------------------------------------------------------------------
 
-/** A reported distribution over known labels, exactly as reported. Its total may not exceed 1; it need not reach 1. */
-function distributionOf(value: Json | undefined, labels: readonly string[], what: string): Record<string, string> | undefined {
+/**
+ * The reported `probabilities` over known labels, exactly as reported. `keyOf` turns a wire key into a label (a score's
+ * keys are level indices); a key that names no label is refused. The total may not exceed 1; it need not reach 1.
+ */
+function distributionOf(value: Json | undefined, labels: readonly string[], what: string, keyOf: (key: string) => string | undefined = (key) => (labels.includes(key) ? key : undefined)): Record<string, string> | undefined {
   if (value === undefined || value === null) return undefined
-  if (!isObject(value)) throw changed(`${what}.distribution is not an object`)
+  if (!isObject(value)) throw changed(`${what}.probabilities is not an object`)
   const out = new Map<string, string>()
   let total = 0n
-  for (const [label, probability] of entries(value)) {
-    if (!labels.includes(label)) throw changed(`${what}.distribution names a label that was not asked`)
-    const p = probabilityOf(probability, `${what}.distribution`)
-    if (p === undefined) throw changed(`${what}.distribution has an entry with no probability`)
+  for (const [key, probability] of entries(value)) {
+    const label = keyOf(key)
+    if (label === undefined || out.has(label)) throw changed(`${what}.probabilities names a label that was not asked`)
+    const p = probabilityOf(probability, `${what}.probabilities`)
+    if (p === undefined) throw changed(`${what}.probabilities has an entry with no probability`)
     out.set(label, p)
     total += units(p)
   }
-  if (total > ONE + SUM_TOLERANCE) throw changed(`${what}.distribution totals more than 1`)
+  if (total > ONE + SUM_TOLERANCE) throw changed(`${what}.probabilities totals more than 1`)
   return Object.fromEntries(out)
 }
 
-const ANSWER_KEYS = new Set(["probability", "choice", "score", "distribution", "confidence", "refusal", "truncated"])
+/** A score's level for a wire key: the level at that zero-based index ("0", "1", ...), or undefined. */
+const levelAt = (levels: readonly string[]) => (key: string) => (/^(?:0|[1-9]\d{0,3})$/.test(key) ? levels[Number(key)] : undefined)
+
+/** The documented answer keys (D1), and `truncated`, which an answer may carry. */
+const ANSWER_KEYS = new Set(["type", "noul", "choice", "score", "probabilities", "legend", "confidence", "truncated"])
 
 function answerOf(key: string, question: Question, raw: Json | undefined, warnings: string[]): { answer: Unaccepted; truncated: boolean } {
   const what = `answers.${key}`
@@ -141,12 +155,13 @@ function answerOf(key: string, question: Question, raw: Json | undefined, warnin
   if (truncatedRaw !== undefined && truncatedRaw !== null && typeof truncatedRaw !== "boolean") throw changed(`${what}.truncated is not a boolean`)
   const truncated = truncatedRaw === true
   const confidence = probabilityOf(answer.get("confidence"), `${what}.confidence`)
-  const refusalRaw = answer.get("refusal")
-  if (refusalRaw !== undefined && refusalRaw !== null) {
-    if (typeof refusalRaw !== "string" || refusalRaw.length > 1000) throw changed(`${what}.refusal is not a short reason`)
+  // Each answer names its type (D1: required): the question's own, or a refusal.
+  const type = answer.get("type")
+  if (type !== question.type && type !== "refusal") throw changed(`${what}.type is not ${question.type} or refusal`)
+  if (type === "refusal") {
     // A refusal carries no answer: one with a value is ambiguous, not a refusal.
-    if (["probability", "choice", "score", "distribution"].some((name) => answer.get(name) !== undefined && answer.get(name) !== null)) throw changed(`${what} both refuses and answers`)
-    const refusal = refusalRaw ? { reason: refusalRaw } : {}
+    if (["noul", "choice", "score", "probabilities"].some((name) => answer.get(name) !== undefined && answer.get(name) !== null)) throw changed(`${what} both refuses and answers`)
+    const refusal = {}
     const extra = confidence !== undefined ? { confidence } : {}
     if (question.type === "score") return { truncated, answer: { type: "score", levels: question.levels.map((level) => level.id), refusal, ...extra } }
     if (question.type === "choice") return { truncated, answer: { type: "choice", refusal, ...extra } }
@@ -155,15 +170,15 @@ function answerOf(key: string, question: Question, raw: Json | undefined, warnin
   }
   switch (question.type) {
     case "noul": {
-      const probability = probabilityOf(answer.get("probability"), `${what}.probability`)
-      if (probability === undefined) throw changed(`${what} has no probability`)
+      const probability = probabilityOf(answer.get("noul"), `${what}.noul`)
+      if (probability === undefined) throw changed(`${what}.noul is missing`)
       return { truncated, answer: { type: "noul", probability, ...(confidence !== undefined ? { confidence } : {}) } }
     }
     case "choice": {
       const labels = question.options.map((option) => option.id)
       const choice = answer.get("choice")
       if (typeof choice !== "string" || !labels.includes(choice)) throw changed(`${what}.choice is not one of the options`)
-      const distribution = distributionOf(answer.get("distribution"), labels, what)
+      const distribution = distributionOf(answer.get("probabilities"), labels, what)
       return { truncated, answer: { type: "choice", choice, ...(distribution ? { distribution } : {}), ...(confidence !== undefined ? { confidence } : {}) } }
     }
     case "score": {
@@ -171,7 +186,9 @@ function answerOf(key: string, question: Question, raw: Json | undefined, warnin
       const score = answer.get("score")
       const expected = score instanceof JsonNumber ? decimalOf(score) : undefined
       if (expected === undefined || !isPlain(expected) || units(expected) > BigInt(levels.length - 1) * ONE) throw changed(`${what}.score is not a position on the rubric`)
-      const distribution = distributionOf(answer.get("distribution"), levels, what)
+      const distribution = distributionOf(answer.get("probabilities"), levels, what, levelAt(levels))
+      const legend = answer.get("legend")
+      if (legend !== undefined && legend !== null && !isObject(legend)) throw changed(`${what}.legend is not an object`)
       // A complete distribution must agree with its own expected index; it is checked, never adjusted, in exact arithmetic.
       if (distribution && Object.keys(distribution).length === levels.length) {
         const reported = new Map(Object.entries(distribution))
@@ -187,7 +204,8 @@ function answerOf(key: string, question: Question, raw: Json | undefined, warnin
   }
 }
 
-const TOP_KEYS = new Set(["id", "model", "answers", "usage", "truncated", "object", "created"])
+/** The documented top-level keys (D1), and `truncated`, which an answer may carry. */
+const TOP_KEYS = new Set(["id", "model", "provider", "answers", "usage", "annotations", "truncated"])
 
 function parse(response: TransportResponse, context: { readonly source: Snapshot; readonly route: RouteCapability; readonly input: unknown }): AdapterResult {
   const input = context.input as PreparedDecision
@@ -210,6 +228,10 @@ function parse(response: TransportResponse, context: { readonly source: Snapshot
   if (!answeredBy(model, route)) throw changed("the answer came from another model")
   const id = top.get("id")
   if (id !== undefined && (typeof id !== "string" || !REQUEST_ID.test(id))) throw changed("id is not a request id")
+  const provider = top.get("provider")
+  if (provider !== undefined && provider !== null && (typeof provider !== "string" || provider.length > 128)) throw changed("provider is not a provider name")
+  const annotations = top.get("annotations")
+  if (annotations !== undefined && annotations !== null && (!Array.isArray(annotations) || annotations.length > 256)) throw changed("annotations is not a bounded list")
   const truncatedTop = top.get("truncated")
   if (truncatedTop !== undefined && truncatedTop !== null && typeof truncatedTop !== "boolean") throw changed("truncated is not a boolean")
   const answers = top.get("answers")

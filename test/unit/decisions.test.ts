@@ -20,6 +20,13 @@ const QUESTIONS = {
   language: { type: "choice", prompt: "Which language?", options: [{ id: "en", description: "English" }, { id: "de", description: "German" }] },
 } as const
 const SET: QuestionSet = { questions: QUESTIONS as unknown as QuestionSet["questions"] }
+/** QUESTIONS as D1 documents them: what the request must carry. */
+const WIRE_QUESTIONS = {
+  kind: { type: "choice", instructions: "Which document category fits?", criteria: { invoice: "A request for payment", receipt: "Proof of payment", other: "Other" } },
+  paid: { type: "noul", instructions: "Has it been paid?" },
+  urgency: { type: "score", instructions: "How urgent?", criteria: ["low", "mid", "high"] },
+  language: { type: "choice", instructions: "Which language?", criteria: { en: "English", de: "German" } },
+}
 const noFiles = {} as FileAccess
 const text = (value = STATE) => snapshot({ kind: "text", text: value }, noFiles, JEV, new AbortController().signal)
 const prepared = (input: Record<string, unknown>, options: Options = {}) => decisionsAdapter.prepare!(DecideInput.parse({ model: "typesafe/jev-1.14", source: { kind: "text", text: STATE }, ...input }), loadConfig(options)) as PreparedDecision
@@ -36,14 +43,14 @@ const failure = async (work: Promise<unknown> | (() => unknown)) => {
 }
 
 describe("the request", () => {
-  test("is the documented wire shape; a versioned question set is resolved from the trusted options", async () => {
+  test("is the documented wire shape (D1): instructions, a choice's criteria by option id, a score's criteria in order; a question set is resolved", async () => {
     const built = decisionsAdapter.request(prepared({ questions: QUESTIONS }), await text(), JEV)
     expect(built.path).toBe(DECISIONS_PATH)
     const body = JSON.parse(new TextDecoder().decode(built.body))
-    expect(body).toEqual({ model: "typesafe/jev-1.14", state: STATE, questions: QUESTIONS, provider: { allow_fallbacks: false } })
+    expect(body).toEqual({ model: "typesafe/jev-1.14", state: STATE, questions: WIRE_QUESTIONS, provider: { allow_fallbacks: false } })
     const fromSet = prepared({ questionSet: "document-kind-v1" }, { questionSets: { "document-kind-v1": SET } })
     expect(fromSet.resolvedSet).toEqual({ name: "document-kind-v1", digest: questionSetDigest(SET) })
-    expect(JSON.parse(new TextDecoder().decode(decisionsAdapter.request(fromSet, await text(), JEV).body)).questions).toEqual(QUESTIONS)
+    expect(JSON.parse(new TextDecoder().decode(decisionsAdapter.request(fromSet, await text(), JEV).body)).questions).toEqual(WIRE_QUESTIONS)
   })
 
   test("unknown sets and profiles, Box, images, and an unreviewed or exceeded effective context are refused locally", async () => {
@@ -63,7 +70,7 @@ describe("the request", () => {
     const source = await text()
     // A limit without its allowance refuses: a server-side template could push the request past it.
     expect(await failure(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), source, { ...JEV, contextAllowance: null }))).toMatch(/^CONTEXT_LIMIT: typesafe\/jev-1.14 has no documented template allowance/)
-    const prompt = new TextEncoder().encode(JSON.stringify({ state: STATE, questions: QUESTIONS })).byteLength
+    const prompt = new TextEncoder().encode(JSON.stringify({ state: STATE, questions: WIRE_QUESTIONS })).byteLength
     // Fits exactly the limit net of the allowance; one token more of allowance and it does not.
     expect(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), source, { ...JEV, effectiveContextTokens: prompt + 100, contextAllowance: { tokens: 100, source: "test" } })).not.toThrow()
     expect(await failure(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), source, { ...JEV, effectiveContextTokens: prompt + 100, contextAllowance: { tokens: 101, source: "test" } }))).toMatch(/^CONTEXT_LIMIT: /)
@@ -83,7 +90,8 @@ describe("the answer", () => {
     expect(answers.paid.confidence).toBeUndefined()
     // A midpoint expectation with all its mass at the extremes keeps its distribution.
     expect(answers.urgency).toMatchObject({ type: "score", expectedIndex: "1", levels: ["low", "mid", "high"], distribution: { low: "0.5", mid: "0", high: "0.5" } })
-    expect(answers.language).toEqual({ type: "choice", refusal: { reason: "The text does not show its language reliably." }, acceptance: { disposition: "refused", reasons: ["REFUSED"] } })
+    // A refusal is `{ type: "refusal" }` (D1): its own outcome, with no reason because none is reported.
+    expect(answers.language).toEqual({ type: "choice", refusal: {}, acceptance: { disposition: "refused", reasons: ["REFUSED"] } })
     // review-first-v1 accepts nothing.
     for (const key of ["kind", "paid", "urgency"]) expect(answers[key].acceptance).toEqual({ disposition: "review", reasons: ["CALIBRATION_UNAVAILABLE"] })
     expect(result.review).toEqual({ required: true, reasons: ["CALIBRATION_UNAVAILABLE", "REFUSED"], profileVersion: "review-first-v1" })
@@ -115,7 +123,7 @@ describe("the answer", () => {
     expect(answers.answers.paid.acceptance).toEqual({ disposition: "accepted", outcome: false, reasons: [] })
     expect(answers.answers.kind.acceptance.disposition).toBe("review")
     // A truncated state is never accepted.
-    const truncated = (await parse(FIXTURE.replace('"object": "decision",', '"object": "decision", "truncated": true,'), input)).data as { answers: Record<string, any> }
+    const truncated = (await parse(FIXTURE.replace('"provider": "TypeSafe",', '"provider": "TypeSafe", "truncated": true,'), input)).data as { answers: Record<string, any> }
     expect(truncated.answers.paid.acceptance).toEqual({ disposition: "review", reasons: ["PROVIDER_TRUNCATED"] })
     // Ad-hoc questions are not the evaluated set: reviewed.
     const adhoc = prepared({ questions: QUESTIONS, acceptanceProfile: "document-kind-auto-v1" }, options)
@@ -125,28 +133,57 @@ describe("the answer", () => {
   test("anything that would need renormalising, rounding or guessing is a contract failure", async () => {
     const answers = JSON.parse(FIXTURE).answers
     const bad: [string, string][] = [
-      ["distribution over 1", withAnswers({ ...answers, kind: { choice: "invoice", distribution: { invoice: 0.8, receipt: 0.3 } } })],
-      ["unknown label", withAnswers({ ...answers, kind: { choice: "invoice", distribution: { invoice: 0.5, spam: 0.5 } } })],
-      ["choice not an option", withAnswers({ ...answers, kind: { choice: "spam" } })],
-      ["probability over 1", withAnswers({ ...answers, paid: { probability: 1.2 } })],
-      ["noul without probability", withAnswers({ ...answers, paid: { confidence: 0.9 } })],
-      ["score past the rubric", withAnswers({ ...answers, urgency: { score: 2.5 } })],
-      ["score off its own distribution", withAnswers({ ...answers, urgency: { score: 0.2, distribution: { low: 0.5, mid: 0, high: 0.5 } } })],
-      ["refusal with an answer", withAnswers({ ...answers, paid: { refusal: "no", probability: 0.5 } })],
+      ["probabilities over 1", withAnswers({ ...answers, kind: { type: "choice", choice: "invoice", probabilities: { invoice: 0.8, receipt: 0.3 } } })],
+      ["unknown label", withAnswers({ ...answers, kind: { type: "choice", choice: "invoice", probabilities: { invoice: 0.5, spam: 0.5 } } })],
+      ["choice not an option", withAnswers({ ...answers, kind: { type: "choice", choice: "spam" } })],
+      ["noul over 1", withAnswers({ ...answers, paid: { type: "noul", noul: 1.2 } })],
+      ["noul missing", withAnswers({ ...answers, paid: { type: "noul", confidence: 0.9 } })],
+      ["no type", withAnswers({ ...answers, paid: { noul: 0.5 } })],
+      ["another type", withAnswers({ ...answers, paid: { type: "choice", choice: "yes" } })],
+      ["score past the rubric", withAnswers({ ...answers, urgency: { type: "score", score: 2.5 } })],
+      ["score level past the rubric", withAnswers({ ...answers, urgency: { type: "score", score: 1, probabilities: { "3": 0.1 } } })],
+      ["score level by id, not index", withAnswers({ ...answers, urgency: { type: "score", score: 1, probabilities: { mid: 1 } } })],
+      ["score off its own distribution", withAnswers({ ...answers, urgency: { type: "score", score: 0.2, probabilities: { "0": 0.5, "1": 0, "2": 0.5 } } })],
+      ["refusal with an answer", withAnswers({ ...answers, paid: { type: "refusal", noul: 0.5 } })],
+      ["legend not an object", withAnswers({ ...answers, urgency: { type: "score", score: 1, legend: ["low"] } })],
+      ["annotations not a list", withAnswers(answers, { annotations: {} })],
       ["missing answer", withAnswers({ ...answers, paid: undefined })],
-      ["extra answer", withAnswers({ ...answers, extra: { probability: 0.5 } })],
+      ["extra answer", withAnswers({ ...answers, extra: { type: "noul", noul: 0.5 } })],
       ["another model", JSON.stringify({ model: "typesafe/jev-2", answers })],
       ["negative cost", withAnswers(answers, { usage: { cost: -1 } })],
     ]
     for (const [name, body] of bad) expect({ name, message: (await failure(parse(body))).slice(0, 26) }).toEqual({ name, message: "PROVIDER_CONTRACT_CHANGED:" })
     // An incomplete score distribution is kept, not completed.
-    const partial = (await parse(withAnswers({ ...answers, urgency: { score: 0.4, distribution: { low: 0.6 } } }))).data as { answers: Record<string, any> }
+    const partial = (await parse(withAnswers({ ...answers, urgency: { type: "score", score: 0.4, probabilities: { "0": 0.6 } } }))).data as { answers: Record<string, any> }
     expect(partial.answers.urgency.distribution).toEqual({ low: "0.6" })
+  })
+
+  test("the documented example answer (D1) is accepted, with its canonical slug, provider and score legend", async () => {
+    // The response example in OpenRouter's API reference, with this test's question keys.
+    const example = JSON.stringify({
+      answers: {
+        paid: { noul: 0.96, type: "noul" },
+        kind: { choice: "receipt", confidence: 0.75, probabilities: { invoice: 0, other: 0.16, receipt: 0.84 }, type: "choice" },
+        urgency: { confidence: 0.99, legend: { "0": "low", "1": "mid", "2": "high" }, probabilities: { "0": 0, "1": 0.01, "2": 0.99 }, score: 1.99, type: "score" },
+        language: { type: "refusal" },
+      },
+      id: "gen-dec-1789738314-X5e5eKGQdvR9rblyX250",
+      model: "typesafe/jev-1.14-20261014",
+      provider: "TypeSafe",
+      usage: { cost: 0.000019992, input_tokens: 476, output_tokens: 70 },
+    })
+    const result = await parse(example)
+    const answers = (result.data as { answers: Record<string, any> }).answers
+    expect(answers.paid).toMatchObject({ type: "noul", probability: "0.96" })
+    expect(answers.kind).toMatchObject({ type: "choice", choice: "receipt", distribution: { invoice: "0", other: "0.16", receipt: "0.84" }, confidence: "0.75" })
+    expect(answers.urgency).toMatchObject({ type: "score", expectedIndex: "1.99", levels: ["low", "mid", "high"], distribution: { low: "0", mid: "0.01", high: "0.99" } })
+    expect(result.usage).toEqual({ charges: [{ party: "platform", currency: "USD", amount: "0.000019992", basis: "reported" }], inputTokens: 476, outputTokens: 70, costStatus: "known" })
+    expect(result.coverage.warnings).toEqual([])
   })
 
   test("probabilities are the provider's exact decimals, never binary floats", async () => {
     const answers = JSON.parse(FIXTURE).answers
-    const body = withAnswers({ ...answers, paid: { probability: "__P__" }, kind: { choice: "invoice", distribution: { invoice: "__D__" } } })
+    const body = withAnswers({ ...answers, paid: { type: "noul", noul: "__P__" }, kind: { type: "choice", choice: "invoice", probabilities: { invoice: "__D__" } } })
       .replace('"__P__"', "0.1000000000000000055511151231257827")
       .replace('"__D__"', "1.5e-7")
     const exact = (await parse(body)).data as { answers: Record<string, any> }
@@ -155,7 +192,7 @@ describe("the answer", () => {
     expect(exact.answers.kind.distribution).toEqual({ invoice: "0.00000015" })
     expect(String(0.1000000000000000055511151231257827)).toBe("0.1")
     // Past 64 fractional digits is refused, never rounded.
-    expect((await failure(parse(withAnswers({ ...answers, paid: { probability: "__P__" } }).replace('"__P__"', `0.${"1".repeat(65)}`)))).slice(0, 26)).toBe("PROVIDER_CONTRACT_CHANGED:")
+    expect((await failure(parse(withAnswers({ ...answers, paid: { type: "noul", noul: "__P__" } }).replace('"__P__"', `0.${"1".repeat(65)}`)))).slice(0, 26)).toBe("PROVIDER_CONTRACT_CHANGED:")
   })
 })
 

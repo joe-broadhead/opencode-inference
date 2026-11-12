@@ -138,20 +138,24 @@ canary passes:
 
 ## Decisions
 
-`src/providers/openrouter/decisions.ts` is the alpha Decisions adapter, with a documentation-derived and unverified wire
-contract (`WIRE_REVISION`):
+`src/providers/openrouter/decisions.ts` is the alpha Decisions adapter. Its wire contract (`WIRE_REVISION`) follows
+OpenRouter's API reference (its OpenAPI `DecisionsRequest` and `DecisionsResponse`), adopted after the live canary
+refused the earlier, summary-derived request; no route is enabled until its canary passes:
 
-- **Request.** `model`, the text as `state`, named `questions` (noul with a prompt; choice with ordered `options`; score
-  with `levels` low to high) and `provider.allow_fallbacks: false`. A versioned `questionSet` comes only from the
+- **Request.** `model`, the text as `state`, named `questions` and `provider.allow_fallbacks: false`. Each question has
+  its `type` and `instructions` (the prompt); a choice has `criteria` mapping each option id to its description; a score
+  has `criteria`, the level descriptions in order, low to high. A versioned `questionSet` comes only from the
   trusted options, and its digest (labels, prompts and option order) travels with the result. Refused locally: Box
   (no reviewed region representation), images, an unknown set or profile, and a request that may not fit the route's
   effective context: the state and questions must fit its reviewed token limit, net of a documented template allowance
   (`contextAllowance`, with its source: a server-side prompt template adds tokens the request does not contain), counted
   as UTF-8 bytes (no tokenizer emits more tokens than bytes). An unreviewed limit or an undocumented allowance refuses,
   so the end of a long source is never cut off silently.
-- **Answer.** `{ probability }` for noul, `{ choice, distribution? }` for choice, `{ score, distribution? }` for score
-  (the expected zero-based index), each with an optional `confidence`, or `{ refusal }`. Probabilities must lie in 0..1;
-  a distribution must name only asked labels and total at most 1; a complete score distribution must agree with its
+- **Answer.** Each answer names its `type`: `{ type: "noul", noul }`, `{ type: "choice", choice, probabilities? }` keyed
+  by option id, `{ type: "score", score, probabilities?, legend? }` with `score` the expected zero-based level index and
+  `probabilities` keyed by level index (`"0"`, `"1"`, ...), each with an optional `confidence`, or `{ type: "refusal" }`.
+  `model` must be the route's model id or its reviewed canonical slug. Probabilities must lie in 0..1; `probabilities`
+  (stored as the result's `distribution`, by label) must name only asked labels and total at most 1; a complete score distribution must agree with its
   expected index. All are stored exactly as reported: never renormalised, rounded or completed, and an unreported label
   is absent, not 0. A refusal is its own outcome; a refusal that also answers is `PROVIDER_CONTRACT_CHANGED`.
 
