@@ -82,6 +82,8 @@ export async function npm(args: string[], cwd: string) {
 
 export interface HostInput {
   readonly options?: PluginOptions
+  /** The plugin to host instead of src/index.ts's, such as one built with test sources (a fixture, a loopback origin). */
+  readonly plugin?: Plugin.Plugin
   readonly config?: Record<string, unknown>
 }
 
@@ -122,10 +124,11 @@ export async function startHost(input: HostInput = {}): Promise<Host> {
   const { OpenCode } = (await import(pathToFileURL(join(SDK, "dist", "index.js")).href)) as typeof import("@opencode/sdk")
   const contexts = new Map<string, Plugin.Context>()
   const lifecycle = { setups: 0, cleanups: 0 }
+  const hosted = input.plugin ?? plugin
   const counted = Plugin.define({
-    id: plugin.id,
+    id: hosted.id,
     setup: async (ctx) => {
-      const cleanup = await plugin.setup({ ...ctx, options: input.options ?? {} })
+      const cleanup = await hosted.setup({ ...ctx, options: input.options ?? {} })
       lifecycle.setups++
       return async () => {
         await cleanup?.()

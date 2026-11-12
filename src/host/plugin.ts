@@ -32,6 +32,11 @@ export interface PluginSources {
   readonly now?: () => Date
   /** The private state folder for the operation journal; tests pass a temporary one. */
   readonly stateRoot?: string
+  /**
+   * The transport's origin; tests pass a loopback fake provider. createTransport refuses anything but OpenRouter itself
+   * or a loopback address, so this cannot point the key anywhere else.
+   */
+  readonly transportOrigin?: string
 }
 
 /**
@@ -112,7 +117,7 @@ export function createPlugin(sources: PluginSources): Plugin.Plugin {
           project: { id: ctx.location.project.id, directory: ctx.location.directory, worktree: ctx.location.project.directory },
           files,
           authorize: createAuthorize((input) => ctx.permission.assert(input)),
-          transport: createTransport(ctx.integration),
+          transport: createTransport(ctx.integration, sources.transportOrigin),
           journal: (scope) => {
             const journal = journals.get(scope) ?? new Journal(journalStore(journalDirectory(root, scope)), scope, sources.now)
             journals.set(scope, journal)
