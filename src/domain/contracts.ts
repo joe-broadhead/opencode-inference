@@ -314,6 +314,52 @@ export const ReadInput = z
   })
   .superRefine(oneRoute)
 
+// --- 5.4 Extraction data ---------------------------------------------------------------------------------------------
+
+/** Field-level review reasons. A reason is information for the caller, not an error. */
+export const FIELD_REVIEW = [
+  "FIELD_ABSENT",
+  "REQUIRED_FIELD_ABSENT",
+  "CONFIDENCE_MISSING",
+  "EVIDENCE_UNAVAILABLE",
+  "EVIDENCE_MISMATCH",
+  "VALIDATION_FAILED",
+  "PROVIDER_TRUNCATED",
+] as const
+
+const scalar = z.union([z.string().max(MAX_TEXT), z.number().finite()])
+const probability = z.number().finite().min(0).max(1)
+
+export const ExtractedField = z
+  .strictObject({
+    type: z.enum(FIELD_TYPES),
+    value: z
+      .union([scalar, z.array(z.string().max(MAX_TEXT)).max(256), z.null()])
+      .describe("The provider's answer, or null when the source does not state it. null is a result, never an error, and a guess never fills it."),
+    exact: z.string().max(64).optional().describe("A number exactly as the provider wrote it; `value` is its float for convenience. Use `exact` for money."),
+    derivation: z.enum(["extracted", "unknown"]).describe("extracted: located in the source by the provider; unknown: no value."),
+    confidence: probability.optional().describe("The provider's reported confidence. A model statistic, not calibrated accuracy. Absent when not reported, never 0."),
+    nullProbability: probability.optional().describe("The provider's reported probability that the source does not state the field."),
+    spellingConfidence: probability.optional(),
+    guess: z
+      .union([scalar, z.array(z.string().max(MAX_TEXT)).max(256)])
+      .optional()
+      .describe("A diagnostic guess for an absent field. Never the value; never use it as one."),
+    evidence: z.array(EvidenceRef).max(64).describe("Where the value was observed, in Unicode code points of the exact source text."),
+    items: z
+      .array(z.strictObject({ value: z.string().max(MAX_TEXT), evidence: z.array(EvidenceRef).max(16) }))
+      .max(256)
+      .optional()
+      .describe("For a list: each item with its own evidence. An item without a span keeps an empty list; offsets are never invented."),
+    review: z.array(z.enum(FIELD_REVIEW)).max(FIELD_REVIEW.length),
+  })
+  .describe("One extracted field: the nullable typed value with everything needed to judge it.")
+
+export const ExtractData = z.strictObject({ fields: z.record(Key, ExtractedField) }).describe("data of an extract result: one entry per requested field, by its key.")
+
+/** The extract tool's output: the common envelope around ExtractData. */
+export const ExtractResult = InferenceResult(ExtractData)
+
 // --- Registered tool inputs and outputs (PR 1) ---------------------------------------------------------------------
 
 export const StatusInput = z.strictObject({})
@@ -431,6 +477,7 @@ export const CONTRACTS = {
   EvidenceRef,
   Coverage,
   Usage,
+  ExtractData,
   InferenceResult: InferenceResult(z.unknown().describe("The operation's data: { fields } for extract, { answers } for decide.")),
   ExtractField,
   QuestionInput,

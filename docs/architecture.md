@@ -112,6 +112,7 @@ not provider wire schemas: an adapter maps them inside the adapter. Exported as 
 - `EvidenceRef`
 - `Coverage`
 - `Usage`
+- `ExtractData`
 - `InferenceResult`
 - `ExtractField`
 - `QuestionInput`
