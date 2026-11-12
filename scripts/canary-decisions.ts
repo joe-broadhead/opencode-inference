@@ -6,7 +6,9 @@
 //   catalog    GET /api/v1/models?endpoints=/api/alpha/decisions, without the key, and report drift (catalog.ts)
 //   text       one tiny request with a noul, a choice and a score question, validated by the adapter's strict schema
 //              (distributions kept as reported, refusal allowed)
-//   malformed  a choice question with a single option: OpenRouter should refuse it
+//   malformed  a choice question without its required `criteria` (canary-malformed.ts), which breaks the API reference's
+//              own schema: OpenRouter must refuse it with a 4xx. (A one-option choice is valid to the API: it was
+//              accepted and billed on 2026-11-12, so it is no malformed request.)
 //
 // The effective context cannot be measured cheaply here: the fixture's effectiveContextTokens stays as reviewed by a
 // person. Before each POST the spend so far plus the call's worst case must fit the budget; after it, the reported
@@ -23,6 +25,7 @@ import { decisionsAdapter } from "../src/providers/openrouter/decisions.js"
 import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
 import { snapshot, type FileAccess } from "../src/runtime/sources.js"
 import { canaryArgs } from "./canary-cli.js"
+import { BREAKS, malformedRequest } from "./canary-malformed.js"
 import { failureOf, shapeOf } from "./canary-shape.js"
 
 const CANARIES = ["catalog", "text", "malformed"] as const
@@ -64,14 +67,15 @@ for (const canary of ["text", "malformed"] as const) {
   const request =
     canary === "text"
       ? decisionsAdapter.request(input, source, route)
-      : { path: "/api/alpha/decisions", body: new TextEncoder().encode(JSON.stringify({ model: route.model, state: STATE, questions: { only: { type: "choice", instructions: "Which?", criteria: { one: "the only option" } } }, provider: { allow_fallbacks: false } })) }
+      : // Built by hand: the adapter cannot build a request its own contract and the API reference call invalid.
+        malformedRequest("decisions", route.model, STATE)
   if (!spend.canAfford()) {
     results.push({ canary, skipped: "the remaining budget cannot cover this call's worst case" })
     continue
   }
   if (dryRun) {
     spend.record(undefined)
-    results.push({ canary, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall), ...(shape ? { shape: "would record the answer's structure" } : {}) })
+    results.push({ canary, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall), ...(canary === "malformed" ? { breaks: BREAKS.decisions } : {}), ...(shape ? { shape: "would record the answer's structure" } : {}) })
     continue
   }
   const account = await transport.account()
@@ -86,7 +90,7 @@ for (const canary of ["text", "malformed"] as const) {
     const ok = response.status >= 200 && response.status <= 299
     if (canary === "malformed" || !ok) {
       const counted = spend.recordAnswer(answer)
-      results.push({ canary, status: response.status, passed: canary === "malformed" ? response.status >= 400 && response.status < 500 : false, counted, ...(structure ? { shape: structure } : {}) })
+      results.push({ canary, status: response.status, passed: canary === "malformed" ? response.status >= 400 && response.status < 500 : false, counted, ...(canary === "malformed" ? { breaks: BREAKS.decisions } : {}), ...(structure ? { shape: structure } : {}) })
       continue
     }
     const parsed = decisionsAdapter.parse(response, { source, route, input })
