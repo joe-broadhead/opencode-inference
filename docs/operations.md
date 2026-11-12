@@ -8,10 +8,11 @@ a call fails. The option reference is [configuration.md](configuration.md); the 
 
 ## Status of this version
 
-Every route is disabled until its compatibility canary has passed against the live API, and no route has a price.
-`inference_extract` and `inference_decide` are registered, validated and tested end to end against loopback fakes, but
-on a real install they refuse with `CAPABILITY_UNSUPPORTED` before reading a file, resolving the key or sending
-anything. Enabling a route is a reviewed change (see [Refreshing the fixture](#refreshing-the-fixture)).
+A route is enabled only after its compatibility canary has passed against the live API, with the reports and the wire
+revision it passed against recorded in the fixture, and its price taken from OpenRouter's public catalog.
+`inference_capabilities` lists which routes are enabled and what each takes. On a disabled route, `inference_extract`
+and `inference_decide` refuse with `CAPABILITY_UNSUPPORTED` before reading a file, resolving the key or sending
+anything. Enabling a route is a reviewed change, one route at a time (see [Refreshing the fixture](#refreshing-the-fixture)).
 
 ## Uncertainty
 
@@ -50,7 +51,7 @@ anything. Enabling a route is a reviewed change (see [Refreshing the fixture](#r
 - **What is sent:** to `https://openrouter.ai` only, the source's text (or one image or PDF), the field or question
   definitions, an extraction's `referenceDate` (as `reference_date`) when given, the model id and
   `provider.allow_fallbacks: false`, with the key in the `Authorization` header. Nothing
-  else leaves the machine, and nothing is sent at all while every route is disabled.
+  else leaves the machine, and nothing is sent to a disabled route.
 - **What the provider keeps** is the provider's policy, not this plugin's. `data.requireZdr: true` makes a route without
   documented zero data retention ineligible; `false` asserts nothing.
 - **What is kept locally:** the operation journal (a 0700 folder, a 0600 file) holds hashes, ids, the route, timing,
@@ -91,7 +92,7 @@ The Extractions and Decisions endpoints are alpha. Each adapter pins a wire revi
 
 | Code | What it usually means | What to do |
 | --- | --- | --- |
-| `CAPABILITY_UNSUPPORTED` | The route is disabled (every route, in this version), or the request needs something it does not take. | Read the message; check routes with `inference_capabilities` or `inference_plan`. Do not switch tools to get around it. |
+| `CAPABILITY_UNSUPPORTED` | The route is disabled, or the request needs something it does not take. | Read the message; check routes with `inference_capabilities` or `inference_plan`. Do not switch tools to get around it. |
 | `PRICE_UNKNOWN` | No price is known and the spend options require one. | Wait for a priced route, or change the trusted spend options deliberately. |
 | `BUDGET_EXCEEDED` | The reservation would pass the request, session or 24-hour budget. | Wait for the window, or raise the trusted limit. |
 | `AUTH_REQUIRED` / `AUTH_REJECTED` | No usable OpenRouter key for Inference. | `/connect` and choose OpenRouter for Inference. |

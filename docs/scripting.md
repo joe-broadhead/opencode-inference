@@ -87,8 +87,8 @@ and a decision takes questions, or a versioned `questionSet` from the trusted op
 }
 ```
 
-In this version both are refused with `CAPABILITY_UNSUPPORTED` before anything is read or sent, because every route is
-disabled. For a scheduled script, see the [Jobs recipe](jobs.md).
+On a disabled route either is refused with `CAPABILITY_UNSUPPORTED` before anything is read or sent;
+`inference_capabilities` lists the enabled routes. For a scheduled script, see the [Jobs recipe](jobs.md).
 
 ## Errors
 

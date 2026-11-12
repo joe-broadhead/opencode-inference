@@ -5,13 +5,15 @@ import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
 import { ExtractData, ExtractInput } from "../../src/domain/contracts.js"
 import { format, money, roundUp } from "../../src/domain/money.js"
-import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
+import { CLAIRIC_DOCUMENTED_IMAGES, OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
 import { EXTRACTIONS_PATH, extractionsAdapter, WIRE_REVISION } from "../../src/providers/openrouter/extractions.js"
 import { snapshot, type FileAccess, type Snapshot } from "../../src/runtime/sources.js"
 
 const STATE = "\u{1F4B6} Zoé 総額 EUR 120.00\r\nDue: none. Items: pens, ink"
 const FIXTURE = readFileSync(new URL("../fixtures/providers/openrouter-extractions/clairic-text.json", import.meta.url), "utf8")
 const CLAIRIC = OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "cloudflare/clairic")!
+/** Clairic with its documented image input, whatever the fixture enables: the adapter's image handling is tested here. */
+const CLAIRIC_IMAGES: RouteCapability = { ...CLAIRIC, inputs: { ...CLAIRIC.inputs, images: CLAIRIC_DOCUMENTED_IMAGES } }
 const SCALEDOWN = OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "scaledown/extract")!
 const sha = (text: string | Uint8Array) => createHash("sha256").update(text).digest("hex")
 const noFiles = {} as FileAccess
@@ -62,7 +64,7 @@ describe("the request", () => {
 
   test("a file is one documented asset (A2): a keyed map entry with type, format and data_base64, and no state", () => {
     const image = imageSource(16)
-    const body = JSON.parse(new TextDecoder().decode(extractionsAdapter.request(input({ name: { type: "text" } }), image, CLAIRIC).body))
+    const body = JSON.parse(new TextDecoder().decode(extractionsAdapter.request(input({ name: { type: "text" } }), image, CLAIRIC_IMAGES).body))
     expect(body.state).toBeUndefined()
     expect(body.assets).toEqual({ source: { type: "image", format: "png", data_base64: Buffer.from(new Uint8Array(16)).toString("base64") } })
     const pdf = { ...imageSource(16), modality: "pdf" as const, mimeType: "application/pdf" }
@@ -74,9 +76,9 @@ describe("the request", () => {
     const text = await textSource()
     refuse(() => extractionsAdapter.request(input({ names: { type: "list", items: "text", nullThreshold: 0.3 } }), text, CLAIRIC), "CAPABILITY_UNSUPPORTED")
     refuse(() => extractionsAdapter.request(input({ name: { type: "text", nullThreshold: 0.3 } }), text, SCALEDOWN), "CAPABILITY_UNSUPPORTED")
-    refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), imageSource(4 * 1024 * 1024 + 1), CLAIRIC), "SOURCE_LIMIT")
-    refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), imageSource(16), { ...CLAIRIC, inputs: { ...CLAIRIC.inputs, images: { ...CLAIRIC.inputs.images!, maxBytesEach: null, maxBytesTotal: 8 } } }), "SOURCE_LIMIT")
-    refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), imageSource(16, "image/gif"), CLAIRIC), "CAPABILITY_UNSUPPORTED")
+    refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), imageSource(4 * 1024 * 1024 + 1), CLAIRIC_IMAGES), "SOURCE_LIMIT")
+    refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), imageSource(16), { ...CLAIRIC_IMAGES, inputs: { ...CLAIRIC_IMAGES.inputs, images: { ...CLAIRIC_DOCUMENTED_IMAGES, maxBytesEach: null, maxBytesTotal: 8 } } }), "SOURCE_LIMIT")
+    refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), imageSource(16, "image/gif"), CLAIRIC_IMAGES), "CAPABILITY_UNSUPPORTED")
     refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), { ...imageSource(16), modality: "pdf", mimeType: "application/pdf" }, CLAIRIC), "CAPABILITY_UNSUPPORTED")
     refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), text, { ...CLAIRIC, maxRequestBytes: 100 }), "CONTEXT_LIMIT")
     // The schema keeps at most 6 decimals; a duration answer is a number in a unit this version's result cannot carry.
@@ -243,7 +245,7 @@ describe("the answer", () => {
     await contractFailure(parse(withAnswers(answers, { state_text: STATE.replace("EUR", "USD") })))
     await contractFailure(parse(withAnswers(answers, { state_text: `${STATE} ` })))
     // A file sent no text, so no state_text can be the text sent.
-    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", source: "image" } }, { state_text: "x" }), { name: { type: "text" } }, CLAIRIC, imageSource(16)))
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", source: "image" } }, { state_text: "x" }), { name: { type: "text" } }, CLAIRIC_IMAGES, imageSource(16)))
     // null is no state_text.
     expect((await parse(withAnswers(answers, { state_text: null }))).providerRequestId).toBeUndefined()
   })
@@ -251,19 +253,19 @@ describe("the answer", () => {
   test("image answers: read from the image, with no text span; a span or a state source is refused", async () => {
     const image = imageSource(16)
     const fields = { name: { type: "text" } }
-    const ok = await parse(withAnswers({ name: { type: "text", value: "x", confidence: 0.9, source: "image", spell_confidence: 0.8 } }), fields, CLAIRIC, image)
+    const ok = await parse(withAnswers({ name: { type: "text", value: "x", confidence: 0.9, source: "image", spell_confidence: 0.8 } }), fields, CLAIRIC_IMAGES, image)
     expect((ok.data as any).fields.name).toMatchObject({ evidence: [], spellingConfidence: 0.8, review: ["EVIDENCE_UNAVAILABLE"] })
     expect(ok.coverage).toMatchObject({ status: "unknown", basis: "native-file" })
-    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", span: [0, 1] } }), fields, CLAIRIC, image))
-    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", source: "state" } }), fields, CLAIRIC, image))
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", span: [0, 1] } }), fields, CLAIRIC_IMAGES, image))
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", source: "state" } }), fields, CLAIRIC_IMAGES, image))
   })
 })
 
 describe("the quote", () => {
-  const priced = (pricing: RouteCapability["pricing"]) => ({ ...CLAIRIC, pricing })
+  const priced = (pricing: RouteCapability["pricing"]) => ({ ...CLAIRIC_IMAGES, pricing })
   test("no price is unavailable; a per-request ceiling is an exact upper bound", async () => {
     const text = await textSource()
-    expect(extractionsAdapter.quote(CLAIRIC, text, input())).toEqual({ kind: "unavailable" })
+    expect(extractionsAdapter.quote(priced(null), text, input())).toEqual({ kind: "unavailable" })
     expect(extractionsAdapter.quote(priced({ revision: "t", currency: "USD", perRequest: "0.002", upperBound: true }), text, input())).toEqual({ kind: "upper_bound", amount: "0.002" })
     expect(extractionsAdapter.quote(priced({ revision: "t", currency: "USD", perRequest: "0.002", upperBound: false }), text, input())).toEqual({ kind: "estimate", amount: "0.002" })
   })

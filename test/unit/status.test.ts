@@ -6,7 +6,7 @@ import { StatusSchema, StatusSummarySchema } from "../../src/domain/status-schem
 import { connectionState } from "../../src/host/integration.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { buildStatus, keyRequired } from "../../src/host/status.js"
-import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
+import { OPENROUTER_CAPABILITIES, type CapabilityFixture } from "../../src/providers/openrouter/capabilities.js"
 import { AGENT_FIX, compactStatus, formatStatus, formatSummary, isStatus, NOTHING_TO_DO, STATUS_JSON_SCHEMA, statusLines } from "../../src/rpc.js"
 
 const host = { version: "2.2.3", range: ">=2.2.3 <2.3.0", tested: true }
@@ -47,9 +47,28 @@ describe("the status contract", () => {
   })
 })
 
+/** The committed fixture with every route disabled (and so unpriced), and with one route enabled (Sage, synthetic: never committed). */
+const DISABLED: CapabilityFixture = { ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route) => ({ ...route, enabled: false, pricing: null })) }
+const ONE_ENABLED = {
+  ...DISABLED,
+  routes: DISABLED.routes.map((route) =>
+    route.model === "levanto/sage-2"
+      ? { ...route, enabled: true, canary: { status: "passed" as const, on: "2026-11-12" }, pricing: { revision: "t", currency: "USD" as const, perRequest: "0.001", upperBound: true } }
+      : route,
+  ),
+}
+
 describe("the view", () => {
-  test("with no key: local only, nothing to do, and the key is optional because no route sends", async () => {
-    const view = await base()
+  test("with an enabled route and no key: the key is required, and connecting it is the next step", async () => {
+    const view = await base({ fixture: ONE_ENABLED })
+    expect(view).toMatchObject({ nextStep: "Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key.", connection: { state: "not_connected", required: true }, capabilities: { enabledRoutes: 1 } })
+    expect(keyRequired(loadConfig({}), ONE_ENABLED)).toBe(true)
+    // With the module that route serves turned off, the key is not needed again.
+    expect(keyRequired(loadConfig({ modules: { extractions: false } }), ONE_ENABLED)).toBe(false)
+  })
+
+  test("with no route enabled and no key: local only, nothing to do, and the key is optional because no route sends", async () => {
+    const view = await base({ fixture: DISABLED })
     expect(view).toMatchObject({
       state: "local_only",
       nextStep: NOTHING_TO_DO,
@@ -59,7 +78,7 @@ describe("the view", () => {
       spend: { currency: "USD", requestUsd: "0.05", sessionUsd: "1.00", rolling24hUsd: "5.00", tracking: "none" },
       operations: { tracking: "none" },
     })
-    expect(keyRequired(loadConfig({}), OPENROUTER_CAPABILITIES)).toBe(false)
+    expect(keyRequired(loadConfig({}), DISABLED)).toBe(false)
   })
 
   test("every module off is disabled", async () => {

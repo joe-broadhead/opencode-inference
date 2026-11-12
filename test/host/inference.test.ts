@@ -6,7 +6,14 @@ import { jsonSchemaOf, TOOL_NAMES, TOOLS } from "../../src/domain/registry.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { AGENT_FIX, Inference } from "../../src/rpc.js"
-import { cleanup, HOST_VERSION, startHost, until, type Host } from "./harness.js"
+import { createPlugin } from "../../src/host/plugin.js"
+import { OPENROUTER_CAPABILITIES, type CapabilityFixture } from "../../src/providers/openrouter/capabilities.js"
+import { cleanup, HOST_VERSION, REPO, startHost, until, type Host } from "./harness.js"
+
+// The host wiring, on the committed fixture with every route disabled and unpriced: what these tests check never depends
+// on which routes are on. The installed tarball, with the committed fixture as it is, is test/pack's.
+const DISABLED: CapabilityFixture = { ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route) => ({ ...route, enabled: false, pricing: null })) }
+const plugin = () => createPlugin({ packageRoot: REPO, fixture: DISABLED })
 
 setDefaultTimeout(300_000)
 afterAll(cleanup)
@@ -43,6 +50,7 @@ describe(`defaults on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
   const sessions: Record<string, string> = {}
   beforeAll(async () => {
     host = await startHost({
+      plugin: plugin(),
       config: { agents: { reviewer: { description: "Defined only in config", mode: "primary" }, locked: { permissions: [rule("inference_*", "deny")] }, careful: { permissions: [rule("inference_plan", "ask")] } } },
     })
     const create = async (agent: string) => (await host.client.session.create({ agent, location: host.location })).id
@@ -134,7 +142,7 @@ const status = await tools.inference.status({})
 seen.state = status.state`,
     )
     expect(seen).toEqual({ review: { likely: true, reasons: ["CALIBRATION_UNAVAILABLE"], profileVersion: "review-first-v1" }, coverage: "complete", quote: "unavailable", digest: "sha256:", state: "local_only" })
-    // extract is a Code Mode tool now; every route is disabled, so it is refused with that reason before anything is read.
+    // extract is a Code Mode tool; on a disabled route it is refused with that reason before anything is read.
     const refused = await codemode(host, sessions.build!, `try { await tools.inference.extract(${JSON.stringify(planInput.input)}) } catch (error) { seen.error = String(error.message ?? error) }`)
     expect(refused.error).toMatch(/CAPABILITY_UNSUPPORTED: cloudflare\/clairic is disabled in this version/)
     // A reserved operation is no Code Mode tool at all: the host refuses the program before it runs.
@@ -158,7 +166,7 @@ seen.state = status.state`,
 describe(`reload on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
   let host: Host
   beforeAll(async () => {
-    host = await startHost()
+    host = await startHost({ plugin: plugin() })
   })
   afterAll(() => host?.close())
 
@@ -186,7 +194,7 @@ describe(`reload on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
 describe(`access: ask-changes on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
   let host: Host
   beforeAll(async () => {
-    host = await startHost({ options: { access: "ask-changes" }, config: { agents: { reviewer: { description: "Defined only in config", mode: "primary" } } } })
+    host = await startHost({ plugin: plugin(), options: { access: "ask-changes" }, config: { agents: { reviewer: { description: "Defined only in config", mode: "primary" } } } })
   })
   afterAll(() => host?.close())
 

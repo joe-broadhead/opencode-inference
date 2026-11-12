@@ -5,7 +5,10 @@
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
+import { loadConfig } from "../../src/domain/config.js"
 import { TOOL_NAMES, TOOLS } from "../../src/domain/registry.js"
+import { keyRequired } from "../../src/host/status.js"
+import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { cleanup, npm, REPO, root, startStock, STOCK_VERSIONS, until, type Host } from "../host/harness.js"
@@ -130,7 +133,15 @@ for (const version of STOCK_VERSIONS)
 
     test("answers status, registers /inference-status and the /connect entry, and inserts the default rules", async () => {
       const status = await rpc(host, "inference.core", "status", {})
-      expect(status.value).toMatchObject({ version: manifest.version, state: "local_only", nextStep: "Nothing to do.", host: { version, range: ">=2.2.3 <2.3.0", tested: true }, connection: { state: "not_connected" } })
+      // The committed fixture as installed: with an enabled route the key is needed, and connecting it is the next step.
+      const required = keyRequired(loadConfig({}), OPENROUTER_CAPABILITIES)
+      expect(status.value).toMatchObject({
+        version: manifest.version,
+        state: required ? "sign_in_required" : "local_only",
+        nextStep: required ? "Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key." : "Nothing to do.",
+        host: { version, range: ">=2.2.3 <2.3.0", tested: true },
+        connection: { state: "not_connected", required },
+      })
       const { data: commands } = await host.client.command.list({ location: host.location })
       expect(commands.map((command) => command.name)).toContain("inference-status")
       // The packaged skills load from the installed tarball.
@@ -149,12 +160,15 @@ for (const version of STOCK_VERSIONS)
       const session = async (agent: string) => (await host.client.session.create({ agent, location: host.location })).id
       const input = { task: "extract", input: { source: { kind: "text", text: "Total EUR 120.00" }, profile: "extract-typed", fields: { total: { type: "number" } } } }
       const planned = await rpc(host, TOOLS_RPC_ID, "plan", { sessionID: await session("build"), input })
-      expect(planned.value).toMatchObject({ task: "extract", execution: { available: false }, quote: { kind: "unavailable" } })
+      const enabled = (model: string) => OPENROUTER_CAPABILITIES.routes.find((route) => route.model === model)!.enabled
+      expect(planned.value).toMatchObject({ task: "extract", route: { status: enabled("cloudflare/clairic") ? "eligible" : "ineligible" } })
       expect(await rpc(host, TOOLS_RPC_ID, "plan", { sessionID: await session("locked"), input })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
-      // The built extract runs as a session and refuses the disabled route before reading the key or sending.
-      expect(await rpc(host, TOOLS_RPC_ID, "extract", { sessionID: await session("build"), input: input.input })).toMatchObject({ type: "failed", code: "CAPABILITY_UNSUPPORTED" })
+      // The built extract and decide run as a session and stop before reading the key or sending: an enabled route at
+      // the missing key, a disabled one at the route.
+      const stop = (model: string) => (enabled(model) ? "AUTH_REQUIRED" : "CAPABILITY_UNSUPPORTED")
+      expect(await rpc(host, TOOLS_RPC_ID, "extract", { sessionID: await session("build"), input: input.input })).toMatchObject({ type: "failed", code: stop("cloudflare/clairic") })
       const decide = { source: { kind: "text", text: "Paid in full." }, profile: "decide-text", questions: { paid: { type: "noul", prompt: "Paid?" } } }
-      expect(await rpc(host, TOOLS_RPC_ID, "decide", { sessionID: await session("build"), input: decide })).toMatchObject({ type: "failed", code: "CAPABILITY_UNSUPPORTED" })
+      expect(await rpc(host, TOOLS_RPC_ID, "decide", { sessionID: await session("build"), input: decide })).toMatchObject({ type: "failed", code: stop("typesafe/jev-1.14") })
       await until("the server log is written", async () => host.log !== undefined)
     })
   })

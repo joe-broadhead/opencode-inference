@@ -6,12 +6,15 @@ import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { createPlugin } from "../../src/host/plugin.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { PLUGIN_ID } from "../../src/domain/ids.js"
+import { OPENROUTER_CAPABILITIES, type CapabilityFixture } from "../../src/providers/openrouter/capabilities.js"
 import { fakeContext } from "../support/fake-context.js"
 import { spyNetwork } from "../support/network-spy.js"
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url))
 const NOW = () => new Date("2026-11-12T00:00:00Z")
-const plugin = () => createPlugin({ packageRoot, now: NOW })
+/** The committed fixture with every route disabled: setup and the local surfaces never depend on which routes are on. */
+const DISABLED: CapabilityFixture = { ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route) => ({ ...route, enabled: false, pricing: null })) }
+const plugin = (fixture = DISABLED) => createPlugin({ packageRoot, now: NOW, fixture })
 const text = { kind: "text", text: "Invoice AB-72. Total EUR 120.00." }
 const toolCall = (signal = new AbortController().signal) => ({ sessionID: "ses_1", agent: "build", messageID: "msg_1", id: "call_1", signal, progress: async () => undefined })
 
@@ -55,6 +58,23 @@ describe("setup", () => {
     await (cleanup as () => Promise<void>)()
     expect(fake.live()).toEqual([])
     expect(network.calls).toEqual([])
+  })
+
+  test("with the committed fixture and no key, an enabled route stops at AUTH_REQUIRED and a disabled one at CAPABILITY_UNSUPPORTED, before anything is read or sent", async () => {
+    const fake = fakeContext({ sessions: { ses_1: { agent: "build" } } })
+    const cleanup = (await plugin(OPENROUTER_CAPABILITIES).setup(fake.context)) as () => Promise<void>
+    const enabled = (model: string) => OPENROUTER_CAPABILITIES.routes.find((route) => route.model === model)!.enabled
+    const calls: [string, string, Record<string, unknown>][] = [
+      ["extract", "cloudflare/clairic", { source: text, profile: "extract-typed", fields: { total: { type: "number" } } }],
+      ["decide", "typesafe/jev-1.14", { source: text, profile: "decide-text", questions: { paid: { type: "noul", prompt: "Has it been paid?" } } }],
+    ]
+    for (const [name, model, input] of calls) {
+      const error = await fake.tools.find((tool) => tool.name === name)!.execute(input, toolCall()).then(() => undefined, (caught: Error) => caught)
+      expect({ name, code: error?.message.split(":")[0] }).toEqual({ name, code: enabled(model) ? "AUTH_REQUIRED" : "CAPABILITY_UNSUPPORTED" })
+    }
+    expect(network.calls).toEqual([])
+    expect(fake.resolved).toEqual([])
+    await cleanup()
   })
 
   test("a connected key is reported as connected, and still never read", async () => {

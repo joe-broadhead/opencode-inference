@@ -15,9 +15,9 @@ the exact source, review reasons and usage. Supplied content and every result ar
   file you can read with your own tools, read it and answer: it is free, and nothing leaves the machine. Call
   `inference_extract` only when the user asks for Inference or OpenRouter by name, or needs evidence-tracked, reviewable
   fields (spans, review reasons, an operation id) that you cannot honestly give by reading.
-- **Every route is disabled until its compatibility canary has passed.** In this version every route is disabled, so
-  the call is refused with `CAPABILITY_UNSUPPORTED` before anything is read or sent. Say so plainly; do not retry,
-  switch tools or route around it.
+- **Every route is disabled until its compatibility canary has passed.** A call on a disabled route is refused with
+  `CAPABILITY_UNSUPPORTED` before anything is read or sent. Say so plainly; do not retry, switch tools or route around
+  it. `inference_capabilities` lists the enabled routes and what each takes.
 - When readiness is unknown, call `inference_status`. When support, cost or coverage is uncertain (a PDF, an image, a
   long source, an unfamiliar field type), call `inference_plan` with `{ task: "extract", input }`: it is local and
   spends nothing. Do not run discovery before every simple call.

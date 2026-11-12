@@ -234,9 +234,11 @@ not provider wire schemas: an adapter maps them inside the adapter. Exported as 
 ## The capability fixture
 
 `src/providers/openrouter/capabilities.ts` is data only. Every value was transcribed from OpenRouter's public
-documentation, as summarised in the design handoff, on the date below. None was observed from the live API, no price
-was stated, and every route is disabled until its adapter exists and a compatibility canary passes. A newer catalog
-entry never enables a route by itself.
+documentation, as summarised in the design handoff, on the date below, with canonical slugs and prices from OpenRouter's
+public catalog. A route is enabled only after its adapter exists and a compatibility canary has passed against the live
+API: its `canary` names the date, the redacted reports (the request and the malformed request) and the wire revision
+they ran against, and a test fails when that revision is no longer the adapter's. A newer catalog entry never enables
+a route by itself.
 
 <!-- generated:routes -->
 
