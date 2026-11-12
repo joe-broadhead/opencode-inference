@@ -1,0 +1,284 @@
+{
+  "name": "@joe-broadhead/opencode-utilities",
+  "version": "0.0.0",
+  "description": "Unofficial OpenCode plugin: weather, time, polled timers and local speech tools",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "utilities"
+  ],
+  "homepage": "https://github.com/joe-broadhead/opencode-utilities#readme",
+  "bugs": {
+    "url": "https://github.com/joe-broadhead/opencode-utilities/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joe-broadhead/opencode-utilities.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js",
+    "./icon.svg": "./assets/icon.svg",
+    "./icon-128.png": "./assets/icon-128.png",
+    "./icon-256.png": "./assets/icon-256.png"
+  },
+  "files": [
+    "dist",
+    "assets/icon.svg",
+    "assets/icon-128.png",
+    "assets/icon-256.png",
+    "skills",
+    "manifest",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md"
+  ],
+  "opencode": {
+    "host": ">=2.2.3 <2.3.0",
+    "icons": [
+      {
+        "src": "assets/icon.svg",
+        "mimeType": "image/svg+xml",
+        "sizes": [
+          "any"
+        ]
+      },
+      {
+        "src": "assets/icon-128.png",
+        "mimeType": "image/png",
+        "sizes": [
+          "128x128"
+        ]
+      },
+      {
+        "src": "assets/icon-256.png",
+        "mimeType": "image/png",
+        "sizes": [
+          "256x256"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --maxWorkers=2",
+    "test:host": "node scripts/host-tests.mjs",
+    "test:tui": "bun test test/tui",
+    "test:pack": "bun test test/pack",
+    "drift": "bun scripts/drift.mjs",
+    "lint": "node scripts/check-forbidden.mjs && node scripts/check-copies.mjs && node scripts/check-icons.mjs && node scripts/check-workflows.mjs",
+    "native:build": "bash scripts/native-build.sh",
+    "native:ensure": "node scripts/native-ensure.mjs",
+    "speech:manifest": "node scripts/speech-manifest.mjs",
+    "check": "npm run native:ensure && npm run typecheck && npm test && npm run build && npm run test:host && npm run test:tui && npm run lint && npm run test:pack"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-typescript": "7.27.1",
+    "@opencode/plugin": "2.2.3",
+    "@opencode/sdk": "2.2.3",
+    "@opencode/util": "2.2.3",
+    "@opentui/core": "0.8.0",
+    "@opentui/solid": "0.8.0",
+    "@types/bun": "1.4.4",
+    "babel-preset-solid": "1.9.16",
+    "esbuild": "0.28.2",
+    "solid-js": "1.9.18",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5",
+    "zod": "4.6.7"
+  },
+  "jelly": {
+    "title": "Utilities",
+    "summary": "Time zones, holidays, timers, weather and on-device speech.",
+    "icon": "assets/icon.svg",
+    "tools": [
+      {
+        "name": "utilities.status",
+        "permission": "utilities_status",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_now",
+        "permission": "utilities_time_now",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_zones",
+        "permission": "utilities_time_zones",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_zone_info",
+        "permission": "utilities_time_zone_info",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_convert",
+        "permission": "utilities_time_convert",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_calendar",
+        "permission": "utilities_time_calendar",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_add",
+        "permission": "utilities_time_add",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_between",
+        "permission": "utilities_time_between",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_format",
+        "permission": "utilities_time_format",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_holidays",
+        "permission": "utilities_time_holidays",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.time_business_days",
+        "permission": "utilities_time_business_days",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.timer_set",
+        "permission": "utilities_timer_set",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "utilities.timer_get",
+        "permission": "utilities_timer_get",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.timer_list",
+        "permission": "utilities_timer_list",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.timer_check",
+        "permission": "utilities_timer_check",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.timer_delete",
+        "permission": "utilities_timer_delete",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "utilities.weather_geocode",
+        "permission": "utilities_weather_geocode",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.weather_current",
+        "permission": "utilities_weather_current",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.weather_daily",
+        "permission": "utilities_weather_daily",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.weather_hourly",
+        "permission": "utilities_weather_hourly",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.weather_demand_signal",
+        "permission": "utilities_weather_demand_signal",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.weather_summary",
+        "permission": "utilities_weather_summary",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.speech_transcribe",
+        "permission": "utilities_speech_transcribe",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "utilities.speech_synthesize",
+        "permission": "utilities_speech_synthesize",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "utilities.speech_download",
+        "permission": "utilities_speech_download",
+        "effect": "allow",
+        "readOnly": false
+      }
+    ],
+    "skills": [
+      "utilities-time",
+      "utilities-weather",
+      "utilities-speech"
+    ],
+    "rpc": [],
+    "views": [],
+    "signIns": [
+      {
+        "id": "open-meteo",
+        "label": "Open-Meteo",
+        "integration": "open-meteo",
+        "required": false,
+        "help": {
+          "url": "https://open-meteo.com/en/pricing",
+          "label": "Commercial use needs a key from Open-Meteo"
+        }
+      }
+    ],
+    "contributes": {
+      "homeFeeds": [],
+      "homeWidgets": [],
+      "workKinds": [],
+      "settings": [
+        {
+          "key": "access",
+          "label": "Access",
+          "type": "string",
+          "default": "all",
+          "description": "all, ask-changes or read-only. Generates default rules for agents with a base allow rule."
+        }
+      ]
+    }
+  }
+}

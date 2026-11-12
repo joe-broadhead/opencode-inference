@@ -10,12 +10,13 @@ import { spawn, spawnSync } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { cpSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { createServer, type AddressInfo, type Server, type Socket } from "node:net"
-import { tmpdir, userInfo } from "node:os"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { OpenCode as Client, type OpenCodeClient } from "@opencode/client"
 import { Plugin, type PluginOptions } from "@opencode/plugin"
 import plugin from "../../src/index.js"
+import { familyProblems } from "../support/family.js"
 import { TESTED_HOSTS } from "../../src/host/versions.js"
 
 export const REPO = fileURLToPath(new URL("../../", import.meta.url))
@@ -26,7 +27,6 @@ for (let parent = dirname(root); ; parent = dirname(parent)) {
   if (parent === dirname(parent)) break
 }
 
-const FAMILY_PACKAGES = { jobs: process.env.INFERENCE_TEST_JOBS_PACKAGE, utilities: process.env.INFERENCE_TEST_UTILITIES_PACKAGE }
 const GIVEN_BINARIES = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("OPENCODE_BIN_")))
 
 export function isolatedEnv(home: string): Record<string, string> {
@@ -285,37 +285,23 @@ export function cleanup() {
   rmSync(root, { recursive: true, force: true })
 }
 
+/** The vendored family plugins (test/fixtures/family/README.md): the released version of each. */
+export const FAMILY_VERSIONS = { jobs: "0.0.0", utilities: "0.0.0" } as const
+
 /**
- * A released family plugin, such as Jobs or Utilities, loaded from its committed dist/. Found in this order: the folder
- * in INFERENCE_TEST_<NAME>_PACKAGE; the copy OpenCode itself installed from GitHub in its package cache under the
- * user's real home; else installed now from GitHub at its v0.0.0 tag (as CI does), into the temp root.
+ * A released family plugin, Jobs or Utilities, loaded from its vendored, digest-checked copy in
+ * test/fixtures/family/<name>@<version>/. Never the network, never the user's home. Its dist/ imports only the
+ * host-provided @opencode/plugin, so a copy is staged in the temp root where that resolves to this repository's.
  */
 export async function familyPlugin(name: "jobs" | "utilities"): Promise<Plugin.Plugin> {
-  const given = FAMILY_PACKAGES[name]
-  let dir = given && existsSync(join(given, "dist", "index.js")) ? given : undefined
-  if (!dir) {
-    const cache = join(userInfo().homedir, ".cache", "opencode", "npm")
-    const installs = existsSync(cache) ? readdirSync(cache).filter((entry) => entry.startsWith(`git-opencode-${name}-`)) : []
-    const found = installs
-      .flatMap((install) => readdirSync(join(cache, install)).map((stamp) => join(cache, install, stamp, "node_modules", "@joe-broadhead", `opencode-${name}`)))
-      .filter((candidate) => existsSync(join(candidate, "dist", "index.js")))
-      .sort()
-    dir = found.at(-1)
-  }
-  if (!dir) {
-    const project = join(root, `family-${name}`)
-    mkdirSync(project, { recursive: true })
-    writeFileSync(join(project, "package.json"), JSON.stringify({ private: true }))
-    await npm(["install", "--ignore-scripts", `github:joe-broadhead/opencode-${name}#v0.0.0`], project)
-    dir = join(project, "node_modules", "@joe-broadhead", `opencode-${name}`)
-  }
-  // The released dist imports only the host-provided @opencode/plugin. Stage a copy where that resolves to this
-  // repository's pinned copy, the one this plugin uses in the same process.
+  const dir = join(REPO, "test", "fixtures", "family", `${name}@${FAMILY_VERSIONS[name]}`)
+  const problems = familyProblems(dir)
+  if (problems.length) throw new Error(`the vendored ${name} plugin is not the released one: ${problems.join("; ")}`)
   const staged = join(root, "family", name)
   const target = join(staged, "node_modules", "@joe-broadhead", `opencode-${name}`)
   if (!existsSync(target)) {
     mkdirSync(join(staged, "node_modules"), { recursive: true })
-    cpSync(dir, target, { recursive: true, dereference: true })
+    cpSync(dir, target, { recursive: true })
     symlinkSync(join(REPO, "node_modules", "@opencode"), join(staged, "node_modules", "@opencode"), "dir")
   }
   return ((await import(pathToFileURL(join(target, "dist", "index.js")).href)) as { default: Plugin.Plugin }).default

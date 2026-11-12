@@ -24,7 +24,10 @@ const text = file => {
   return bytes.subarray(0, 8192).includes(0) ? undefined : bytes.toString("utf8")
 }
 const code = /\.(?:[cm]?[jt]s|tsx)$/
-const source = tracked.filter(file => code.test(file) && /^(?:src|test|scripts)\//.test(file))
+// Vendored release files (test/fixtures/family/, each checked against its committed FILES.sha256 by the tests) are not
+// first-party code: the rules below are for this repository's own source.
+const VENDORED = /^test\/fixtures\/family\//
+const source = tracked.filter(file => code.test(file) && /^(?:src|test|scripts)\//.test(file) && !VENDORED.test(file))
 const dist = walk("dist")
 const built = dist.filter(file => /\.js$/.test(file))
 

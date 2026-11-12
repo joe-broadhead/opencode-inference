@@ -31,7 +31,9 @@ a callable stub, a method or a permission rule.
   registered per module (`src/host/skills.ts`); a missing or malformed one is skipped with `SKILLS_INVALID` in status,
   never a setup failure. `test/unit/docs.test.ts` fails when a doc or skill names an unregistered tool, method or code,
   or a tagged example (`<!-- example: <tool> -->`) stops parsing; `test/host/jobs.test.ts` runs docs/jobs.md's script
-  and manifest through the released Jobs plugin. Keep both green by changing the docs with the code.
+  and manifest through the released Jobs and Utilities plugins, vendored in `test/fixtures/family/` and checked against
+  their committed `FILES.sha256` (never fetched by a test; the lint does not apply first-party rules to them). Keep both
+  green by changing the docs with the code.
 - **The canaries** (`scripts/canary-extractions.ts`, `scripts/canary-decisions.ts`) spend money: never run them from a
   check, CI or a test except their refusals and `--dry-run`. They never edit the fixture.
 
