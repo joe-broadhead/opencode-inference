@@ -7,9 +7,12 @@ is the contract for options, permissions and errors. [docs/architecture.md](docs
 
 ## Scope of this version
 
-The shell, the registry, status and the local planner (handoff PR 1). Registered tools: `status`, `capabilities`,
-`plan`, all class `read`, all strictly local. Do not register `extract`, `decide` or `read` until they work: a reserved
-name lives in `PLANNED` (src/domain/registry.ts), never as a callable stub, a method or a permission rule.
+The shell, the registry, status and the local planner (handoff PR 1), plus the operation runtime (handoff PR 2):
+sources and snapshots, the transport boundary, the operation journal, reservations and settlement, wired into the one
+dispatcher. Registered tools: `status`, `capabilities`, `plan`, all class `read`, all strictly local. Do not register
+`extract`, `decide` or `read` until they work: a reserved name lives in `PLANNED` (src/domain/registry.ts), never as a
+callable stub, a method or a permission rule. The pipeline is tested with a test-only operation and a fake transport;
+the first provider adapter goes into `ADAPTERS` (src/host/plugin.ts) with its registry entry.
 
 ## Design
 
@@ -36,9 +39,32 @@ name lives in `PLANNED` (src/domain/registry.ts), never as a callable stub, a me
 - **Plain assert.** `ctx.permission.assert(input)` with one argument, raced locally against the signal and fenced after
   it settles (`createAuthorize`). Host permission errors propagate unchanged.
 - **Cloud inference is `send`.** It transmits content and can spend. A model's answer never grants a permission.
-- **No network in this version.** `npm run lint` refuses `fetch`, `node:http(s)`, `node:net`, `node:tls` and
-  `connection.resolve(` anywhere in `src/` except `src/providers/<provider>/http.ts`, the future transport boundary.
-  Tests spy every network path and assert zero calls from setup, status, capabilities and plan.
+- **The transport boundary.** `src/providers/openrouter/http.ts` is the only file that may reach the network or read
+  the key. It builds each request URL from its validated origin string and an exact reviewed path, so no change to a
+  built-in can widen either. `npm run lint` enforces the boundary with the TypeScript compiler API
+  (`scripts/check-network.mjs`, whose header lists every rule): modules are an allow-list (relative paths inside `src/`,
+  `node:crypto`, `node:fs`, `node:fs/promises`, `node:os`, `node:path`, `node:url`, `zod`, `@opencode/plugin` and its
+  used subpaths, `solid-js`); `eval`, `Function`, prototype and property-definition routes, network globals, loader
+  escapes, `process` beyond `env`/`pid`/`platform`/`cwd`/`kill`, and computed keys the type checker cannot prove safe
+  are refused; the host connection API may only be called as `….connection.<method>(…)` with a method that is not
+  `resolve`. `dist/` may hold only sections from `src/` and inlined zod. What the lint guarantees: no accidental or
+  casual network or key access outside `http.ts`. What it does not: deliberate obfuscation (the integration object
+  passed through function arguments, `Object.entries`, a name hidden in data) can get past any static check; code
+  review and the runtime network spy are the backstop. Known false positives (any `x.connection` kept as a value, the
+  strings `"resolve"`/`"constructor"`, `Reflect.*`, a lookup by a wide `string` key, a variable named `self`): read
+  members directly, use a Map, rename, or use the plain operation; a new builtin or package is added to the allow-list
+  in its own reviewed change.
+  Tests spy every network path (`test/support/network-spy.ts`) and assert zero calls from setup, status, capabilities,
+  plan and every refused operation; transport tests use loopback servers only.
+- **Operations.** A non-read tool runs the ordered pipeline in `src/runtime/operation.ts` (handoff §7): trusted route,
+  metadata-only source identification, the host's file assertion, a descriptor read into an immutable snapshot,
+  re-validation, a reservation persisted with the `planned` record, `dispatching` persisted, transport, strict
+  validation, settlement. `src/domain` and `src/runtime` import no `fs`: file access is `src/host/files.ts` and
+  `src/host/journal-store.ts` behind the runtime's `FileAccess` and `JournalStore` interfaces.
+- **The journal.** Private, one per OpenRouter connection on this machine. A process mutex and an exclusive lock file;
+  a held lock is never taken over on a timer. `submission_unknown` keeps its reservation and is never resubmitted.
+  Money is exact decimal (src/domain/money.ts), never a float; credits are never added to dollars. The spend defaults
+  are the handoff's proposals, not confirmed numbers.
 - **The key.** The plugin owns the `inference-openrouter` key integration through `ctx.integration.transform`. Status
   reports only connected / not connected / needs sign-in / unknown, never the key. Keys are never options.
 - **The fixture.** `src/providers/openrouter/capabilities.ts` is dated and documentation-derived. Every route stays

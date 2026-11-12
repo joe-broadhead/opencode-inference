@@ -2,7 +2,7 @@ import type { Plugin } from "@opencode/plugin"
 import { Error as ToolError } from "@opencode/plugin/promise/tool"
 import { isFailure } from "../domain/errors.js"
 import { NAMESPACE } from "../domain/ids.js"
-import { actionOf, NAMESPACE_DESCRIPTION, TOOLS } from "../domain/registry.js"
+import { actionOf, NAMESPACE_DESCRIPTION, TOOLS, type ToolSpec } from "../domain/registry.js"
 import type { RunTool } from "../runtime/dispatch.js"
 
 type ToolEditor = Parameters<Parameters<Plugin.Context["tool"]["transform"]>[0]>[0]
@@ -22,10 +22,10 @@ export async function mapFailures<T>(work: () => Promise<T>) {
  * dispatcher, so the model path and the tools RPC run the same checks. The transform is synchronous and replayed on
  * every rebuild.
  */
-export function toolTransform(runTool: RunTool, registrable: (name: string) => boolean = () => true) {
+export function toolTransform(runTool: RunTool, registrable: (name: string) => boolean = () => true, tools: readonly ToolSpec[] = TOOLS) {
   return (editor: ToolEditor) => {
     editor.namespace({ name: NAMESPACE, description: NAMESPACE_DESCRIPTION })
-    for (const tool of TOOLS) {
+    for (const tool of tools) {
       if (!registrable(tool.name)) continue
       editor.add({
         name: tool.name,

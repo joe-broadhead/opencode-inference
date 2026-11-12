@@ -1,7 +1,7 @@
 import type { Plugin } from "@opencode/plugin"
 import { fence, InferenceError } from "../domain/errors.js"
 import { NAMESPACE_ACTION, type Access, type Rule } from "../domain/ids.js"
-import { actionOf, PLANNED, TOOLS } from "../domain/registry.js"
+import { actionOf, PLANNED, TOOLS, type ToolSpec } from "../domain/registry.js"
 
 // The family default-rule block, generated from the registry's classes and the `access` option, and inserted directly
 // after each agent's base `* * allow`, so the agent's own stricter rules, the user's rules and saved approvals still win.
@@ -63,16 +63,20 @@ const wildcard = (pattern: string) => new RegExp(`^${pattern.replace(/[.+^${}()|
 export const evaluate = (permissions: readonly Rule[], action: string): Rule["effect"] =>
   permissions.findLast((item) => wildcard(item.action).test(action) && wildcard(item.resource).test("*"))?.effect ?? "ask"
 
+/** Every action that is not a read: each registered non-read tool and each planned operation. */
+export const guardedActions = (tools: readonly ToolSpec[] = TOOLS) => [...new Set([...tools.filter((tool) => tool.class !== "read").map((tool) => actionOf(tool.name)), ...PLANNED.map((operation) => operation.tool)])]
+
 /**
  * Agents where the block never arrived (config-only agents, agents added by later plugins) and whose own rules would
- * run a send without asking. At `all` nothing is held back, so none is listed. The probes are the planned send actions.
+ * run a non-read action without asking. At `all` nothing is held back, so none is listed. The probes are every
+ * non-read action, registered or planned.
  */
-export const unguardedAgents = (agents: readonly { readonly id: string; readonly permissions: readonly Rule[] }[], access: Access = "all") =>
+export const unguardedAgents = (agents: readonly { readonly id: string; readonly permissions: readonly Rule[] }[], access: Access = "all", actions: readonly string[] = guardedActions()) =>
   access === "all"
     ? []
     : agents
         .filter((agent) => agent.permissions.some((item) => same(item, BASE_ALLOW)) && !hasDefaultRules(agent.permissions, access))
-        .filter((agent) => PLANNED.some((operation) => evaluate(agent.permissions, operation.tool) === "allow"))
+        .filter((agent) => actions.some((action) => evaluate(agent.permissions, action) === "allow"))
         .map((agent) => agent.id)
 
 // --- The one-argument assert, for the effects a later release asserts (file reads, sends) -------------------------

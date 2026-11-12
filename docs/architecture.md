@@ -32,17 +32,25 @@ src/domain/                      zod contracts and pure logic, no host
   capabilities.ts                the capabilities answer
   status-schema.ts               the status view's zod schema (server only)
   errors.ts                      CODE: what happened. Next step: …
+  money.ts                       exact decimal money (10^-12 units, never floats)
 src/providers/openrouter/
   capabilities.ts                the dated, documentation-derived capability fixture (data only)
+  http.ts                        the transport boundary: the only fetch and the only key read
 src/runtime/
   dispatch.ts                    the one dispatcher both host surfaces call
   handlers.ts                    status, capabilities and plan
+  operation.ts                   the ordered operation pipeline and the provider adapter interface
+  sources.ts                     source identification, permission requests, snapshots (policy; no fs)
+  budget.ts                      reservations and admission at the request, session and 24-hour scopes
+  journal.ts                     the operation journal: records, states, recovery, the process mutex
 src/host/                        everything that touches the host
   plugin.ts                      setup, the cleanup stack, failure cleanup
   tools.ts                       the registry projected onto the model's tools
   scripting.ts                   the registry projected onto the tools RPC
   tools-rpc.ts                   the family's shared tools RPC (checked copy; plugin-specific block only)
   permissions.ts                 the default block, the exact-block matcher, the one-argument assert
+  files.ts                       file metadata before approval, descriptor reads after it
+  journal-store.ts               the journal's private files and the cross-process exclusive lock
   integration.ts                 the plugin-owned OpenRouter key entry and its connected/not-connected state
   status.ts, commands.ts         the status view and /inference-status
   versions.ts, compat.ts         the host range and the tested releases
@@ -62,10 +70,10 @@ src/tui.tsx                      the status dialog
 - the default permission block (`src/host/permissions.ts`): the namespace rule, then each tool by its class;
 - the Jelly declaration in `package.json` and the tables in these docs, checked by `test/unit/registry.test.ts`.
 
-Both host surfaces call `runTool` from `src/runtime/dispatch.ts`. It checks that the plugin is open and the tool is
-available at the moment of the call (the tools RPC's `available()` is for `describe` only), parses the input strictly,
-fences cancellation, runs the handler and validates the output against the tool's own schema. So a control added there
-holds for the model and for scripts alike.
+Both host surfaces call `runTool` from `src/runtime/dispatch.ts`. It checks that the plugin is open and the tool and
+its module are available at the moment of the call (the tools RPC's `available()` is for `describe` only), parses the
+input strictly, fences cancellation, runs the handler (or, for a non-read tool, the operation pipeline below) and
+validates the output against the tool's own schema. So a control added there holds for the model and for scripts alike.
 
 <!-- generated:tools -->
 
@@ -166,10 +174,59 @@ as they are made, so a failure inside the shared module leaves nothing behind. T
 already carry the exact block, so a replayed or reloaded transform never doubles it. The server holds no timers or
 subscriptions; the TUI dialog subscribes to events only while open.
 
-## What a later release adds
+## The operation pipeline
 
-The handoff's PR 2 inserts, in `runTool`, between the input parse and the handler: source authorization and snapshots
-(`src/runtime/sources.ts`), route revalidation, the one-argument assert (`createAuthorize`, already in
-`src/host/permissions.ts`), operation-keyed reservations and the dispatch journal (`src/runtime/budget.ts`,
-`src/runtime/journal.ts`), the credential boundary (`src/providers/openrouter/http.ts`, the only file `npm run lint`
-lets fetch or resolve the key) and settlement. Status then reports committed, reserved and unknown spend.
+`runTool` runs a read-class tool's local handler. Every other tool is an operation and runs one ordered pipeline
+(`src/runtime/operation.ts`, handoff §7), the same on the model path and the tools RPC. A non-read tool without a
+provider adapter cannot run. This version registers no such tool: the pipeline is exercised by a test-only operation
+with a fake adapter and a fake transport (`test/support/operation-kit.ts`), and the extraction adapter of the next
+release plugs into `ADAPTERS` in `src/host/plugin.ts`.
+
+1. The input is parsed strictly. The tool and its module are re-checked at the moment of the call.
+2. The route comes from the trusted options and the reviewed fixture: the requested profile or model, eligible now
+   (enabled, documented, module on, a type and field set it accepts, a price when `requirePricedRoute` is on). A key
+   must be connected; only its presence is checked. Unsupported requests fail here, before any file is touched.
+3. The source is identified from its descriptor and file metadata only (`lstat`, the parent's real path): no byte is
+   read, nothing is sniffed or hashed. `..`, a final symbolic link, a symbolic link anywhere inside the project, a
+   non-file, a foreign or expired artifact, and a bundle are refused here.
+4. The host decides: `read` on the file (relative inside the project, absolute outside), after `external_directory`
+   outside the project. Outside the project both name the file's real folder, never a linked one, and the file is read
+   from there, in the host read tool's own actions, through the one-argument assert raced against
+   cancellation and fenced after it settles. A denial propagates unchanged; a script's ask is refused by the tools RPC.
+5. The approved file is opened through a descriptor without following a final symbolic link, and must be the same file
+   that was approved (device, inode, size, change times) before and after the read; one byte past its size shows it
+   grew. Its type comes from its bytes and must agree with its name or declaration; an artifact must match its declared
+   size and hash. The bytes become an immutable private snapshot with their SHA-256.
+6. Type and size are re-validated against the snapshot; the adapter builds the exact request, which must fit the route.
+7. The reservation is admitted and persisted with a `planned` record in one locked step, then `dispatching` is
+   persisted. Requests in flight in one process are capped by `limits.concurrency`.
+8. The transport (`src/providers/openrouter/http.ts`) resolves the key, puts it in one header, and posts to the one
+   trusted origin and a reviewed path, with no redirects, the deadline, a request cap, a streamed 4 MiB response cap
+   and cancellation. Each failure says whether anything can have left.
+9. The adapter validates the answer strictly; a 2xx is only transport success.
+10. The journal settles: reported charges, or the reservation kept when the cost is unknown. The result carries the
+    operation id, route, coverage, review, usage and trace, and the text names no source content.
+
+### The journal and its lock
+
+One private journal per OpenRouter connection on this machine: `journals/<label>/journal.json` (0600) in a 0700 folder
+under `$XDG_STATE_HOME/opencode-inference` (or `~/.local/state/opencode-inference`). Each record follows the handoff's
+`OperationRecord` for synchronous operations: project, account label, intent (the tool call), session and agent, route,
+source hashes, constraint and request digests, state, owner, reservation, charges, cost status, an error code and the
+submit attempt. It holds no key, source text, request or response body, or URL.
+
+- States: `planned` → `dispatching` → `completed` | `failed` | `submission_unknown`; `planned` → `failed` when the
+  call never left. A record is dispatched only by the process that planned it, under the lock.
+- A process mutex serialises one process's transactions; an exclusive lock file (`O_CREAT|O_EXCL`, holding the
+  owner's pid, a host hash and a token) serialises processes. It is held only for the read-modify-write, never across
+  a network call, and the journal is replaced atomically (temporary file, flush, rename, folder flush).
+- A lock still held after a bounded wait is never taken over on a timer, whatever its age: the call fails with
+  `JOURNAL_LOCKED`, naming the lock file, its owner's pid and whether that process is running, and a person removes it.
+- Recovery runs inside each transaction: another process's `planned` record whose owner is confirmed not running is
+  released (it cannot have been sent), and its `dispatching` record becomes `submission_unknown` and keeps its
+  reservation. An owner that may be alive, on another host or with an unclear answer, is left alone.
+- A journal that does not parse, or belongs to another connection, is refused and left as it is, never reset.
+- Terminal records leave after 30 days; held reservations and `submission_unknown` records stay.
+
+Status still reports `tracking: "none"` for spend and operations: no registered tool writes the journal in this
+version. Status totals arrive with the first billable tool.

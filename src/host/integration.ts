@@ -6,8 +6,8 @@ import { INTEGRATION_ID, INTEGRATION_KEY_LABEL, INTEGRATION_NAME, type Connectio
 // inference-openrouter`. It is separate from OpenCode's own OpenRouter model provider: a plugin cannot assume the coding
 // model's credential is available to it.
 //
-// This version never reads the key. Status asks only whether a connection is active. The transport boundary (PR 2/3)
-// is the one place that will call `connection.resolve`, at dispatch time.
+// Status asks only whether a connection is active and never reads the key. The transport boundary
+// (src/providers/openrouter/http.ts) is the one place that resolves it, at dispatch; no registered tool reaches it yet.
 
 type Integration = Plugin.Context["integration"]
 

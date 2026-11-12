@@ -1,4 +1,4 @@
-import { actionOf, jsonSchemaOf, TOOLS } from "../domain/registry.js"
+import { actionOf, jsonSchemaOf, TOOLS, type ToolSpec } from "../domain/registry.js"
 import type { RunTool } from "../runtime/dispatch.js"
 import { registerToolsRpc, type PluginMethod, type ToolsRpcContext } from "./tools-rpc.js"
 
@@ -9,8 +9,8 @@ import { registerToolsRpc, type PluginMethod, type ToolsRpcContext } from "./too
  * Each method runs the shared dispatcher with the script's call as the invocation, which parses the input strictly and
  * re-checks availability at execution: `available()` below is for describe only.
  */
-export function scriptMethods(runTool: RunTool, available: (name: string) => string | undefined = () => undefined): PluginMethod[] {
-  return TOOLS.map((tool) => ({
+export function scriptMethods(runTool: RunTool, available: (name: string) => string | undefined = () => undefined, tools: readonly ToolSpec[] = TOOLS): PluginMethod[] {
+  return tools.map((tool) => ({
     kind: "plugin",
     name: tool.name,
     action: actionOf(tool.name),
@@ -30,7 +30,13 @@ type Disposable = { readonly dispose: () => Promise<void> }
  * `track` as soon as it exists, so the plugin's cleanup stack disposes it even when the shared module fails part-way,
  * for instance when the hook cannot be registered after the RPC was.
  */
-export async function registerScripting(ctx: ToolsRpcContext, runTool: RunTool, track: (registration: Disposable) => void, available?: (name: string) => string | undefined) {
+export async function registerScripting(
+  ctx: ToolsRpcContext,
+  runTool: RunTool,
+  track: (registration: Disposable) => void,
+  available?: (name: string) => string | undefined,
+  tools: readonly ToolSpec[] = TOOLS,
+) {
   const tracked = {
     ...ctx,
     rpc: {
@@ -50,5 +56,5 @@ export async function registerScripting(ctx: ToolsRpcContext, runTool: RunTool, 
       },
     },
   } as unknown as ToolsRpcContext
-  await registerToolsRpc(tracked, { methods: scriptMethods(runTool, available) })
+  await registerToolsRpc(tracked, { methods: scriptMethods(runTool, available, tools) })
 }

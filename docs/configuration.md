@@ -44,12 +44,34 @@ by value: the OpenRouter key goes in `/connect`.
 - `routing.mode` is `explicit` and `routing.fallbacks` must be empty: automatic fallback stays off until evaluated.
 - `limits`: `concurrency` (1-8), `maxFields` (1-64; the schema's hard limit is 64), `deadlineMs` (1000-600000). A tool
   input can lower them, never raise them.
-- `spend`: exact decimal USD strings. `requirePricedRoute` makes a route with no known price ineligible;
-  `requireUpperBound` requires a genuine ceiling. Admission budgets apply once a later release sends anything.
+- `limits.concurrency` caps requests in flight in one process; more wait their turn. `limits.deadlineMs` bounds the
+  provider request.
+- `spend`: exact decimal USD strings, never floats. `requirePricedRoute` makes a route with no known price ineligible;
+  `requireUpperBound` requires a genuine ceiling. The three budgets are the handoff's proposed defaults, not measured
+  prices, and are still under review. See [Spend](#spend). No tool in this version spends.
 - `data.requireZdr`: `true` makes a route without documented zero data retention ineligible. `false` means you have not
   asked for that restriction; it does not claim a provider retains nothing.
 - `cache.enabled` must be `false`: the result cache is not implemented.
 - `allowUntestedHost`: run on an OpenCode outside `>=2.2.3 <2.3.0`, with a warning as the next step.
+
+## Spend
+
+The operation runtime (in place, but reached by no registered tool in this version) reserves before it sends:
+
+- **Request.** The reservation is the route's upper bound when one is known. An estimate is not a cap, so with only an
+  estimate, or with no price when `requirePricedRoute` is off, the call reserves the whole per-request budget
+  (`spend.requestUsd`, or a lower `limits.maxEstimatedCostUsd` from the tool input). That budget is an admission limit,
+  not a spend ceiling: OpenRouter does not enforce it.
+- **Session and rolling 24 hours.** A call is admitted only if its reservation, plus everything already counted, fits
+  `spend.sessionUsd` for its session and `spend.rolling24hUsd` for the last 24 hours. Counted are settled charges,
+  reservations in flight, and reservations kept for calls whose cost is unknown.
+- **Settlement.** Reported charges replace the reservation, platform and upstream charges kept separate. A call that
+  failed after it may have been sent, timed out, was cancelled mid-request or got a malformed answer keeps its
+  reservation: failure does not mean zero cost. Only a call that certainly never left releases it. Credits are never
+  added to dollars.
+- **Scope.** One journal per OpenRouter connection on this machine (`$XDG_STATE_HOME/opencode-inference`, or
+  `~/.local/state/opencode-inference`), shared by every project and process here. It is not an account-wide limit
+  across machines or other clients; OpenRouter's own key limits are the stronger, independent boundary.
 
 ## Default permission rules
 
@@ -103,7 +125,10 @@ The namespace rule covers the send tools a later release adds; the three local r
 ## Errors
 
 Every failure is `CODE: what happened. Next step: …`, with one next step, and never contains a key, source text or a
-field value. Host permission errors pass through unchanged.
+field value. Host permission errors pass through unchanged. Operation failures name the operation id when its
+reservation is kept, so it can be reconciled instead of resubmitted. `REVIEW_REQUIRED` is not a failure: it is
+`review.required` on a successful result. `OUTPUT_EXPIRED`, `OUTPUT_UNAVAILABLE` and `CANCEL_UNSUPPORTED` arrive with
+asynchronous operations.
 
 <!-- generated:errors -->
 
@@ -120,6 +145,22 @@ field value. Host permission errors pass through unchanged.
 | `OUTPUT_INVALID` | The tool produced a result that does not match its own schema. | Report it with the inference_status output; this is a bug in the plugin. |
 | `RULES_NOT_ADDED` | The default permission rules could not be added. | Restart OpenCode. |
 | `INTEGRATION_NOT_REGISTERED` | The OpenRouter key entry could not be added to /connect. | Restart OpenCode. |
+| `CAPABILITY_UNSUPPORTED` | The selected route cannot serve this request. | Choose a supported field, modality or profile with inference_plan, or prepare the source explicitly. |
+| `UNSAFE_PATH` | The source path is not a plain regular file this call may read. | Re-select the current regular file by a path without symbolic links or '..'. |
+| `SOURCE_CHANGED` | The source changed between approval and reading, or no longer matches its declaration. | Re-select the current regular file and call the tool again. |
+| `SOURCE_TYPE` | The source's bytes are not a type this call accepts, or do not match its declared type. | Select a file whose content matches its name, in a type the route accepts (see inference_capabilities). |
+| `SOURCE_LIMIT` | The source is larger than the route accepts. | Select a smaller range or use an evaluated chunking strategy. |
+| `CONTEXT_LIMIT` | The request is larger than the route accepts. | Select a smaller range or fewer fields, or use an evaluated chunking strategy. |
+| `AUTH_REQUIRED` | No OpenRouter key is connected for Inference. | Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key. |
+| `AUTH_REJECTED` | OpenRouter did not accept the connected key. | Run /connect and choose OpenRouter for Inference to replace the key. |
+| `PRICE_UNKNOWN` | No price, or no upper bound, is known for this route, and the spend options require one. | Select a priced, affordable route, or change spend.requirePricedRoute or spend.requireUpperBound in the trusted options. |
+| `BUDGET_EXCEEDED` | This call would exceed a spend budget. | Select a priced, affordable route, wait for the rolling window, or raise the limit in the trusted spend options. |
+| `JOURNAL_LOCKED` | The operation journal is locked by another process and was not taken over. | Make sure no other OpenCode process is using Inference, then remove the lock file named above and retry. |
+| `JOURNAL_UNREADABLE` | The operation journal could not be read or written. | Check the Inference state folder's permissions and free space; do not delete the journal while operations are unsettled. |
+| `PROVIDER_ERROR` | OpenRouter answered with an error. | Retry later; a failed call may still have been charged, so check usage before retrying. |
+| `PROVIDER_CONTRACT_CHANGED` | OpenRouter's response did not match the reviewed contract for this route. | Disable that adapter revision and update its fixtures and schema; do not retry the same call. |
+| `SUBMISSION_UNKNOWN` | The request may have reached OpenRouter, but its outcome is unknown. | Reconcile the existing operation; do not resubmit. |
+| `DEADLINE_EXCEEDED` | The call ran past its deadline. | Check whether OpenRouter received it before calling again; its reservation is kept. |
 | `SESSION_UNKNOWN` | Refused by the tools RPC. | Create a session in the location you mean, such as POST /api/session with {"agent":"build"} sent with the header "x-opencode-directory: <dir>" or the location[directory] query, and pass its id. |
 | `SESSION_AGENT_REQUIRED` | Refused by the tools RPC. | Create a session that names an agent this project has, with its project as the location, such as POST /api/session with {"agent":"build","location":{"directory":"/path/to/project"}}, and pass its id. |
 | `PERMISSION_DENIED` | Refused by the tools RPC. | Add an allow rule for the action to the session's agent or to the session, or use a session whose agent allows it. |

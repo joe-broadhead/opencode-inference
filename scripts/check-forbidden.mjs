@@ -5,8 +5,10 @@ import { execFileSync } from "node:child_process"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
+import { networkProblemsAll } from "./check-network.mjs"
 
-const root = fileURLToPath(new URL("../", import.meta.url))
+// FORBIDDEN_ROOT lets the lint's own tests run this script on a scratch repository.
+const root = process.env.FORBIDDEN_ROOT ? join(process.env.FORBIDDEN_ROOT, "/") : fileURLToPath(new URL("../", import.meta.url))
 const self = relative(root, fileURLToPath(import.meta.url))
 const problems = []
 const report = (file, line, message) => problems.push(`${file}${line ? `:${line}` : ""}: ${message}`)
@@ -36,13 +38,9 @@ const RULES = [
   { pattern: /\b(?:config|options)\.policy\b|(?:^|[\s{,])policy\s*\??\s*:/, scope: ["src/", "dist/"], message: "plugin permission policy option" },
   { pattern: /\bexperimental\s*\??\.\s*artifact\b|\bexperimental\s*\??\.?\[\s*["'`]artifact["'`]\s*\]|\{[^}]*\bartifact\b[^}]*\}\s*=\s*[\w$.?]*\bexperimental\b/, message: "ctx.experimental.artifact is experimental (new in 2.2.4); do not use it" },
   { pattern: /^import\s+\{[^}]*\bz\b[^}]*\}\s+from\s+["']zod["']/, scope: ["src/"], message: "import zod as `import * as z from \"zod\"`; a named import bundles every locale" },
-  // No network in this version. The transport boundary a later release adds (src/providers/<provider>/http.ts) is the
-  // one place allowed to fetch; until it exists nothing in src/ may.
-  { pattern: /\bfetch\s*\(|["']node:(?:http|https|net|tls|dgram|http2)["']|\bWebSocket\b|\bXMLHttpRequest\b/, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "network access outside the transport boundary" },
+  // The network and key boundary is checked on the syntax tree, in scripts/check-network.mjs, below.
   // The domain and the runtime are pure: the filesystem is the host layer's business.
   { pattern: /(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["'](?:node:)?fs(?:\/promises)?["']/, scope: ["src/domain/", "src/runtime/"], message: "filesystem access in the domain or runtime; keep fs in src/host/" },
-  // The key is resolved only at the transport boundary, at dispatch. Status and planning never read it.
-  { pattern: /\bconnection\s*\.\s*resolve\s*\(/, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "the OpenRouter key is resolved only at the transport boundary" },
 ]
 // The one exception to the evaluate-hook rule: the tools RPC (src/host/tools-rpc.ts) turns an ask on its own script
 // calls in flight into a deny, because no one is there to answer a script's prompt. It only tightens, and matches only
@@ -67,6 +65,12 @@ for (const file of [...source, ...built]) {
   })
   for (const call of assertCalls(content)) if (call.args > 1) report(file, call.line, "permission.assert takes one argument; the signal option is fork-only")
 }
+// The network and key boundary, on the syntax tree of every first-party source file.
+{
+  const files = Object.fromEntries(source.filter(file => file.startsWith("src/")).map(file => [file, readFileSync(join(root, file), "utf8")]))
+  for (const [file, found] of Object.entries(networkProblemsAll(root.replace(/\/$/, ""), files))) for (const [line, message] of found) report(file, line, message)
+}
+
 for (const [file, count] of scriptHooks) if (count !== 1) report(file, 0, `the tools RPC's evaluate hook must appear exactly once here, found ${count}`)
 
 /** `.assert(` calls with their top-level argument count, skipping strings and comments. */
@@ -110,6 +114,16 @@ for (const file of [...tracked, ...dist]) {
 const INLINED = new Set(["zod"])
 if (built.length === 0) report("dist", 0, "missing; run npm run build first")
 for (const file of dist) if (!file.endsWith(".js")) report(file, 0, "dist/ ships only .js; the licences of inlined packages are in the root NOTICE")
+// Every bundled section is either first-party source under src/ or an inlined package: a section from scripts/, test/,
+// a parent folder or any other package fails, so a relative import cannot smuggle code past the source checks.
+for (const file of built) {
+  readFileSync(join(root, file), "utf8").split("\n").forEach((line, index) => {
+    const section = /^\/\/ ([^\s@][^\s]*\.(?:[cm]?[jt]sx?|json))$/.exec(line)?.[1]
+    if (section === undefined) return
+    const inlined = /^node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(section)?.[1]
+    if (!section.startsWith("src/") && !(inlined !== undefined && INLINED.has(inlined))) report(file, index + 1, `bundles ${section}; dist/ holds only src/ and inlined ${[...INLINED].join(", ")}`)
+  })
+}
 for (const file of built) {
   const packages = new Set([...readFileSync(join(root, file), "utf8").matchAll(/^\/\/ node_modules\/((?:@[^/\n]+\/)?[^/\n]+)\//gm)].map(m => m[1]))
   for (const name of packages) if (!INLINED.has(name)) report(file, 0, `bundles ${name}; host-provided and build-time packages stay external or out of dist/`)
