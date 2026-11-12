@@ -21,59 +21,17 @@
 // status per route; it never edits the fixture or enables a route: a person reviews the report and changes the fixture.
 import { ExtractInput } from "../src/domain/contracts.js"
 import { InferenceError } from "../src/domain/errors.js"
-import { compare, format, money } from "../src/domain/money.js"
+import { format } from "../src/domain/money.js"
 import { catalogDrift, catalogModels } from "../src/providers/openrouter/catalog.js"
 import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../src/providers/openrouter/capabilities.js"
 import { extractionsAdapter } from "../src/providers/openrouter/extractions.js"
 import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
 import { snapshot, type FileAccess, type Snapshot } from "../src/runtime/sources.js"
-import { CanaryBudget } from "./canary-budget.js"
+import { canaryArgs } from "./canary-cli.js"
 
 const CANARIES = ["catalog", "text", "image", "pdf", "malformed"] as const
 type Canary = (typeof CANARIES)[number]
-const MAX_BUDGET = money("0.10")
-
-function refuse(reason: string): never {
-  console.error(`canary-extractions: refused: ${reason}`)
-  console.error("usage: OPENROUTER_CANARY_KEY=<key> bun scripts/canary-extractions.ts --budget-usd <at most 0.10> --per-call-usd <worst case per call> --yes-spend [--only text,image,pdf,malformed,catalog] [--dry-run]")
-  process.exit(2)
-}
-
-const args = process.argv.slice(2)
-const flag = (name: string) => args.includes(name)
-const value = (name: string) => {
-  const index = args.indexOf(name)
-  return index === -1 ? undefined : args[index + 1]
-}
-for (const arg of args) if (arg.startsWith("--") && !["--budget-usd", "--per-call-usd", "--yes-spend", "--only", "--dry-run"].includes(arg)) refuse(`unknown option ${arg}`)
-if (process.env.CI) refuse("CI is set: the canary spends money and never runs in CI")
-if (!flag("--yes-spend")) refuse("--yes-spend is required: the canary sends requests that are charged")
-const budgetText = value("--budget-usd")
-if (budgetText === undefined) refuse("--budget-usd is required")
-let budget
-try {
-  budget = money(budgetText)
-} catch {
-  refuse("--budget-usd must be an exact decimal such as 0.02")
-}
-if (compare(budget, MAX_BUDGET) > 0) refuse("--budget-usd is above the canary's ceiling of 0.10")
-if (budget.units === 0n) refuse("--budget-usd must be above zero")
-const perCallText = value("--per-call-usd")
-if (perCallText === undefined) refuse("--per-call-usd is required: the worst case of one call, checked before each call")
-let perCall
-try {
-  perCall = money(perCallText)
-} catch {
-  refuse("--per-call-usd must be an exact decimal such as 0.005")
-}
-if (perCall.units === 0n || compare(perCall, budget) > 0) refuse("--per-call-usd must be above zero and at most --budget-usd")
-const spend = new CanaryBudget(budget, perCall)
-const key = process.env.OPENROUTER_CANARY_KEY
-if (!key) refuse("OPENROUTER_CANARY_KEY is not set: the canary uses only an explicitly given key, never OpenCode's")
-const only = (value("--only") ?? CANARIES.join(",")).split(",")
-for (const name of only) if (!(CANARIES as readonly string[]).includes(name)) refuse(`unknown canary ${name}`)
-const selected = new Set(only as Canary[])
-const dryRun = flag("--dry-run")
+const { key, budget, perCall, spend, selected, dryRun } = canaryArgs("canary-extractions", CANARIES, process.argv.slice(2), process.env)
 
 const route = (model: string): RouteCapability => {
   const found = OPENROUTER_CAPABILITIES.routes.find((item) => item.model === model && item.operation === "extract")
