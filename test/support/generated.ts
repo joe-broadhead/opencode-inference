@@ -6,6 +6,7 @@ import { FAILURES } from "../../src/domain/errors.js"
 import { ACCESS_VALUES, INTEGRATION_ID, NAMESPACE, PLUGIN_ID, type Access } from "../../src/domain/ids.js"
 import { actionOf, PLANNED, TOOLS } from "../../src/domain/registry.js"
 import { defaultRules, effectOf } from "../../src/host/permissions.js"
+import { SKILL_IDS } from "../../src/host/skills.js"
 import { NEXT_STEPS, TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { HOST_RANGE, TESTED_HOSTS } from "../../src/host/versions.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
@@ -16,7 +17,7 @@ export const jellyDeclaration = () => ({
   summary: "Typed extraction and bounded decisions over supplied content, planned locally.",
   icon: "assets/icon.svg",
   tools: TOOLS.map((tool) => ({ name: `${NAMESPACE}.${tool.name}`, permission: actionOf(tool.name), effect: effectOf(tool.class, "all"), readOnly: tool.class === "read" })),
-  skills: [] as string[],
+  skills: [...SKILL_IDS],
   rpc: [] as unknown[],
   views: [] as unknown[],
   signIns: [

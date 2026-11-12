@@ -13,8 +13,8 @@ import { cleanup, npm, REPO, root, startStock, STOCK_VERSIONS, until, type Host 
 setDefaultTimeout(300_000)
 
 const NAME = "@joe-broadhead/opencode-inference"
-const ALLOWED = /^(package\.json|README\.md|LICENSE|NOTICE|CHANGELOG\.md|assets\/icon(-128|-256)?\.(svg|png)|dist\/(index|tui)\.js)$/
-const REQUIRED = ["package.json", "README.md", "LICENSE", "NOTICE", "CHANGELOG.md", "assets/icon.svg", "assets/icon-128.png", "assets/icon-256.png", "dist/index.js", "dist/tui.js"]
+const ALLOWED = /^(package\.json|README\.md|LICENSE|NOTICE|CHANGELOG\.md|assets\/icon(-128|-256)?\.(svg|png)|dist\/(index|tui)\.js|skills\/inference-(extract|decide)\/SKILL\.md)$/
+const REQUIRED = ["package.json", "README.md", "LICENSE", "NOTICE", "CHANGELOG.md", "assets/icon.svg", "assets/icon-128.png", "assets/icon-256.png", "dist/index.js", "dist/tui.js", "skills/inference-extract/SKILL.md", "skills/inference-decide/SKILL.md"]
 const LIFECYCLE = ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare", "prepack", "postpack", "prepublish", "prepublishOnly", "publish", "postpublish", "preuninstall", "uninstall", "postuninstall", "dependencies"]
 const HOST_MODULES = /^(@opencode\/plugin(\/.+)?|@opentui\/(core|solid)(\/.+)?|solid-js(\/.+)?)$/
 const UI_MODULES = /^(@opentui\/|solid-js)/
@@ -47,7 +47,7 @@ afterAll(cleanup)
 const files = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? files(join(directory, entry.name)) : [join(directory, entry.name)]))
 
 describe("the tarball", () => {
-  test("holds only dist/index.js, dist/tui.js, the three icons, README, LICENSE, NOTICE, CHANGELOG and package.json", () => {
+  test("holds only dist/index.js, dist/tui.js, the three icons, the two skills, README, LICENSE, NOTICE, CHANGELOG and package.json", () => {
     const paths = packed.files.map((file) => file.path)
     expect(paths.filter((path) => !ALLOWED.test(path))).toEqual([])
     expect(REQUIRED.filter((path) => !paths.includes(path))).toEqual([])
@@ -133,6 +133,9 @@ for (const version of STOCK_VERSIONS)
       expect(status.value).toMatchObject({ version: manifest.version, state: "local_only", nextStep: "Nothing to do.", host: { version, range: ">=2.2.3 <2.3.0", tested: true }, connection: { state: "not_connected" } })
       const { data: commands } = await host.client.command.list({ location: host.location })
       expect(commands.map((command) => command.name)).toContain("inference-status")
+      // The packaged skills load from the installed tarball.
+      const { data: skills } = await host.client.skill.list({ location: host.location })
+      expect(skills.map((skill: { name: string }) => skill.name).filter((name: string) => name.startsWith("inference-")).sort()).toEqual(["inference-decide", "inference-extract"])
       const { data: integrations } = await host.client.integration.list({ location: host.location })
       expect(integrations.find((entry) => entry.id === "inference-openrouter")?.name).toBe("OpenRouter for Inference")
       const { data: agents } = await host.client.agent.list({ location: host.location })

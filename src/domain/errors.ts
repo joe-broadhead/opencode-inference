@@ -17,6 +17,7 @@ export const FAILURES = {
   STATUS_UNAVAILABLE: ["Inference status could not be read.", "Run /inference-status in a session to see the error, or check the OpenCode server log."],
   OUTPUT_INVALID: ["The tool produced a result that does not match its own schema.", "Report it with the inference_status output; this is a bug in the plugin."],
   RULES_NOT_ADDED: ["The default permission rules could not be added.", "Restart OpenCode."],
+  SKILLS_INVALID: ["A shipped skill is missing or malformed, so it was skipped.", "Reinstall the plugin; the tools still work without the skill."],
   INTEGRATION_NOT_REGISTERED: ["The OpenRouter key entry could not be added to /connect.", "Restart OpenCode."],
   // The operation path (handoff §7, §11.4).
   CAPABILITY_UNSUPPORTED: ["The selected route cannot serve this request.", "Choose a supported field, modality or profile with inference_plan, or prepare the source explicitly."],

@@ -23,7 +23,9 @@ The declaration is generated from the registry (`src/domain/registry.ts`) and ch
 
 ## Skills
 
-None in this version.
+Two skills are declared and shipped in `skills/`: `inference-extract` (typed fields with nulls and evidence) and
+`inference-decide` (bounded questions with exact probabilities and deterministic acceptance). Each is registered only
+while its module (`extractions`, `decisions`) is on.
 
 ## Views and scripts
 

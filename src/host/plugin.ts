@@ -22,6 +22,7 @@ import { files } from "./files.js"
 import { journalDirectory, journalStore, stateRoot } from "./journal-store.js"
 import { createAuthorize, registerDefaultRules } from "./permissions.js"
 import { registerScripting } from "./scripting.js"
+import { loadSkills, skillTransform } from "./skills.js"
 import { buildStatus } from "./status.js"
 import { toolTransform } from "./tools.js"
 
@@ -98,6 +99,8 @@ export function createPlugin(sources: PluginSources): Plugin.Plugin {
       try {
         let rulesProblem: string | undefined
         let integrationProblem: string | undefined
+        // Optional content: a bad skill is skipped and reported, never a setup failure.
+        const { skills, problems: skillProblems } = await loadSkills(sources.packageRoot)
         const status = (): Promise<StatusView> =>
           buildStatus({
             version,
@@ -106,7 +109,7 @@ export function createPlugin(sources: PluginSources): Plugin.Plugin {
             fixture,
             connectionState: () => connectionState(ctx.integration),
             agents: async () => (await ctx.agent.list()).data as unknown as readonly { id: string; permissions: readonly Rule[] }[],
-            problems: () => [rulesProblem, integrationProblem].filter((problem): problem is string => problem !== undefined),
+            problems: () => [rulesProblem, integrationProblem, ...skillProblems].filter((problem): problem is string => problem !== undefined),
             ...(sources.now ? { now: sources.now } : {}),
           })
         const handlers = createHandlers({ config, fixture, status: async () => compactStatus(await status()), statusText: formatSummary, ...(sources.now ? { now: sources.now } : {}) })
@@ -157,6 +160,7 @@ export function createPlugin(sources: PluginSources): Plugin.Plugin {
           } as never),
         )
         await registerScripting(ctx, runTool, (registration) => stack.push(registration), () => (closed ? "CLOSED" : undefined))
+        stack.push(await ctx.skill.transform(skillTransform(skills, (module) => config.modules[module])))
         stack.push(await ctx.command.transform(commandTransform({ synthetic: (input) => ctx.session.synthetic(input), status })))
         return close
       } catch (error) {

@@ -68,6 +68,7 @@ export function fakeContext(input: FakeOptions = {}) {
   const methods: unknown[] = []
   const rpc = new Map<string, { contract: { id: string; methods: Record<string, unknown> }; handlers: Record<string, (input: unknown, context: unknown) => unknown> }>()
   const commands: { name: string; execute: (input: unknown) => Promise<void> }[] = []
+  const skills: { id: string; content: string }[] = []
   const synthetic: { text: string }[] = []
   const hooks: { name: string; callback: unknown }[] = []
   const asserted: AssertRequest[] = []
@@ -172,6 +173,13 @@ export function fakeContext(input: FakeOptions = {}) {
           throw hostError(`The user rejected ${request.action}`, { request: { action: request.action } })
       },
     },
+    skill: {
+      transform: async (callback: (editor: unknown) => void) => {
+        const registration = await register("skill")
+        callback({ add: (skill: { id: string; content: string }) => skills.push(skill) })
+        return registration
+      },
+    },
     command: {
       transform: async (callback: (editor: unknown) => void) => {
         const registration = await register("command")
@@ -208,6 +216,7 @@ export function fakeContext(input: FakeOptions = {}) {
     methods,
     rpc,
     commands,
+    skills,
     synthetic,
     hooks,
     asserted,
