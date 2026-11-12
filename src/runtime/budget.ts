@@ -13,8 +13,8 @@ import type { OperationRecord } from "./journal.js"
 // - Settlement replaces the reservation with the reported charges. A call whose cost cannot be determined keeps its
 //   reservation ("retained"): failure does not mean zero cost. Only a call that certainly never left releases it.
 //
-// The defaults (request USD 0.05, session USD 1.00, rolling 24 hours USD 5.00) are the handoff's PROPOSED product
-// defaults for review, not measured prices; the owner has not confirmed them. All three are trusted options. The scope
+// The defaults (request USD 0.05, session USD 1.00, rolling 24 hours USD 5.00) are confirmed by the owner. They are
+// budgets, not prices. All three are trusted options. The scope
 // is this machine's journal for one OpenRouter connection: it is not an account-wide limit across machines or other
 // clients, and OpenRouter's own key limits remain the stronger, independent boundary.
 
