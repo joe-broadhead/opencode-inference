@@ -116,6 +116,51 @@ function top(distribution: Readonly<Record<string, number>>) {
 }
 
 /**
+ * The thresholds alone: the outcome an answer reaches under `rules`, or the reasons it does not. No calibration check:
+ * this is what an evaluation measures, and what an evaluated profile then applies.
+ */
+export function applyRules(answer: Unaccepted, question: Question, rules: z.infer<typeof AcceptanceRules>): { outcome?: boolean | string; reasons: Reason[] } {
+  const reasons = new Set<Reason>()
+  let outcome: boolean | string | undefined
+  if (question.type !== answer.type) reasons.add("INCONSISTENT")
+  switch (answer.type) {
+    case "noul": {
+      if (answer.probability === undefined) reasons.add("CONFIDENCE_MISSING")
+      else if (rules.noul) {
+        const { accept: threshold } = rules.noul
+        if (answer.probability >= threshold) outcome = true
+        else if (answer.probability <= 1 - threshold) outcome = false
+        else reasons.add("LOW_PROBABILITY")
+      }
+      break
+    }
+    case "choice": {
+      if (answer.distribution === undefined) reasons.add("CONFIDENCE_MISSING")
+      else if (rules.choice) {
+        const best = top(answer.distribution)
+        if (best.label !== answer.choice) reasons.add("INCONSISTENT")
+        else if (best.first === undefined || best.first < rules.choice.minProbability) reasons.add("LOW_PROBABILITY")
+        else if (rules.choice.minMargin !== undefined && best.first - best.second < rules.choice.minMargin) reasons.add("AMBIGUOUS")
+        else outcome = best.label
+      }
+      break
+    }
+    case "score": {
+      if (answer.distribution === undefined) reasons.add("CONFIDENCE_MISSING")
+      else if (rules.score) {
+        const best = top(answer.distribution)
+        if (best.first === undefined || best.first < rules.score.minProbability) reasons.add("LOW_PROBABILITY")
+        else outcome = best.label
+      }
+      break
+    }
+  }
+  const hasRule = answer.type === "noul" ? !!rules.noul : answer.type === "choice" ? !!rules.choice : !!rules.score
+  if (!hasRule) reasons.add("CALIBRATION_UNAVAILABLE")
+  return reasons.size > 0 ? { reasons: [...reasons].sort() } : outcome === undefined ? { reasons: ["CALIBRATION_UNAVAILABLE"] } : { outcome, reasons: [] }
+}
+
+/**
  * The acceptance of one answer. `context` is what the call actually ran with; an automatic profile whose report was
  * for anything else reviews instead of accepting.
  */
@@ -127,49 +172,15 @@ export function accept(
 ): Result {
   if (answer.refusal !== undefined) return { disposition: "refused", reasons: ["REFUSED"] }
   const reasons = new Set<Reason>()
-  const review = (): Result => ({ disposition: "review", reasons: [...reasons].sort() })
   if (context.truncated) reasons.add("PROVIDER_TRUNCATED")
   const { profile } = resolved
   if (profile.mode !== "automatic") reasons.add("CALIBRATION_UNAVAILABLE")
   else if (profile.model !== context.model || !context.questionSet || profile.questionSet !== context.questionSet.name || profile.report?.questionSetDigest !== context.questionSet.digest)
     reasons.add("CALIBRATION_MISMATCH")
-
-  let outcome: boolean | string | undefined
-  switch (answer.type) {
-    case "noul": {
-      if (answer.probability === undefined) reasons.add("CONFIDENCE_MISSING")
-      else if (profile.rules.noul) {
-        const { accept: threshold } = profile.rules.noul
-        if (answer.probability >= threshold) outcome = true
-        else if (answer.probability <= 1 - threshold) outcome = false
-        else reasons.add("LOW_PROBABILITY")
-      }
-      break
-    }
-    case "choice": {
-      if (answer.distribution === undefined) reasons.add("CONFIDENCE_MISSING")
-      else if (profile.rules.choice) {
-        const best = top(answer.distribution)
-        if (best.label !== answer.choice) reasons.add("INCONSISTENT")
-        else if (best.first === undefined || best.first < profile.rules.choice.minProbability) reasons.add("LOW_PROBABILITY")
-        else if (profile.rules.choice.minMargin !== undefined && best.first - best.second < profile.rules.choice.minMargin) reasons.add("AMBIGUOUS")
-        else outcome = best.label
-      }
-      break
-    }
-    case "score": {
-      if (answer.distribution === undefined) reasons.add("CONFIDENCE_MISSING")
-      else if (profile.rules.score) {
-        const best = top(answer.distribution)
-        if (best.first === undefined || best.first < profile.rules.score.minProbability) reasons.add("LOW_PROBABILITY")
-        else outcome = best.label
-      }
-      break
-    }
-  }
-  if (question.type !== answer.type) reasons.add("INCONSISTENT")
-  const hasRule = answer.type === "noul" ? !!profile.rules.noul : answer.type === "choice" ? !!profile.rules.choice : !!profile.rules.score
-  if (!hasRule && profile.mode === "automatic") reasons.add("CALIBRATION_UNAVAILABLE")
-  if (reasons.size > 0 || outcome === undefined) return review()
-  return { disposition: "accepted", outcome, reasons: [] }
+  const applied = applyRules(answer, question, profile.rules)
+  // Under a review profile the thresholds still name why an answer is weak (no probability, a split distribution), but
+  // nothing is accepted.
+  for (const reason of applied.reasons) if (reason !== "CALIBRATION_UNAVAILABLE" || profile.mode === "automatic") reasons.add(reason)
+  if (reasons.size > 0 || applied.outcome === undefined) return { disposition: "review", reasons: [...reasons].sort() }
+  return { disposition: "accepted", outcome: applied.outcome, reasons: [] }
 }
