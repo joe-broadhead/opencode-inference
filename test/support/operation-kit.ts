@@ -39,6 +39,7 @@ export const probeRoute = (overrides: Partial<RouteCapability> = {}): RouteCapab
   inputs: { text: true, images: { maxCount: 1, maxBytesEach: 4 * KiB, maxBytesTotal: 4 * KiB, mimeTypes: ["image/png"], ordered: true }, pdf: null, textWithDocument: null },
   maxRequestBytes: 64 * KiB,
   effectiveContextTokens: null,
+  contextAllowance: null,
   fieldTypes: ["text"],
   listItemTypes: [],
   questionTypes: [],

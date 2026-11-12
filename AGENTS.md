@@ -23,7 +23,8 @@ a callable stub, a method or a permission rule.
   distributions are stored exactly as reported: never renormalise, round, complete or invent one, and never use the
   reported confidence as corroboration. Acceptance is deterministic (`src/domain/acceptance.ts`); an automatic profile
   loads only with a matching held-out report (`src/domain/evaluation.ts`). Labels never authorize anything. Box is
-  refused until it has a reviewed representation; the effective context is enforced by refusing, never truncating.
+  refused until it has a reviewed representation; the effective context is enforced by refusing, never truncating, and
+  is usable only net of a documented template allowance (`contextAllowance`, like `pricing.ceiling` for prices).
 - **The canaries** (`scripts/canary-extractions.ts`, `scripts/canary-decisions.ts`) spend money: never run them from a
   check, CI or a test except their refusals and `--dry-run`. They never edit the fixture.
 

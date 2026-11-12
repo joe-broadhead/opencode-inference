@@ -28,7 +28,7 @@ const { key, budget, perCall, spend, selected, dryRun } = canaryArgs("canary-dec
 
 const fixtureRoute = OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "typesafe/jev-1.14" && route.operation === "decide")!
 // The canary sends a tiny state; the reviewed limit is not known, so it uses a small, safe one for this request only.
-const route = { ...fixtureRoute, effectiveContextTokens: fixtureRoute.effectiveContextTokens ?? 2048 }
+const route = { ...fixtureRoute, effectiveContextTokens: fixtureRoute.effectiveContextTokens ?? 2048, contextAllowance: fixtureRoute.contextAllowance ?? { tokens: 1024, source: "canary request only" } }
 const STATE = "Invoice AB-72 for EUR 1.00 was paid on 2026-11-01."
 const QUESTIONS = {
   paid: { type: "noul", prompt: "Has the invoice been paid?" },

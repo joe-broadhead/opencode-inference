@@ -40,6 +40,15 @@ export const RouteCapability = z.strictObject({
   }),
   maxRequestBytes: z.number().int().positive().nullable(),
   effectiveContextTokens: z.number().int().positive().nullable().describe("null: not reviewed for this endpoint."),
+  contextAllowance: z
+    .strictObject({
+      tokens: z.number().int().nonnegative().describe("Tokens the endpoint's own prompt template and overhead add to every request."),
+      source: z.string().min(1).max(256).describe("Where the provider documents this allowance, such as a source id in `sources`."),
+    })
+    .nullable()
+    .describe(
+      "The documented template and overhead allowance. The only way effectiveContextTokens becomes usable: a server-side template adds tokens the request does not contain, so without it a request cannot be shown to fit and is refused. null: not documented.",
+    ),
   fieldTypes: z.array(z.string()).max(16).describe("Documented upstream field kinds, for extraction routes."),
   listItemTypes: z.array(z.string()).max(8),
   questionTypes: z.array(z.string()).max(8).describe("Documented question kinds, for decision routes."),
@@ -99,7 +108,7 @@ const NOT_RUN = { status: "not_run", on: null } as const
 export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.parse({
   schemaVersion: 1,
   provider: "openrouter",
-  revision: "openrouter-2026-11-11.2",
+  revision: "openrouter-2026-11-11.3",
   reviewedOn: "2026-11-11",
   basis: "documentation",
   verified: false,
@@ -130,6 +139,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       },
       maxRequestBytes: 16 * MiB,
       effectiveContextTokens: null,
+      contextAllowance: null,
       fieldTypes: ["text", "number", "date", "time", "datetime", "duration", "list", "estimate", "forecast"],
       listItemTypes: ["text"],
       questionTypes: [],
@@ -156,6 +166,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       },
       maxRequestBytes: null,
       effectiveContextTokens: null,
+      contextAllowance: null,
       fieldTypes: ["text", "list"],
       listItemTypes: ["text"],
       questionTypes: [],
@@ -177,6 +188,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       inputs: { text: true, images: NO_IMAGES, pdf: null, textWithDocument: null },
       maxRequestBytes: null,
       effectiveContextTokens: null,
+      contextAllowance: null,
       fieldTypes: ["text", "list"],
       listItemTypes: ["text"],
       questionTypes: [],
@@ -198,6 +210,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       inputs: { text: null, images: NO_IMAGES, pdf: null, textWithDocument: null },
       maxRequestBytes: null,
       effectiveContextTokens: null,
+      contextAllowance: null,
       fieldTypes: [],
       listItemTypes: [],
       questionTypes: [],
@@ -219,6 +232,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       inputs: { text: true, images: NO_IMAGES, pdf: null, textWithDocument: null },
       maxRequestBytes: null,
       effectiveContextTokens: null,
+      contextAllowance: null,
       fieldTypes: [],
       listItemTypes: [],
       questionTypes: ["noul", "choice", "score", "box"],

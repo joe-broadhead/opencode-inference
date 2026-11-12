@@ -12,7 +12,7 @@ import { snapshot, type FileAccess, type Snapshot } from "../../src/runtime/sour
 
 const STATE = "Payment received for invoice AB-72. Thank you."
 const FIXTURE = readFileSync(new URL("../fixtures/providers/openrouter-decisions/jev-text.json", import.meta.url), "utf8")
-const JEV: RouteCapability = { ...OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "typesafe/jev-1.14")!, effectiveContextTokens: 4096 }
+const JEV: RouteCapability = { ...OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "typesafe/jev-1.14")!, effectiveContextTokens: 4096, contextAllowance: { tokens: 512, source: "test" } }
 const QUESTIONS = {
   kind: { type: "choice", prompt: "Which document category fits?", options: [{ id: "invoice", description: "A request for payment" }, { id: "receipt", description: "Proof of payment" }, { id: "other", description: "Other" }] },
   paid: { type: "noul", prompt: "Has it been paid?" },
@@ -56,7 +56,18 @@ describe("the request", () => {
     expect(await failure(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), source, { ...JEV, effectiveContextTokens: null }))).toMatch(/^CONTEXT_LIMIT: The effective context of typesafe\/jev-1.14 on this endpoint has not been reviewed/)
     // Decisive information at the end of a long source is never cut off silently: the request is refused instead.
     const long = await snapshot({ kind: "text", text: `${"filler ".repeat(1000)}DECISIVE: paid in full.` }, noFiles, JEV, new AbortController().signal)
-    expect(await failure(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), long, JEV))).toMatch(/^CONTEXT_LIMIT: .*may exceed the 4096-token effective context/)
+    expect(await failure(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), long, JEV))).toMatch(/^CONTEXT_LIMIT: .*may exceed the 3584 tokens left of the 4096-token effective context/)
+  })
+
+  test("a reviewed limit is usable only net of a documented template allowance", async () => {
+    const source = await text()
+    // A limit without its allowance refuses: a server-side template could push the request past it.
+    expect(await failure(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), source, { ...JEV, contextAllowance: null }))).toMatch(/^CONTEXT_LIMIT: typesafe\/jev-1.14 has no documented template allowance/)
+    const prompt = new TextEncoder().encode(JSON.stringify({ state: STATE, questions: QUESTIONS })).byteLength
+    // Fits exactly the limit net of the allowance; one token more of allowance and it does not.
+    expect(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), source, { ...JEV, effectiveContextTokens: prompt + 100, contextAllowance: { tokens: 100, source: "test" } })).not.toThrow()
+    expect(await failure(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), source, { ...JEV, effectiveContextTokens: prompt + 100, contextAllowance: { tokens: 101, source: "test" } }))).toMatch(/^CONTEXT_LIMIT: /)
+    expect(await failure(() => decisionsAdapter.request(prepared({ questions: QUESTIONS }), source, { ...JEV, effectiveContextTokens: 100, contextAllowance: { tokens: 100, source: "test" } }))).toMatch(/^CONTEXT_LIMIT: /)
   })
 })
 

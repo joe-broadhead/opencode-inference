@@ -137,8 +137,10 @@ contract (`WIRE_REVISION`):
   with `levels` low to high) and `provider.allow_fallbacks: false`. A versioned `questionSet` comes only from the
   trusted options, and its digest (labels, prompts and option order) travels with the result. Refused locally: Box
   (no reviewed region representation), images, an unknown set or profile, and a request that may not fit the route's
-  effective context: the state and questions must fit its reviewed token limit counted as UTF-8 bytes (no tokenizer
-  emits more tokens than bytes), and an unreviewed limit refuses, so the end of a long source is never cut off silently.
+  effective context: the state and questions must fit its reviewed token limit, net of a documented template allowance
+  (`contextAllowance`, with its source: a server-side prompt template adds tokens the request does not contain), counted
+  as UTF-8 bytes (no tokenizer emits more tokens than bytes). An unreviewed limit or an undocumented allowance refuses,
+  so the end of a long source is never cut off silently.
 - **Answer.** `{ probability }` for noul, `{ choice, distribution? }` for choice, `{ score, distribution? }` for score
   (the expected zero-based index), each with an optional `confidence`, or `{ refusal }`. Probabilities must lie in 0..1;
   a distribution must name only asked labels and total at most 1; a complete score distribution must agree with its
@@ -212,7 +214,7 @@ entry never enables a route by itself.
 
 <!-- generated:routes -->
 
-Fixture `openrouter-2026-11-11.2`, reviewed 2026-11-11, documentation-derived, verified: false.
+Fixture `openrouter-2026-11-11.3`, reviewed 2026-11-11, documentation-derived, verified: false.
 
 | Model | Operation | Route | Status | Enabled | Text | Images | PDF | Field or question types | Price |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

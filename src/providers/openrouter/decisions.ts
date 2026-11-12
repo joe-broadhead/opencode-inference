@@ -26,7 +26,8 @@ import { entries, exactProbabilityOf, isObject, quoteOf, REQUEST_ID, usageOf } f
 // stored as reported, never renormalised, rounded or completed; a label the provider did not report stays absent. A
 // refusal is its own outcome. Box is refused locally: there is no reviewed region representation yet. The endpoint's
 // effective context is enforced by refusing, never by truncating: the state and questions must fit in its reviewed
-// token limit counted as UTF-8 bytes (no tokenizer emits more tokens than bytes), and an unreviewed limit refuses.
+// token limit, net of a documented template allowance, counted as UTF-8 bytes (no tokenizer emits more tokens than
+// bytes); an unreviewed limit or an undocumented allowance refuses.
 
 export const DECISIONS_PATH = "/api/alpha/decisions"
 export const WIRE_REVISION = "openrouter-alpha-decisions-2026-11-11.1"
@@ -94,8 +95,13 @@ function request(raw: unknown, source: Snapshot, route: RouteCapability) {
   const prompt = new TextEncoder().encode(JSON.stringify({ state: body.state, questions: body.questions })).byteLength
   if (route.effectiveContextTokens === null)
     throw new InferenceError("CONTEXT_LIMIT", `The effective context of ${route.model} on this endpoint has not been reviewed, so a request could be truncated silently; nothing was sent.`, "Use a route whose effective context is reviewed (see inference_capabilities).")
-  if (prompt > route.effectiveContextTokens)
-    throw new InferenceError("CONTEXT_LIMIT", `The state and questions (${prompt} bytes) may exceed the ${route.effectiveContextTokens}-token effective context of ${route.model}; the end of the source would not be read.`)
+  // A server-side prompt template adds tokens the request does not contain: the limit is usable only net of a
+  // documented allowance, as a per-token price is a ceiling only through a documented one.
+  if (route.contextAllowance === null)
+    throw new InferenceError("CONTEXT_LIMIT", `${route.model} has no documented template allowance for its effective context, so a request cannot be shown to fit; nothing was sent.`, "Use a route whose effective context and template allowance are reviewed (see inference_capabilities).")
+  const usable = route.effectiveContextTokens - route.contextAllowance.tokens
+  if (usable <= 0 || prompt > usable)
+    throw new InferenceError("CONTEXT_LIMIT", `The state and questions (${prompt} bytes) may exceed the ${Math.max(usable, 0)} tokens left of the ${route.effectiveContextTokens}-token effective context of ${route.model} after its template allowance; the end of the source would not be read.`)
   const bytes = new TextEncoder().encode(JSON.stringify(body))
   if (route.maxRequestBytes !== null && bytes.byteLength > route.maxRequestBytes) throw new InferenceError("CONTEXT_LIMIT", `The request is larger than the ${route.maxRequestBytes} bytes ${route.model} takes.`)
   return { path: DECISIONS_PATH, body: bytes }
