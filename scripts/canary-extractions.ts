@@ -19,6 +19,9 @@
 // call's worst case must fit the budget, so the run cannot overshoot it by its own accounting; after it, the reported
 // charge is counted whatever the HTTP status, or the worst case when none is reported (canary-budget.ts). --dry-run prints what would be sent and sends nothing. It prints a JSON report with the suggested canary
 // status per route; it never edits the fixture or enables a route: a person reviews the report and changes the fixture.
+// --shape adds, for each answer, its structure (paths, types, lengths; never a value or the source text) and, when the
+// adapter refuses it, the exact refusal: the path, what the contract expects and the type found (canary-shape.ts). It
+// reads only answers already paid for, so the budget rules are unchanged.
 import { ExtractInput } from "../src/domain/contracts.js"
 import { InferenceError } from "../src/domain/errors.js"
 import { format } from "../src/domain/money.js"
@@ -28,10 +31,11 @@ import { extractionsAdapter } from "../src/providers/openrouter/extractions.js"
 import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
 import { snapshot, type FileAccess, type Snapshot } from "../src/runtime/sources.js"
 import { canaryArgs } from "./canary-cli.js"
+import { failureOf, shapeOf } from "./canary-shape.js"
 
 const CANARIES = ["catalog", "text", "image", "pdf", "malformed"] as const
 type Canary = (typeof CANARIES)[number]
-const { key, budget, perCall, spend, selected, dryRun } = canaryArgs("canary-extractions", CANARIES, process.argv.slice(2), process.env)
+const { key, budget, perCall, spend, selected, dryRun, shape } = canaryArgs("canary-extractions", CANARIES, process.argv.slice(2), process.env)
 
 const route = (model: string): RouteCapability => {
   const found = OPENROUTER_CAPABILITIES.routes.find((item) => item.model === model && item.operation === "extract")
@@ -71,7 +75,7 @@ const cases: Case[] = [
   { canary: "malformed", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "a, b" }, fields: { names: { type: "list", items: "text" } } }, source: () => snapshot({ kind: "text", text: "a, b" }, noFiles, route("cloudflare/clairic"), signal), refused: true },
 ]
 
-const report: Record<string, unknown> = { at: new Date().toISOString(), origin: OPENROUTER_ORIGIN, budgetUsd: format(budget), perCallUsd: format(perCall), dryRun }
+const report: Record<string, unknown> = { at: new Date().toISOString(), origin: OPENROUTER_ORIGIN, budgetUsd: format(budget), perCallUsd: format(perCall), dryRun, shape }
 
 if (selected.has("catalog")) {
   if (dryRun) report["catalog"] = { would: "GET /api/v1/models?endpoints=/api/alpha/extractions (no key)" }
@@ -106,32 +110,35 @@ for (const item of cases) {
   }
   if (dryRun) {
     spend.record(undefined)
-    results.push({ canary: item.canary, model: item.route.model, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall) })
+    results.push({ canary: item.canary, model: item.route.model, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall), ...(shape ? { shape: "would record the answer's structure" } : {}) })
     continue
   }
   const account = await transport.account()
   if (account === undefined || account === "needs_auth") throw new Error("the canary key is not usable")
   let answer: Uint8Array | undefined
+  let structure: ReturnType<typeof shapeOf> | undefined
   try {
     const response = await transport.post({ ...request, account, deadlineMs: 30_000, maxRequestBytes: 16 * 1024 * 1024, maxResponseBytes: 1024 * 1024, signal })
     answer = response.body
+    // --shape: the answer's structure, never its values (canary-shape.ts). Read from the answer already paid for.
+    if (shape) structure = shapeOf(response)
     const ok = response.status >= 200 && response.status <= 299
     if (item.refused || !ok) {
       // An error answer can still be charged: count what it reports, or the worst case.
       const counted = spend.recordAnswer(answer)
-      results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: item.refused ? response.status >= 400 && response.status < 500 : false, counted })
+      results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: item.refused ? response.status >= 400 && response.status < 500 : false, counted, ...(structure ? { shape: structure } : {}) })
       continue
     }
     const parsed = extractionsAdapter.parse(response, { source, route: item.route, input })
     const usd = parsed.usage.charges.filter((charge) => charge.currency === "USD")
     const counted = parsed.usage.costStatus !== "known" || usd.length === 0 ? spend.record(undefined) : usd.map((charge) => spend.record(charge.amount)).join(" + ")
-    results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: true, usage: parsed.usage, review: parsed.review.reasons, counted })
+    results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: true, usage: parsed.usage, review: parsed.review.reasons, counted, ...(structure ? { shape: structure } : {}) })
   } catch (error) {
     // A request that may have left is counted: what its answer reports, or the worst case. One that did not, is not.
     const sent = !(error instanceof TransportError) || error.sent
     const counted = sent ? spend.recordAnswer(answer) : "0"
     const reason = error instanceof InferenceError ? error.code : error instanceof TransportError ? `transport ${error.kind}` : "error"
-    results.push({ canary: item.canary, model: item.route.model, passed: false, reason, counted })
+    results.push({ canary: item.canary, model: item.route.model, passed: false, reason, counted, ...(shape ? { failure: failureOf(error, answer), ...(structure ? { shape: structure } : {}) } : {}) })
   }
 }
 report["results"] = results

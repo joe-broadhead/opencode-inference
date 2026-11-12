@@ -1,0 +1,32 @@
+{
+  "_about": "OpenRouter's public model catalog for /api/alpha/extractions, fetched without a key on 2026-11-12 from https://openrouter.ai/api/v1/models?endpoints=/api/alpha/extractions. Trimmed to ids and field names: every other value (names, descriptions, prices, links) is dropped. entryFields lists the fields each live entry had; alias entries also had alias_target, of which only the slug is kept.",
+  "entryFields": [
+    "architecture",
+    "canonical_slug",
+    "context_length",
+    "created",
+    "default_parameters",
+    "description",
+    "endpoints",
+    "expiration_date",
+    "hugging_face_id",
+    "id",
+    "knowledge_cutoff",
+    "links",
+    "name",
+    "per_request_limits",
+    "pricing",
+    "supported_parameters",
+    "supported_voices",
+    "top_provider"
+  ],
+  "total_count": 2,
+  "data": [
+    {
+      "id": "cloudflare/clairic"
+    },
+    {
+      "id": "scaledown/extract"
+    }
+  ]
+}

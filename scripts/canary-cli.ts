@@ -13,12 +13,14 @@ export interface CanaryArgs<C extends string> {
   readonly spend: CanaryBudget
   readonly selected: ReadonlySet<C>
   readonly dryRun: boolean
+  /** --shape: record each answer's structure and the adapter's exact refusal in the report (canary-shape.ts). No extra request. */
+  readonly shape: boolean
 }
 
 export function canaryArgs<C extends string>(script: string, canaries: readonly C[], argv: readonly string[], env: NodeJS.ProcessEnv): CanaryArgs<C> {
   const refuse = (reason: string): never => {
     console.error(`${script}: refused: ${reason}`)
-    console.error(`usage: OPENROUTER_CANARY_KEY=<key> bun scripts/${script}.ts --budget-usd <at most 0.10> --per-call-usd <worst case per call> --yes-spend [--only ${canaries.join(",")}] [--dry-run]`)
+    console.error(`usage: OPENROUTER_CANARY_KEY=<key> bun scripts/${script}.ts --budget-usd <at most 0.10> --per-call-usd <worst case per call> --yes-spend [--only ${canaries.join(",")}] [--shape] [--dry-run]`)
     process.exit(2)
   }
   const flag = (name: string) => argv.includes(name)
@@ -35,7 +37,7 @@ export function canaryArgs<C extends string>(script: string, canaries: readonly 
       return refuse(`${name} must be an exact decimal such as ${example}`)
     }
   }
-  for (const arg of argv) if (arg.startsWith("--") && !["--budget-usd", "--per-call-usd", "--yes-spend", "--only", "--dry-run"].includes(arg)) refuse(`unknown option ${arg}`)
+  for (const arg of argv) if (arg.startsWith("--") && !["--budget-usd", "--per-call-usd", "--yes-spend", "--only", "--shape", "--dry-run"].includes(arg)) refuse(`unknown option ${arg}`)
   if (env.CI) refuse("CI is set: the canary spends money and never runs in CI")
   if (!flag("--yes-spend")) refuse("--yes-spend is required: the canary sends requests that are charged")
   const budget = amount("--budget-usd", "0.02") ?? refuse("--budget-usd is required")
@@ -47,5 +49,5 @@ export function canaryArgs<C extends string>(script: string, canaries: readonly 
   if (!key) refuse("OPENROUTER_CANARY_KEY is not set: the canary uses only an explicitly given key, never OpenCode's")
   const only = (value("--only") ?? canaries.join(",")).split(",")
   for (const name of only) if (!(canaries as readonly string[]).includes(name)) refuse(`unknown canary ${name}`)
-  return { key: key!, budget, perCall, spend: new CanaryBudget(budget, perCall), selected: new Set(only as C[]), dryRun: flag("--dry-run") }
+  return { key: key!, budget, perCall, spend: new CanaryBudget(budget, perCall), selected: new Set(only as C[]), dryRun: flag("--dry-run"), shape: flag("--shape") }
 }

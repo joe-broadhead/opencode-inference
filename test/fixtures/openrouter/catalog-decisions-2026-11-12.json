@@ -1,0 +1,150 @@
+{
+  "_about": "OpenRouter's public model catalog for /api/alpha/decisions, fetched without a key on 2026-11-12 from https://openrouter.ai/api/v1/models?endpoints=/api/alpha/decisions. Trimmed to ids and field names: every other value (names, descriptions, prices, links) is dropped. entryFields lists the fields each live entry had; alias entries also had alias_target, of which only the slug is kept.",
+  "entryFields": [
+    "alias_target",
+    "architecture",
+    "canonical_slug",
+    "context_length",
+    "created",
+    "default_parameters",
+    "description",
+    "endpoints",
+    "expiration_date",
+    "hugging_face_id",
+    "id",
+    "knowledge_cutoff",
+    "links",
+    "name",
+    "per_request_limits",
+    "pricing",
+    "supported_parameters",
+    "supported_voices",
+    "top_provider"
+  ],
+  "total_count": 36,
+  "data": [
+    {
+      "id": "google/gemini-decision-1"
+    },
+    {
+      "id": "nace-ai/drex-max-finance"
+    },
+    {
+      "id": "parallel/decisions-fast:free"
+    },
+    {
+      "id": "morph/reflex"
+    },
+    {
+      "id": "baseten/joey-1"
+    },
+    {
+      "id": "liquid/d1.1"
+    },
+    {
+      "id": "~liquid/d1-ultra-latest",
+      "alias_target": {
+        "slug": "liquid/d1-ultra"
+      }
+    },
+    {
+      "id": "~liquid/d1-latest",
+      "alias_target": {
+        "slug": "liquid/d1.1"
+      }
+    },
+    {
+      "id": "baseten/mammoth-1"
+    },
+    {
+      "id": "baseten/elephant-1"
+    },
+    {
+      "id": "nace-ai/drex-max"
+    },
+    {
+      "id": "perplexity/pplx-decider-flash-v1.2"
+    },
+    {
+      "id": "perplexity/pplx-decider-v1.2"
+    },
+    {
+      "id": "~perplexity/pplx-decider-flash-latest",
+      "alias_target": {
+        "slug": "perplexity/pplx-decider-flash-v1.2"
+      }
+    },
+    {
+      "id": "respan/span-02"
+    },
+    {
+      "id": "liquid/d1-ultra"
+    },
+    {
+      "id": "typesafe/jev-1.14"
+    },
+    {
+      "id": "~perplexity/pplx-decider-latest",
+      "alias_target": {
+        "slug": "perplexity/pplx-decider-v1.2"
+      }
+    },
+    {
+      "id": "scaledown/classify-1"
+    },
+    {
+      "id": "nace-ai/drex-v2.0"
+    },
+    {
+      "id": "microsoft/microsoft-decision-1"
+    },
+    {
+      "id": "nace-ai/drex-v1.5"
+    },
+    {
+      "id": "cloudflare/clef-omni"
+    },
+    {
+      "id": "upstage/solar-decide-flash"
+    },
+    {
+      "id": "openai/gpt-6-luna-decisions"
+    },
+    {
+      "id": "liquid/d1"
+    },
+    {
+      "id": "cloudflare/clef-flash"
+    },
+    {
+      "id": "cloudflare/clef"
+    },
+    {
+      "id": "togethercomputer/tev1-4b-experimental"
+    },
+    {
+      "id": "upstage/solar-decide"
+    },
+    {
+      "id": "respan/span-01"
+    },
+    {
+      "id": "respan/span-01-lite"
+    },
+    {
+      "id": "respan/span-01-lite:free"
+    },
+    {
+      "id": "jaredpalmer/kev-4b"
+    },
+    {
+      "id": "~typesafe/jev-latest",
+      "alias_target": {
+        "slug": "typesafe/jev-1.14"
+      }
+    },
+    {
+      "id": "typesafe/jev-1.13"
+    }
+  ]
+}

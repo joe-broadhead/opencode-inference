@@ -32,6 +32,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- The catalog check reports a `~` alias (such as `~typesafe/jev-latest`) with its target, and any other unexpected entry as drift by its id's shape, instead of stopping the canary; a reviewed model is still matched only by its exact id.
+- The canaries take `--shape`: each answer's structure and the adapter's exact refusal (path, expectation, type found) go into the report, never a value. It adds no request.
 - The spend defaults (USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours) are confirmed by the owner; the docs no longer call them proposals, and a test keeps the docs on the values the options default to.
 - Status lists an agent as unguarded when its own rules would run any non-read Inference action without asking, registered or planned, not only the planned ones.
 - `npm run lint` checks the network and key boundary with the TypeScript compiler API: outside the transport boundary modules are an allow-list (relative paths inside `src/`, listed `node:` builtins and packages); `eval`, `Function`, prototype and property-definition routes, network globals, loader escapes, `process` beyond a few members, computed keys the type checker cannot prove safe, and any use of the host connection API other than a direct method call that is not `resolve` are refused; `dist/` may hold only `src/` and inlined zod. It catches accidental and casual network use; review and the runtime network spy cover deliberate evasion.

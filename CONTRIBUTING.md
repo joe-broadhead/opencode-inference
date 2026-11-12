@@ -58,15 +58,21 @@ for.
 ## The compatibility canary
 
 `scripts/canary-extractions.ts` checks the reviewed Extractions contract against the live API. It spends money, so no
-check runs it. To run it, use a dedicated OpenRouter key with its own credit limit:
+check runs it. To run it, use a dedicated OpenRouter key with its own credit limit, read at a hidden prompt so it never
+lands in your shell history:
 
 ```sh
-OPENROUTER_CANARY_KEY=<key> bun scripts/canary-extractions.ts --budget-usd 0.02 --per-call-usd 0.005 --yes-spend --only catalog,text
+read -rs OPENROUTER_CANARY_KEY && export OPENROUTER_CANARY_KEY
+bun scripts/canary-extractions.ts --budget-usd 0.02 --per-call-usd 0.005 --yes-spend --only catalog,text --dry-run
+bun scripts/canary-extractions.ts --budget-usd 0.02 --per-call-usd 0.005 --yes-spend --only catalog,text --shape
+unset OPENROUTER_CANARY_KEY
 ```
 
 It refuses in CI and without the key, a budget of at most 0.10, a per-call worst case and `--yes-spend`. Before each call
 the spend so far plus that worst case must fit the budget; after it, the reported charge counts whatever the HTTP
-status, or the worst case when none is reported. `--dry-run` prints what it would send and skip.
+status, or the worst case when none is reported. `--dry-run` prints what it would send and skip. `--shape` adds each
+answer's structure (paths, types and lengths, never a value or the source text) and, when the adapter refuses an answer,
+the exact refusal: the path, what the contract expects and the type found. It reads only answers already paid for.
 It prints a report and never edits the fixture: record a passed canary in `src/providers/openrouter/capabilities.ts`
 (the route's `canary`, a new `revision`) in its own reviewed change before enabling a route.
 
