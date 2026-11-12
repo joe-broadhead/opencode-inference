@@ -51,7 +51,13 @@ export const RouteCapability = z.strictObject({
       perRequest: Decimal.optional(),
       perMillionInputTokens: Decimal.optional(),
       perMillionOutputTokens: Decimal.optional(),
-      upperBound: z.boolean(),
+      upperBound: z.boolean().describe("For a per-request price only: true when that price is the whole charge. It never makes a per-token price a ceiling."),
+      ceiling: z
+        .strictObject({ amount: Decimal, source: z.string().min(1).max(256).describe("Where the provider documents this maximum, such as a source id in `sources`.") })
+        .optional()
+        .describe(
+          "A provider-documented maximum charge per request. The only way a per-token price becomes an upper bound: token counts cannot be bounded locally (a server-side prompt template adds tokens the request does not contain), so without it a per-token price is an estimate and the call reserves the whole per-request budget.",
+        ),
     })
     .nullable()
     .describe("null: no price in the reviewed sources."),

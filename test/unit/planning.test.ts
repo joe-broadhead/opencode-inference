@@ -242,3 +242,12 @@ describe("null thresholds are refused locally where a route does not take them",
     expect(() => PlanInput.parse({ task: "extract", input: { model: "cloudflare/clairic", source: text, fields: { name: { type: "text", nullThreshold: 1.5 } } } })).toThrow()
   })
 })
+
+describe("plan quotes for per-token prices", () => {
+  test("an estimate unless the fixture records a documented ceiling", () => {
+    const priced = (pricing: RouteCapability["pricing"]) => ({ ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route) => (route.model === "cloudflare/clairic" ? { ...route, pricing } : route)) })
+    const quote = (pricing: RouteCapability["pricing"]) => run({ task: "extract", input: { source: text, profile: "extract-typed", fields } }, { fixture: priced(pricing) }).quote
+    expect(quote({ revision: "t", currency: "USD", perMillionInputTokens: "0.2", upperBound: true }).kind).toBe("estimate")
+    expect(quote({ revision: "t", currency: "USD", perMillionInputTokens: "0.2", upperBound: false, ceiling: { amount: "0.02", source: "A4" } })).toMatchObject({ kind: "upper_bound", amount: "0.02" })
+  })
+})

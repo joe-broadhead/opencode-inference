@@ -18,6 +18,7 @@ a callable stub, a method or a permission rule.
   request fingerprint. Validate every consumed key strictly (a changed required field or type is
   `PROVIDER_CONTRACT_CHANGED`), tolerate bounded unknown metadata, read money from the literal (src/domain/json.ts)
   and round it UP (`roundUp`), never through a float. Evidence offsets are Unicode code points of the exact source.
+  A per-token price is never an upper bound unless the fixture records a provider-documented ceiling with its source.
 - **The canary** (`scripts/canary-extractions.ts`) spends money: never run it from a check, CI or a test except its
   refusals and `--dry-run`. It never edits the fixture.
 

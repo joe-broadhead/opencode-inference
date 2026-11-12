@@ -97,23 +97,26 @@ function request(raw: unknown, source: Snapshot, route: RouteCapability) {
 // --- Quote --------------------------------------------------------------------------------------------------------------
 
 /**
- * The price before sending, exactly. A per-request price is the whole price; a per-token input price is bounded by
- * the request body's UTF-8 bytes (no tokenizer emits more tokens than bytes of text), rounded UP to 12 places. An image
- * input or an output price has no bound we can prove, so the quote is an estimate, never an upper bound.
+ * The price before sending. A per-request price alone, marked as the whole charge, is an exact upper bound. A per-token
+ * price is never bounded locally: a provider's server-side prompt template can add tokens the request body does not
+ * contain, so it is an upper bound only through a ceiling the provider documents (`pricing.ceiling`, with its source);
+ * otherwise it is an estimate, and the call reserves the whole per-request budget. The estimate itself (per-request
+ * price plus the input price for the body's UTF-8 bytes) is exact and rounded UP to 12 places.
  */
 function quote(route: RouteCapability, source: Snapshot, input: unknown): ReturnType<Adapter["quote"]> {
   const pricing = route.pricing
   if (!pricing) return { kind: "unavailable" }
-  const bodyBytes = BigInt(request(input, source, route).body.byteLength)
+  const perToken = pricing.perMillionInputTokens !== undefined || pricing.perMillionOutputTokens !== undefined
+  if (perToken && pricing.ceiling !== undefined) return { kind: "upper_bound", amount: format(money(pricing.ceiling.amount)) }
   let units = pricing.perRequest === undefined ? 0n : money(pricing.perRequest).units
   if (pricing.perMillionInputTokens !== undefined) {
+    const bodyBytes = BigInt(request(input, source, route).body.byteLength)
     // units are 10^-12 USD; per million tokens means a further 10^-6: the exact product has 18 places.
     const exact = money(pricing.perMillionInputTokens).units * bodyBytes
     const text = exact.toString().padStart(19, "0")
     units += roundUp(`${text.slice(0, -18)}.${text.slice(-18)}`, 12).units
   }
-  const bounded = pricing.upperBound && pricing.perMillionOutputTokens === undefined && (pricing.perMillionInputTokens === undefined || source.modality === "text")
-  return { kind: bounded ? "upper_bound" : "estimate", amount: format({ currency: "USD", units }) }
+  return { kind: !perToken && pricing.upperBound ? "upper_bound" : "estimate", amount: format({ currency: "USD", units }) }
 }
 
 // --- Response -----------------------------------------------------------------------------------------------------------

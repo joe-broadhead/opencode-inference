@@ -189,20 +189,26 @@ describe("the quote", () => {
     expect(extractionsAdapter.quote(priced({ revision: "t", currency: "USD", perRequest: "0.002", upperBound: false }), text, input())).toEqual({ kind: "estimate", amount: "0.002" })
   })
 
-  test("a per-token input price is bounded by the body's bytes, computed exactly and rounded up", async () => {
+  test("a per-token price is an estimate, computed exactly and rounded up, never an upper bound by itself", async () => {
     const text = await textSource()
+    // upperBound: true does not make a token price a ceiling: a server-side prompt template can add tokens.
     const route = priced({ revision: "t", currency: "USD", perRequest: "0.001", perMillionInputTokens: "0.333333333333", upperBound: true })
     const bytes = BigInt(extractionsAdapter.request(input(), text, route).body.byteLength)
     // 0.333333333333 USD per million tokens, times the bytes, in 10^-18 USD, rounded UP to 10^-12.
     const exact = money("0.333333333333").units * bytes
     const expected = money("0.001").units + (exact + 999_999n) / 1_000_000n
     const quoted = extractionsAdapter.quote(route, text, input())
-    expect(quoted).toEqual({ kind: "upper_bound", amount: format({ currency: "USD", units: expected }) })
+    expect(quoted).toEqual({ kind: "estimate", amount: format({ currency: "USD", units: expected }) })
     expect(money(quoted.amount!).units * 1_000_000n).toBeGreaterThanOrEqual(money("0.001").units * 1_000_000n + exact)
     expect(roundUp("0.0000000000001").units).toBe(1n)
-    // An output price or an image has no provable bound: an estimate, never a ceiling.
     expect(extractionsAdapter.quote({ ...route, pricing: { ...route.pricing!, perMillionOutputTokens: "1" } }, text, input()).kind).toBe("estimate")
     expect(extractionsAdapter.quote(route, imageSource(16), input({ name: { type: "text" } })).kind).toBe("estimate")
+  })
+
+  test("only a provider-documented ceiling, with its source, makes a per-token price an upper bound", async () => {
+    const text = await textSource()
+    const route = priced({ revision: "t", currency: "USD", perMillionInputTokens: "0.5", upperBound: false, ceiling: { amount: "0.03", source: "A4" } })
+    expect(extractionsAdapter.quote(route, text, input())).toEqual({ kind: "upper_bound", amount: "0.03" })
   })
 })
 
@@ -229,5 +235,21 @@ describe("through the dispatcher, with the fake transport", () => {
       ["0.004", "upper_bound", "settled", "0.000012345679"],
     ])
     expect(JSON.parse(new TextDecoder().decode(harness.sent[0]!.body)).state).toBe(STATE)
+  })
+})
+
+describe("reservations for per-token prices", () => {
+  test("a per-token-priced route without a documented ceiling reserves the whole per-request budget, as an estimate", async () => {
+    const { probeHarness, probeRoute } = await import("../support/operation-kit.js")
+    const { ExtractResult } = await import("../../src/domain/contracts.js")
+    const tool = { name: "extract", class: "send" as const, operation: "extract" as const, module: "extractions" as const, effects: { network: true, uploadsSource: true, billable: true, readsFiles: true }, description: "extract", input: ExtractInput, output: ExtractResult }
+    const run = async (pricing: RouteCapability["pricing"]) => {
+      const harness = await probeHarness({ route: probeRoute({ ...CLAIRIC, enabled: true, pricing }), tool, adapter: extractionsAdapter, options: { profiles: { probe: { model: "cloudflare/clairic" } } } })
+      harness.replies.push(answer(FIXTURE))
+      await harness.model({ profile: "probe", source: { kind: "text", text: STATE }, fields: FIELDS })
+      return (await harness.journal.list())[0]!.reservation
+    }
+    expect(await run({ revision: "t", currency: "USD", perRequest: "0.001", perMillionInputTokens: "0.2", upperBound: true })).toMatchObject({ amount: "0.05", basis: "admission_budget" })
+    expect(await run({ revision: "t", currency: "USD", perMillionInputTokens: "0.2", upperBound: false, ceiling: { amount: "0.02", source: "A4" } })).toMatchObject({ amount: "0.02", basis: "upper_bound" })
   })
 })

@@ -173,6 +173,9 @@ export function quoteFor(route: RouteCapability | undefined, source: PlanResult[
     return { kind: "unavailable", basis: "none", freshness, unknowns: [route ? `no price for ${route.model} in the reviewed sources` : "no route is selected"] }
   }
   const unknowns: string[] = []
+  // A per-token price is a ceiling only through a ceiling the provider documents (see RouteCapability.pricing.ceiling).
+  if ((pricing.perMillionInputTokens !== undefined || pricing.perMillionOutputTokens !== undefined) && pricing.ceiling !== undefined)
+    return { kind: "upper_bound", currency: "USD", amount: pricing.ceiling.amount, basis: "fixture", priceRevision: pricing.revision, freshness, unknowns }
   if (pricing.perRequest !== undefined && pricing.perMillionInputTokens === undefined && pricing.perMillionOutputTokens === undefined) {
     return pricing.upperBound
       ? { kind: "upper_bound", currency: "USD", amount: pricing.perRequest, basis: "fixture", priceRevision: pricing.revision, freshness, unknowns }

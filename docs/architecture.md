@@ -114,9 +114,10 @@ wire contract (`WIRE_REVISION`, part of every request fingerprint):
   Coverage is complete for text unless the provider truncated, unknown for a file read natively. Every result is
   reviewed under the uncalibrated `review-first-v1`.
 - **Money.** `usage.cost` is read from its literal and rounded UP to 12 places; its upstream breakdown is never added to
-  it, and only under BYOK is a reported upstream amount a separate charge. A per-request price is an exact upper bound;
-  a per-token input price is bounded by the body's UTF-8 bytes and rounded up; an output price or an image input makes
-  the quote an estimate.
+  it, and only under BYOK is a reported upstream amount a separate charge. A per-request price that is the whole charge
+  is an exact upper bound. A per-token price is never bounded locally (a server-side prompt template can add tokens the
+  request does not contain): it is an estimate, so the call reserves the whole per-request budget, unless the fixture
+  records a provider-documented ceiling with its source (`pricing.ceiling`). Estimates are exact and rounded up.
 - **Routes.** Every route stays `enabled: false`; the fixture's schema refuses an enabled route without a passed
   canary. `catalog.ts` compares OpenRouter's catalog with the fixture and reports drift (new candidates, missing
   models) without enabling anything. `scripts/canary-extractions.ts` is the opt-in live check (see CONTRIBUTING.md).
