@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { DEFAULT_PROFILES, loadConfig } from "../../src/domain/config.js"
 
 describe("the plugin options", () => {
-  test("default to the §12 proposal, with every module except reading on and no secrets", () => {
+  test("default to the confirmed defaults, with every module except reading on and no secrets", () => {
     const config = loadConfig(undefined)
     expect(config).toEqual({
       access: "all",

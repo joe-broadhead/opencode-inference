@@ -94,3 +94,21 @@ describe("operations.md keeps the no-retry and privacy lists complete", () => {
   })
 })
 
+describe("the spend defaults are stated as confirmed, and as the values the options actually default to", () => {
+  test("configuration.md, operations.md and AGENTS.md give the defaults loadConfig returns; nothing calls them a proposal", () => {
+    const { spend } = loadConfig(undefined)
+    const stated = `USD ${spend.requestUsd} per request, ${spend.sessionUsd} per session,`
+    for (const file of ["docs/configuration.md", "docs/operations.md", "AGENTS.md"]) {
+      const content = text(file).replace(/\s+/g, " ")
+      expect({ file, stated: content.includes(stated) && content.includes(`${spend.rolling24hUsd} per rolling 24 hours`) && content.includes("confirmed by the owner") }).toEqual({ file, stated: true })
+    }
+    // The configuration table gives the same values.
+    for (const [key, value] of Object.entries({ requestUsd: spend.requestUsd, sessionUsd: spend.sessionUsd, rolling24hUsd: spend.rolling24hUsd }))
+      expect(text("docs/configuration.md")).toContain(`| \`spend.${key}\` | \`"${value}"\` |`)
+    // No doc, guide or source comment still calls them proposed, under review or unconfirmed.
+    const stale = /(?:proposed|proposals?|awaiting review|under review|not confirmed|has not confirmed)/i
+    for (const file of [...FILES, "AGENTS.md", "src/runtime/budget.ts", "src/domain/config.ts", "src/host/status.ts"])
+      for (const line of text(file).split("\n")) if (/spend|budget|0\.05|5\.00/i.test(line) || /defaults/i.test(line)) expect({ file, line, stale: stale.test(line) }).toEqual({ file, line, stale: false })
+  })
+})
+
