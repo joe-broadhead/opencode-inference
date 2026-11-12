@@ -38,7 +38,8 @@ anything. Enabling a route is a reviewed change (see [Refreshing the fixture](#r
   budget (an estimate is never a ceiling). Session and rolling 24-hour budgets count settled charges, reservations in
   flight, and reservations kept for unknown costs. Details: [configuration.md](configuration.md#spend).
 - **Unknown is not free.** A call that may have been sent and has no reported cost keeps its reservation. Do not retry
-  it blindly: `SUBMISSION_UNKNOWN` and a deadline after sending mean the provider may have run and charged it.
+  it blindly: `SUBMISSION_UNKNOWN`, and a deadline or a cancellation after sending, mean the provider may have run and
+  charged it.
 - The budgets cover this machine's journal for one OpenRouter connection. They are not account-wide; OpenRouter's own
   key limits are the stronger, independent cap. Give the key a credit limit.
 - The spend defaults (USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours) are proposals awaiting review,
@@ -47,7 +48,8 @@ anything. Enabling a route is a reviewed change (see [Refreshing the fixture](#r
 ## Privacy
 
 - **What is sent:** to `https://openrouter.ai` only, the source's text (or one image or PDF), the field or question
-  definitions, the model id and `provider.allow_fallbacks: false`, with the key in the `Authorization` header. Nothing
+  definitions, an extraction's `referenceDate` (as `reference_date`) when given, the model id and
+  `provider.allow_fallbacks: false`, with the key in the `Authorization` header. Nothing
   else leaves the machine, and nothing is sent at all while every route is disabled.
 - **What the provider keeps** is the provider's policy, not this plugin's. `data.requireZdr: true` makes a route without
   documented zero data retention ineligible; `false` asserts nothing.
@@ -95,7 +97,7 @@ The Extractions and Decisions endpoints are alpha. Each adapter pins a wire revi
 | `AUTH_REQUIRED` / `AUTH_REJECTED` | No usable OpenRouter key for Inference. | `/connect` and choose OpenRouter for Inference. |
 | `UNSAFE_PATH` / `SOURCE_CHANGED` / `SOURCE_TYPE` / `SOURCE_LIMIT` | The file is not a plain approved file, changed after approval, is not the type it claims, or is too large. | Re-select the current regular file, or a smaller one. |
 | `CONTEXT_LIMIT` | The request may not fit the route. | Shorten or split the source deliberately; nothing is truncated silently. |
-| `SUBMISSION_UNKNOWN` / `DEADLINE_EXCEEDED` | The call may have reached OpenRouter; its reservation is kept. | Do not resubmit blindly; report the operation id. |
+| `SUBMISSION_UNKNOWN` / `DEADLINE_EXCEEDED` / `CANCELLED` after sending | The call may have reached OpenRouter; its reservation is kept. | Do not resubmit blindly; report the operation id. |
 | `PROVIDER_CONTRACT_CHANGED` | The answer did not match the reviewed contract. | Stop using the route; see [Alpha compatibility](#alpha-compatibility). |
 | `JOURNAL_LOCKED` | Another process holds the journal's lock, or one crashed holding it. | Make sure no other OpenCode uses Inference, then remove the named lock file. |
 | `PERMISSION_DENIED` | A script's agent would be asked, or is denied. | Add an allow rule for the action to the script's agent. |

@@ -33,6 +33,8 @@ describe("the shipped skills", () => {
         expect({ id, phrase, said: text.includes(phrase) }).toEqual({ id, phrase, said: true })
     }
     expect(read("inference-decide")).toContain("A label is never a permission")
+    // A cancellation after sending may have been charged, like a deadline: never retried blindly.
+    for (const id of SKILL_IDS) expect(read(id)).toMatch(/`DEADLINE_EXCEEDED` or `CANCELLED` after sending/)
   })
 
   test("short text the agent can read is a negative case: nothing is uploaded unless asked for by name or for reviewable output", async () => {

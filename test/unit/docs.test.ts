@@ -78,3 +78,19 @@ const IDENTIFIERS = new Set(["NOTICE", "WIRE_REVISION", "CONTRACT_JSON_SCHEMAS",
 
 /** Review and acceptance reason codes, which the docs also name. */
 const REASONS = new Set(["FIELD_ABSENT", "REQUIRED_FIELD_ABSENT", "CONFIDENCE_MISSING", "EVIDENCE_UNAVAILABLE", "EVIDENCE_MISMATCH", "VALIDATION_FAILED", "PROVIDER_TRUNCATED", "CALIBRATION_UNAVAILABLE", "CALIBRATION_MISMATCH", "REFUSED", "LOW_PROBABILITY", "AMBIGUOUS", "INCONSISTENT", "ACCEPTANCE_PROFILE_UNKNOWN", "RECOVERED_UNSENT", "RECOVERED_UNKNOWN"])
+
+describe("operations.md keeps the no-retry and privacy lists complete", () => {
+  test("a cancellation after sending is not retried, and every request field the adapters send is listed as sent", () => {
+    const doc = text("docs/operations.md")
+    expect(doc).toContain("`SUBMISSION_UNKNOWN` / `DEADLINE_EXCEEDED` / `CANCELLED` after sending")
+    // Every top-level key an adapter puts in a request body is named in the privacy list.
+    const privacy = /- \*\*What is sent:\*\*([\s\S]*?)\n- \*\*/.exec(doc)![1]!
+    for (const file of ["src/providers/openrouter/extractions.ts", "src/providers/openrouter/decisions.ts"]) {
+      const source = text(file)
+      const keys = new Set([...source.matchAll(/body\["([a-z_]+)"\]/g)].map((match) => match[1]!))
+      for (const key of ["reference_date"]) if (source.includes(`"${key}"`)) keys.add(key)
+      for (const key of keys) expect({ file, key, listed: privacy.includes(key) || (key === "state" && privacy.includes("text")) || (key === "assets" && privacy.includes("image")) }).toEqual({ file, key, listed: true })
+    }
+  })
+})
+
