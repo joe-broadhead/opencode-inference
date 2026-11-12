@@ -187,29 +187,38 @@ export function InferenceResult<T extends z.ZodType>(data: T) {
 
 const description = bounded(1000).optional().describe("What the field means, in plain words. Sent to the provider as a hint, never as an instruction to change anything.")
 const required = z.boolean().optional().describe("Plugin-only: the acceptance profile reviews a result that leaves this field empty. Never sent to the provider.")
+const nullThreshold = z
+  .number()
+  .finite()
+  .min(0)
+  .max(1)
+  .optional()
+  .describe("Answer null when the provider's null probability is at least this. Only on routes and field kinds that support it; Clairic does not on lists, ScaleDown not at all. Refused locally otherwise.")
 
 /** The field kinds this version accepts. estimate and forecast stay out until they have their own result and evaluation. */
 export const FIELD_TYPES = ["text", "number", "date", "time", "datetime", "duration", "list"] as const
 export type FieldType = (typeof FIELD_TYPES)[number]
 
 export const ExtractField = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("text"), description, required }),
+  z.strictObject({ type: z.literal("text"), description, required, nullThreshold }),
   z.strictObject({
     type: z.literal("number"),
     description,
     required,
+    nullThreshold,
     decimals: z.number().int().min(0).max(12).optional(),
     integer: z.boolean().optional(),
     unit: bounded(32).optional().describe("The unit the value is expected in, such as EUR or kg. Conversion is a separate, explicit step."),
   }),
-  z.strictObject({ type: z.literal("date"), description, required }),
-  z.strictObject({ type: z.literal("time"), description, required }),
-  z.strictObject({ type: z.literal("datetime"), description, required }),
-  z.strictObject({ type: z.literal("duration"), description, required }),
+  z.strictObject({ type: z.literal("date"), description, required, nullThreshold }),
+  z.strictObject({ type: z.literal("time"), description, required, nullThreshold }),
+  z.strictObject({ type: z.literal("datetime"), description, required, nullThreshold }),
+  z.strictObject({ type: z.literal("duration"), description, required, nullThreshold }),
   z.strictObject({
     type: z.literal("list"),
     description,
     required,
+    nullThreshold,
     items: z.literal("text").describe("Only lists of text. A list of text is not a table of line items."),
     maxItems: z.number().int().min(1).max(256).optional(),
   }),
@@ -337,6 +346,7 @@ export const EXCLUSIONS = [
   "FIELD_TYPE_UNSUPPORTED",
   "QUESTION_TYPE_UNSUPPORTED",
   "FIELD_LIMIT",
+  "NULL_THRESHOLD_UNSUPPORTED",
   "PRICE_UNKNOWN",
   "ZDR_UNKNOWN",
   "PROFILE_UNKNOWN",

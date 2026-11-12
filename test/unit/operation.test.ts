@@ -304,6 +304,15 @@ describe("source integrity", () => {
     expect((await harness.journal.list())[0]!.sourceRefs).toEqual([{ artifactId: "art_1", sha256: sha("artifact text") }])
   })
 
+  test("a null threshold the route does not take is refused at route resolution, before any file is touched", async () => {
+    const harness = await probeHarness({ route: probeRoute({ nullThreshold: { supported: true, unsupportedOn: ["text"] } }) })
+    writeFileSync(join(harness.project, "a.txt"), "text")
+    const input = { ...pathInput("a.txt"), fields: { title: { type: "text", nullThreshold: 0.4 } } }
+    expect((await failure(harness.model(input))).message).toMatch(/^CAPABILITY_UNSUPPORTED: test\/probe cannot serve this request: NULL_THRESHOLD_UNSUPPORTED\./)
+    expect(harness.counts.inspect + harness.counts.read).toBe(0)
+    expect(harness.sent).toEqual([])
+  })
+
   test("bundles are refused for now", async () => {
     const harness = await probeHarness()
     const input = { profile: "probe", fields: { title: { type: "text" } }, source: { kind: "bundle", items: [{ key: "a", role: "text", source: { kind: "text", text: "x" } }] } }

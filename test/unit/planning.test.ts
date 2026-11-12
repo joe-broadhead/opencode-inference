@@ -224,3 +224,20 @@ describe("capabilities", () => {
     expect(custom.profiles).toEqual([{ name: "mine", model: "acme/other", operation: null }])
   })
 })
+
+describe("null thresholds are refused locally where a route does not take them", () => {
+  const extract = (model: string, fieldsIn: Record<string, unknown>) => run({ task: "extract", input: { model, source: text, fields: fieldsIn } })
+  const excluded = (result: ReturnType<typeof run>) => result.route.selected!.exclusions.includes("NULL_THRESHOLD_UNSUPPORTED")
+  test("Clairic: on a text, number or date field yes; on a list no", () => {
+    expect(excluded(extract("cloudflare/clairic", { name: { type: "text", nullThreshold: 0.5 }, total: { type: "number", nullThreshold: 0.2 }, on: { type: "date", nullThreshold: 0.9 } }))).toBe(false)
+    expect(excluded(extract("cloudflare/clairic", { names: { type: "list", items: "text", nullThreshold: 0.5 } }))).toBe(true)
+  })
+  test("ScaleDown: never; a route whose support is unknown: never", () => {
+    expect(excluded(extract("scaledown/extract", { name: { type: "text", nullThreshold: 0.5 } }))).toBe(true)
+    expect(excluded(extract("inception/mercury-decide", { name: { type: "text", nullThreshold: 0.5 } }))).toBe(true)
+    expect(excluded(extract("scaledown/extract", { name: { type: "text" } }))).toBe(false)
+  })
+  test("a threshold must be a probability", () => {
+    expect(() => PlanInput.parse({ task: "extract", input: { model: "cloudflare/clairic", source: text, fields: { name: { type: "text", nullThreshold: 1.5 } } } })).toThrow()
+  })
+})

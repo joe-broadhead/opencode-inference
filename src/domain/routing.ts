@@ -138,6 +138,9 @@ export function exclusions(request: PlanRequest, route: RouteCapability, context
     const types = fieldTypesOf(route)
     if (fields.some((field) => !types.includes(field.type) || (field.type === "list" && !route.listItemTypes.includes(field.items)))) reasons.add("FIELD_TYPE_UNSUPPORTED")
     if (fields.length > config.limits.maxFields) reasons.add("FIELD_LIMIT")
+    // A null threshold only where the route documents it, and never on a kind it refuses: an unknown is a refusal.
+    const thresholds = route.nullThreshold
+    if (fields.some((field) => field.nullThreshold !== undefined && (thresholds.supported !== true || thresholds.unsupportedOn.includes(field.type)))) reasons.add("NULL_THRESHOLD_UNSUPPORTED")
   }
   if (request.task === "decide") {
     if (request.input.questionSet !== undefined) reasons.add("QUESTION_SET_UNKNOWN")
