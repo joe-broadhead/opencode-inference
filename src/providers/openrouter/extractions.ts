@@ -8,7 +8,7 @@ import type { Adapter, AdapterResult } from "../../runtime/operation.js"
 import type { Snapshot } from "../../runtime/sources.js"
 import type { RouteCapability } from "./capabilities.js"
 import type { TransportResponse } from "./http.js"
-import { countOf, entries, isObject, probabilityOf as sharedProbability, quoteOf, REQUEST_ID, usageOf as sharedUsage } from "./wire.js"
+import { answeredBy, countOf, entries, isObject, probabilityOf as sharedProbability, quoteOf, REQUEST_ID, usageOf as sharedUsage } from "./wire.js"
 
 // The OpenRouter alpha Extractions adapter (POST /api/alpha/extractions, handoff §3, §5.4, §7, §7.3).
 //
@@ -303,7 +303,7 @@ function parse(response: TransportResponse, context: { readonly source: Snapshot
 
   const model = top.get("model")
   // No fallback was allowed: an answer from another model is not this route's answer.
-  if (model !== undefined && model !== route.model) throw changed("the answer came from another model")
+  if (!answeredBy(model, route)) throw changed("the answer came from another model")
   const id = top.get("id")
   if (id !== undefined && (typeof id !== "string" || !REQUEST_ID.test(id))) throw changed("id is not a request id")
   const truncatedTop = top.get("truncated")

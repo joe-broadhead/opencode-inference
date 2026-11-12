@@ -227,7 +227,7 @@ entry never enables a route by itself.
 
 <!-- generated:routes -->
 
-Fixture `openrouter-2026-11-11.3`, reviewed 2026-11-11, documentation-derived, verified: false.
+Fixture `openrouter-2026-11-12.1`, reviewed 2026-11-11, documentation-derived, verified: false.
 
 | Model | Operation | Route | Status | Enabled | Text | Images | PDF | Field or question types | Price |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

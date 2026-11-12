@@ -16,6 +16,14 @@ export const isObject = (value: Json | undefined): value is JsonObject => typeof
 export const entries = (object: JsonObject) => new Map(Object.entries(object))
 export const REQUEST_ID = /^[A-Za-z0-9._:-]{1,256}$/
 
+/**
+ * Whether an answer's `model` is this route's: exactly the model id or its reviewed canonical slug (the dated model the
+ * catalog names), never a prefix, a pattern or a newer slug. No fallback was allowed, so any other model's answer is not
+ * this route's. An absent `model` is not evidence of another model.
+ */
+export const answeredBy = (model: Json | undefined, route: Pick<RouteCapability, "model" | "canonicalSlug">) =>
+  model === undefined || model === route.model || (route.canonicalSlug !== null && model === route.canonicalSlug)
+
 /** A probability in 0..1 exactly as reported, or undefined when absent. Never invented, never clamped. */
 export function probabilityOf(value: Json | undefined, what: string, fail: Fail) {
   if (value === undefined || value === null) return undefined

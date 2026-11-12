@@ -14,6 +14,7 @@ describe("catalog drift is a compatibility status, never an enablement", () => {
       missing: ["inception/mercury-decide", "levanto/sage-2"],
       aliases: [],
       unexpected: [],
+      slugChanged: [],
       drift: true,
       enables: false,
     })
@@ -53,9 +54,20 @@ describe("catalog drift is a compatibility status, never an enablement", () => {
       missing: ["inception/mercury-decide", "levanto/sage-2"],
       aliases: [],
       unexpected: [],
+      slugChanged: [],
       drift: true,
       enables: false,
     })
+  })
+
+  test("the live catalogs carry the reviewed canonical slugs; a moved slug under the same id is drift", () => {
+    expect(catalogDrift(OPENROUTER_CAPABILITIES, "extract", catalogModels(live("extractions"))).slugChanged).toEqual([])
+    expect(catalogDrift(OPENROUTER_CAPABILITIES, "decide", catalogModels(live("decisions"))).slugChanged).toEqual([])
+    const moved = catalogDrift(OPENROUTER_CAPABILITIES, "decide", catalogModels({ data: [{ id: "typesafe/jev-1.14", canonical_slug: "typesafe/jev-1.14-20261201" }] }))
+    expect(moved).toMatchObject({ reviewed: ["typesafe/jev-1.14"], missing: [], slugChanged: [{ model: "typesafe/jev-1.14", reviewed: "typesafe/jev-1.14-20261014", listed: "typesafe/jev-1.14-20261201" }], drift: true })
+    // An entry that states no slug (or an invalid one) says nothing about the model behind the id.
+    for (const entry of [{ id: "typesafe/jev-1.14" }, { id: "typesafe/jev-1.14", canonical_slug: "NOT A SLUG" }])
+      expect(catalogDrift(OPENROUTER_CAPABILITIES, "decide", catalogModels({ data: [entry] }))).toMatchObject({ slugChanged: [], drift: false })
   })
 
   test("an alias never stands in for a reviewed model: only its exact id lists it", () => {

@@ -32,6 +32,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- An answer is accepted from exactly the route's model id or its reviewed canonical slug (such as `cloudflare/clairic-20261029`, recorded in the capability fixture from OpenRouter's catalog), never a prefix or a newer slug; the catalog check reports a reviewed model whose canonical slug moved.
 - The catalog check reports a `~` alias (such as `~typesafe/jev-latest`) with its target, and any other unexpected entry as drift by its id's shape, instead of stopping the canary; a reviewed model is still matched only by its exact id.
 - The canaries take `--shape`: each answer's structure and the adapter's exact refusal (path, expectation, type found) go into the report, never a value. It adds no request.
 - The spend defaults (USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours) are confirmed by the owner; the docs no longer call them proposals, and a test keeps the docs on the values the options default to.

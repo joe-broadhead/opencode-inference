@@ -1,5 +1,5 @@
 {
-  "_about": "OpenRouter's public model catalog for /api/alpha/decisions, fetched without a key on 2026-11-12 from https://openrouter.ai/api/v1/models?endpoints=/api/alpha/decisions. Trimmed to ids and field names: every other value (names, descriptions, prices, links) is dropped. entryFields lists the fields each live entry had; alias entries also had alias_target, of which only the slug is kept.",
+  "_about": "OpenRouter's public model catalog for /api/alpha/decisions, fetched without a key on 2026-11-12 from https://openrouter.ai/api/v1/models?endpoints=/api/alpha/decisions. Trimmed to ids (id, canonical_slug) and field names: every other value (names, descriptions, prices, links) is dropped. entryFields lists the fields each live entry had; alias entries also had alias_target, of which only the slug is kept.",
   "entryFields": [
     "alias_target",
     "architecture",
@@ -24,127 +24,163 @@
   "total_count": 36,
   "data": [
     {
-      "id": "google/gemini-decision-1"
+      "id": "google/gemini-decision-1",
+      "canonical_slug": "google/gemini-decision-1-20261111"
     },
     {
-      "id": "nace-ai/drex-max-finance"
+      "id": "nace-ai/drex-max-finance",
+      "canonical_slug": "nace-ai/drex-max-finance-20261110"
     },
     {
-      "id": "parallel/decisions-fast:free"
+      "id": "parallel/decisions-fast:free",
+      "canonical_slug": "parallel/decisions-fast-20261106"
     },
     {
-      "id": "morph/reflex"
+      "id": "morph/reflex",
+      "canonical_slug": "morph/reflex-20261103"
     },
     {
-      "id": "baseten/joey-1"
+      "id": "baseten/joey-1",
+      "canonical_slug": "baseten/joey-1-20261029"
     },
     {
-      "id": "liquid/d1.1"
+      "id": "liquid/d1.1",
+      "canonical_slug": "liquid/d1.1-20261027"
     },
     {
       "id": "~liquid/d1-ultra-latest",
+      "canonical_slug": "~liquid/d1-ultra-latest",
       "alias_target": {
         "slug": "liquid/d1-ultra"
       }
     },
     {
       "id": "~liquid/d1-latest",
+      "canonical_slug": "~liquid/d1-latest",
       "alias_target": {
         "slug": "liquid/d1.1"
       }
     },
     {
-      "id": "baseten/mammoth-1"
+      "id": "baseten/mammoth-1",
+      "canonical_slug": "baseten/mammoth-1-20261021"
     },
     {
-      "id": "baseten/elephant-1"
+      "id": "baseten/elephant-1",
+      "canonical_slug": "baseten/elephant-1-20261021"
     },
     {
-      "id": "nace-ai/drex-max"
+      "id": "nace-ai/drex-max",
+      "canonical_slug": "nace-ai/drex-max-20261016"
     },
     {
-      "id": "perplexity/pplx-decider-flash-v1.2"
+      "id": "perplexity/pplx-decider-flash-v1.2",
+      "canonical_slug": "perplexity/pplx-decider-flash-v1.2-20261016"
     },
     {
-      "id": "perplexity/pplx-decider-v1.2"
+      "id": "perplexity/pplx-decider-v1.2",
+      "canonical_slug": "perplexity/pplx-decider-v1.2-20261016"
     },
     {
       "id": "~perplexity/pplx-decider-flash-latest",
+      "canonical_slug": "~perplexity/pplx-decider-flash-latest",
       "alias_target": {
         "slug": "perplexity/pplx-decider-flash-v1.2"
       }
     },
     {
-      "id": "respan/span-02"
+      "id": "respan/span-02",
+      "canonical_slug": "respan/span-02-20261015"
     },
     {
-      "id": "liquid/d1-ultra"
+      "id": "liquid/d1-ultra",
+      "canonical_slug": "liquid/d1-ultra-20261015"
     },
     {
-      "id": "typesafe/jev-1.14"
+      "id": "typesafe/jev-1.14",
+      "canonical_slug": "typesafe/jev-1.14-20261014"
     },
     {
       "id": "~perplexity/pplx-decider-latest",
+      "canonical_slug": "~perplexity/pplx-decider-latest",
       "alias_target": {
         "slug": "perplexity/pplx-decider-v1.2"
       }
     },
     {
-      "id": "scaledown/classify-1"
+      "id": "scaledown/classify-1",
+      "canonical_slug": "scaledown/classify-1-20260928"
     },
     {
-      "id": "nace-ai/drex-v2.0"
+      "id": "nace-ai/drex-v2.0",
+      "canonical_slug": "nace-ai/drex-v2.0-20261009"
     },
     {
-      "id": "microsoft/microsoft-decision-1"
+      "id": "microsoft/microsoft-decision-1",
+      "canonical_slug": "microsoft/microsoft-decision-1-20261009"
     },
     {
-      "id": "nace-ai/drex-v1.5"
+      "id": "nace-ai/drex-v1.5",
+      "canonical_slug": "nace-ai/drex-v1.5-20261009"
     },
     {
-      "id": "cloudflare/clef-omni"
+      "id": "cloudflare/clef-omni",
+      "canonical_slug": "cloudflare/clef-omni-20261009"
     },
     {
-      "id": "upstage/solar-decide-flash"
+      "id": "upstage/solar-decide-flash",
+      "canonical_slug": "upstage/solar-decide-flash-20261008"
     },
     {
-      "id": "openai/gpt-6-luna-decisions"
+      "id": "openai/gpt-6-luna-decisions",
+      "canonical_slug": "openai/gpt-6-luna-decisions-20261006"
     },
     {
-      "id": "liquid/d1"
+      "id": "liquid/d1",
+      "canonical_slug": "liquid/d1-20260930"
     },
     {
-      "id": "cloudflare/clef-flash"
+      "id": "cloudflare/clef-flash",
+      "canonical_slug": "cloudflare/clef-flash"
     },
     {
-      "id": "cloudflare/clef"
+      "id": "cloudflare/clef",
+      "canonical_slug": "cloudflare/clef"
     },
     {
-      "id": "togethercomputer/tev1-4b-experimental"
+      "id": "togethercomputer/tev1-4b-experimental",
+      "canonical_slug": "togethercomputer/tev1-4b-experimental-20260923"
     },
     {
-      "id": "upstage/solar-decide"
+      "id": "upstage/solar-decide",
+      "canonical_slug": "upstage/solar-decide-20260928"
     },
     {
-      "id": "respan/span-01"
+      "id": "respan/span-01",
+      "canonical_slug": "respan/span-01-20260925"
     },
     {
-      "id": "respan/span-01-lite"
+      "id": "respan/span-01-lite",
+      "canonical_slug": "respan/span-01-lite-20260925"
     },
     {
-      "id": "respan/span-01-lite:free"
+      "id": "respan/span-01-lite:free",
+      "canonical_slug": "respan/span-01-lite-20260925"
     },
     {
-      "id": "jaredpalmer/kev-4b"
+      "id": "jaredpalmer/kev-4b",
+      "canonical_slug": "jaredpalmer/kev-4b-20260924"
     },
     {
       "id": "~typesafe/jev-latest",
+      "canonical_slug": "~typesafe/jev-latest",
       "alias_target": {
         "slug": "typesafe/jev-1.14"
       }
     },
     {
-      "id": "typesafe/jev-1.13"
+      "id": "typesafe/jev-1.13",
+      "canonical_slug": "typesafe/jev-1.13-20260917"
     }
   ]
 }

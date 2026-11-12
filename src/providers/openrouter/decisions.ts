@@ -11,7 +11,7 @@ import type { RouteCapability } from "./capabilities.js"
 import type { TransportResponse } from "./http.js"
 import { decimal, isPlain, ONE, units } from "../../domain/decimal.js"
 import { decimalOf } from "../../domain/json.js"
-import { entries, exactProbabilityOf, isObject, quoteOf, REQUEST_ID, usageOf } from "./wire.js"
+import { answeredBy, entries, exactProbabilityOf, isObject, quoteOf, REQUEST_ID, usageOf } from "./wire.js"
 
 // The OpenRouter alpha Decisions adapter (POST /api/alpha/decisions, handoff §5, §8, §15.1, §16.3).
 //
@@ -207,7 +207,7 @@ function parse(response: TransportResponse, context: { readonly source: Snapshot
   if (unknown.length > 32) throw changed("too many unknown top-level keys")
   if (unknown.length) warnings.push(`${unknown.length} unknown response key(s) ignored`)
   const model = top.get("model")
-  if (model !== undefined && model !== route.model) throw changed("the answer came from another model")
+  if (!answeredBy(model, route)) throw changed("the answer came from another model")
   const id = top.get("id")
   if (id !== undefined && (typeof id !== "string" || !REQUEST_ID.test(id))) throw changed("id is not a request id")
   const truncatedTop = top.get("truncated")

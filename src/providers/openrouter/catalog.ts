@@ -7,6 +7,15 @@ import type { CapabilityFixture } from "./capabilities.js"
 
 export interface CatalogModel {
   readonly id: string
+  /** The dated model behind the id (`canonical_slug`), when the catalog gives a valid one. */
+  readonly canonicalSlug?: string
+}
+
+/** A reviewed model whose catalog canonical slug is not the reviewed one: a new model behind the same id. */
+export interface CatalogSlugChange {
+  readonly model: string
+  readonly reviewed: string
+  readonly listed: string
 }
 
 /** A moving alias such as `~typesafe/jev-latest`: reported with its target, never a route and never a listed model. */
@@ -39,6 +48,8 @@ export interface CatalogDrift {
   readonly aliases: readonly CatalogAlias[]
   /** Entries whose id is neither a model id nor an alias: always drift. */
   readonly unexpected: readonly CatalogUnexpected[]
+  /** Reviewed models whose canonical slug moved: always drift, and their answers are refused until it is reviewed. */
+  readonly slugChanged: readonly CatalogSlugChange[]
   readonly drift: boolean
   /** Always false: drift never enables a route. */
   readonly enables: false
@@ -73,7 +84,10 @@ export function catalogModels(answer: unknown): Catalog {
   data.forEach((entry: unknown, index) => {
     const object = typeof entry === "object" && entry !== null && !Array.isArray(entry) ? (entry as Record<string, unknown>) : undefined
     const id = object?.["id"]
-    if (typeof id === "string" && MODEL.test(id)) return void models.push({ id })
+    if (typeof id === "string" && MODEL.test(id)) {
+      const slug = object?.["canonical_slug"]
+      return void models.push({ id, ...(typeof slug === "string" && MODEL.test(slug) ? { canonicalSlug: slug } : {}) })
+    }
     if (typeof id === "string" && ALIAS.test(id)) {
       const target = object?.["alias_target"]
       const slug = typeof target === "object" && target !== null ? (target as Record<string, unknown>)["slug"] : undefined
@@ -88,10 +102,17 @@ export function catalogModels(answer: unknown): Catalog {
 /** The drift between the catalog for `operation` and the fixture's routes for it. */
 export function catalogDrift(fixture: CapabilityFixture, operation: "extract" | "decide", catalog: Catalog): CatalogDrift {
   const listed = new Set(catalog.models.map((model) => model.id))
-  const known = new Set(fixture.routes.filter((route) => route.operation === operation).map((route) => route.model))
+  const routes = fixture.routes.filter((route) => route.operation === operation)
+  const known = new Set(routes.map((route) => route.model))
   const reviewed = [...known].filter((model) => listed.has(model)).sort()
   const candidates = [...listed].filter((model) => !known.has(model)).sort()
   const missing = [...known].filter((model) => !listed.has(model)).sort()
+  // Only a slug the catalog states counts: an entry without one says nothing about which model is behind the id.
+  const slugs = new Map(catalog.models.filter((model) => model.canonicalSlug !== undefined).map((model) => [model.id, model.canonicalSlug!]))
+  const slugChanged = routes
+    .filter((route) => route.canonicalSlug !== null && slugs.has(route.model) && slugs.get(route.model) !== route.canonicalSlug)
+    .map((route) => ({ model: route.model, reviewed: route.canonicalSlug!, listed: slugs.get(route.model)! }))
+    .sort((a, b) => a.model.localeCompare(b.model))
   return {
     endpoint: operation === "extract" ? "/api/alpha/extractions" : "/api/alpha/decisions",
     reviewed,
@@ -99,7 +120,8 @@ export function catalogDrift(fixture: CapabilityFixture, operation: "extract" | 
     missing,
     aliases: [...catalog.aliases].sort((a, b) => a.id.localeCompare(b.id)),
     unexpected: catalog.unexpected,
-    drift: candidates.length > 0 || missing.length > 0 || catalog.unexpected.length > 0,
+    slugChanged,
+    drift: candidates.length > 0 || missing.length > 0 || catalog.unexpected.length > 0 || slugChanged.length > 0,
     enables: false,
   }
 }
