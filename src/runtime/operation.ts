@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import type * as z from "zod"
 import type { Config } from "../domain/config.js"
-import type { Coverage, Exclusion, Operation, Review, SourceInput, Usage } from "../domain/contracts.js"
+import { Usage, type Coverage, type Exclusion, type Operation, type Review, type SourceInput } from "../domain/contracts.js"
 import { fence, InferenceError } from "../domain/errors.js"
 import { canonical, exclusions, OPERATION_MODULE } from "../domain/routing.js"
 import type { CapabilityFixture, RouteCapability } from "../providers/openrouter/capabilities.js"
@@ -202,6 +202,8 @@ function transportOutcome(error: TransportError, record: OperationRecord): { out
 const isTransportError = (error: unknown): error is TransportError => error instanceof Error && error.name === "TransportError" && "sent" in error
 
 const AUTH_STATUS = new Set([401, 403])
+/** The journal's bound on a provider request id. */
+const REQUEST_ID = /^[A-Za-z0-9._:-]{1,256}$/
 
 export async function runOperation(tool: { readonly name: string }, adapter: Adapter, raw: unknown, call: Call, runtime: OperationRuntime, slots: Slots) {
   const input = raw as OperationInput
@@ -310,6 +312,14 @@ export async function runOperation(tool: { readonly name: string }, adapter: Ada
       await journal.settle(record.id, { state: "failed", code: "PROVIDER_CONTRACT_CHANGED", sent: true, ...(response.requestId ? { providerRequestId: response.requestId } : {}) })
       if (error instanceof InferenceError && error.code === "PROVIDER_CONTRACT_CHANGED") throw error
       throw new InferenceError("PROVIDER_CONTRACT_CHANGED")
+    }
+
+    // The adapter's usage and request id go into the journal: check them before settling, so an adapter bug can never
+    // write a record that fails to read back. An invalid one is a contract failure whose cost stays unknown.
+    const usage = Usage.safeParse(result.usage)
+    if (!usage.success || (result.providerRequestId !== undefined && !REQUEST_ID.test(result.providerRequestId))) {
+      await journal.settle(record.id, { state: "failed", code: "PROVIDER_CONTRACT_CHANGED", sent: true, ...(response.requestId ? { providerRequestId: response.requestId } : {}) })
+      throw new InferenceError("PROVIDER_CONTRACT_CHANGED", `The adapter reported usage or a request id outside the contract. Operation ${record.id} keeps its reservation.`)
     }
 
     // 11. Settle, then answer. A cancellation that arrives now still leaves the journal settled.

@@ -364,6 +364,28 @@ describe("spend and the journal", () => {
     ])
   })
 
+  test("adapter usage or a request id outside the contract is refused before settling, and the journal stays readable", async () => {
+    const bad = [
+      { charges: [{ party: "platform", currency: "USD", amount: "1e-7", basis: "reported" }], costStatus: "known" },
+      { charges: [{ party: "platform", currency: "USD", amount: "0.001", basis: "reported" }], costStatus: "known", providerRequestId: "r".repeat(300) },
+    ]
+    for (const usage of bad) {
+      const base = probeAdapter()
+      const { providerRequestId, ...rest } = usage as typeof usage & { providerRequestId?: string }
+      const adapter = { ...base, parse: (...args: Parameters<typeof base.parse>) => ({ ...base.parse(...args), usage: rest as never, ...(providerRequestId ? { providerRequestId } : {}) }) }
+      const harness = await probeHarness({ adapter })
+      expect((await failure(harness.model(textInput()))).message).toMatch(/^PROVIDER_CONTRACT_CHANGED: The adapter reported usage or a request id outside the contract\. Operation op_.* keeps its reservation/)
+      const [record] = await harness.journal.list()
+      expect(record).toMatchObject({ state: "failed", reservation: { status: "retained" }, error: { code: "PROVIDER_CONTRACT_CHANGED" }, charges: [] })
+      expect(record!.providerRequestId).toBe("req_probe")
+      // The next billable call on the same connection still reaches the journal and the transport: it is not refused as
+      // JOURNAL_UNREADABLE.
+      expect((await failure(harness.model(textInput()))).message).toMatch(/^PROVIDER_CONTRACT_CHANGED:/)
+      expect(harness.sent).toHaveLength(2)
+      expect(await harness.journal.list()).toHaveLength(2)
+    }
+  })
+
   test("limits.concurrency queues requests in this process", async () => {
     const harness = await probeHarness({ options: { limits: { concurrency: 1 } } })
     let finish!: () => void

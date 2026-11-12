@@ -147,7 +147,10 @@ export class Journal {
           const recovered = this.recover(document.records, at)
           const { changed, result } = fn(document.records, at)
           const kept = this.prune(document.records)
-          return { ...(changed || recovered || kept ? { next: document } : {}), result }
+          if (!(changed || recovered || kept)) return { result }
+          // A write must never produce a journal that fails to read: check the whole document before it is written.
+          if (!JournalDocument.safeParse(document).success) throw new InferenceError("JOURNAL_UNREADABLE", "The journal update was refused because it would not read back; nothing was written.")
+          return { next: document, result }
         })
       } catch (error) {
         if (error instanceof InferenceError) throw error
@@ -257,30 +260,43 @@ export class Journal {
       // A late answer to an operation recovered as submission_unknown still settles it, but only for its owner.
       const open = record.state === "planned" || record.state === "dispatching" || (record.state === "submission_unknown" && record.owner.instance === this.store.owner.instance)
       if (!open) return { changed: false, result: structuredClone(record) }
-      record.updatedAt = at
-      record.settledAt = at
-      const last = record.attempts.at(-1)
-      if (last) last.result = outcome.state
-      if (outcome.state === "submission_unknown") {
-        record.state = "submission_unknown"
-        record.error = { code: outcome.code }
-        record.reservation.status = "retained"
-        record.costStatus = "unknown"
-      } else {
-        record.state = outcome.state
-        if (outcome.providerRequestId) record.providerRequestId = outcome.providerRequestId
-        if (outcome.state === "failed") record.error = { code: outcome.code }
-        const charges = outcome.charges ?? []
-        const costStatus = outcome.costStatus ?? (outcome.state === "failed" && !outcome.sent ? "known" : "unknown")
-        record.charges = [...charges]
-        record.costStatus = costStatus
-        // Never sent: nothing to pay. Cost known and reported in USD: the charges count. Anything else keeps the
-        // reservation, because failure does not mean zero cost and credits are never added to dollars.
-        const reported = costStatus === "known" && charges.every((charge) => charge.currency === "USD" && charge.basis === "reported")
-        record.reservation.status = outcome.state === "failed" && !outcome.sent ? "released" : reported ? "settled" : "retained"
-      }
-      return { changed: true, result: structuredClone(record) }
+      const settled = this.settled(structuredClone(record), outcome, at)
+      // What the outcome carried (charges, a request id) must fit the record's schema. If it does not, the record is
+      // kept as a contract failure with its reservation retained, without the offending values.
+      const checked = OperationRecord.safeParse(settled)
+      const next = checked.success
+        ? checked.data
+        : OperationRecord.parse(this.settled(structuredClone(record), { state: "failed", code: "PROVIDER_CONTRACT_CHANGED", sent: true }, at))
+      records[records.indexOf(record)] = next
+      return { changed: true, result: structuredClone(next) }
     })
+  }
+
+  private settled(record: OperationRecord, outcome: Outcome, at: string): OperationRecord {
+    // Applies `outcome` to a copy of the record; the caller checks the copy against the schema before keeping it.
+    record.updatedAt = at
+    record.settledAt = at
+    const last = record.attempts.at(-1)
+    if (last) last.result = outcome.state
+    if (outcome.state === "submission_unknown") {
+      record.state = "submission_unknown"
+      record.error = { code: outcome.code }
+      record.reservation.status = "retained"
+      record.costStatus = "unknown"
+    } else {
+      record.state = outcome.state
+      if (outcome.providerRequestId) record.providerRequestId = outcome.providerRequestId
+      if (outcome.state === "failed") record.error = { code: outcome.code }
+      const charges = outcome.charges ?? []
+      const costStatus = outcome.costStatus ?? (outcome.state === "failed" && !outcome.sent ? "known" : "unknown")
+      record.charges = [...charges]
+      record.costStatus = costStatus
+      // Never sent: nothing to pay. Cost known and reported in USD: the charges count. Anything else keeps the
+      // reservation, because failure does not mean zero cost and credits are never added to dollars.
+      const reported = costStatus === "known" && charges.every((charge) => charge.currency === "USD" && charge.basis === "reported")
+      record.reservation.status = outcome.state === "failed" && !outcome.sent ? "released" : reported ? "settled" : "retained"
+    }
+    return record
   }
 
   /** Every record, for status and tests. */

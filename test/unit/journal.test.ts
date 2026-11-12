@@ -7,7 +7,7 @@ import { InferenceError } from "../../src/domain/errors.js"
 import { add, compare, format, money, sum } from "../../src/domain/money.js"
 import { createJournalStore, OWNER } from "../../src/host/journal-store.js"
 import { admit, reservationFor, totals } from "../../src/runtime/budget.js"
-import { Journal } from "../../src/runtime/journal.js"
+import { Journal, JournalDocument } from "../../src/runtime/journal.js"
 import { draft, limits, SCOPE } from "../support/journal-child.js"
 import { tempRoot } from "../support/temp.js"
 
@@ -136,6 +136,24 @@ describe("the journal", () => {
       expect((await failure(new Journal(createJournalStore(dir), SCOPE).list())).code).toBe("JOURNAL_UNREADABLE")
       expect(readFileSync(join(dir, "journal.json"), "utf8")).toBe(content)
     }
+  })
+
+  test("settle never writes a record that fails to read back: invalid charges or request ids become a retained contract failure", async () => {
+    const dir = join(tempRoot("journal"), "j")
+    const journal = new Journal(createJournalStore(dir), SCOPE)
+    const outcomes = [
+      { state: "completed", charges: [{ party: "platform", currency: "USD", amount: "1e-7", basis: "reported" }], costStatus: "known" },
+      { state: "completed", charges: [], costStatus: "known", providerRequestId: "r".repeat(300) },
+    ] as const
+    for (const [index, outcome] of outcomes.entries()) {
+      const record = await journal.reserve(draft(`bad-${index}`, "0.1", "s"), () => undefined)
+      await journal.dispatch(record.id)
+      const settled = await journal.settle(record.id, outcome as never)
+      expect(settled).toMatchObject({ state: "failed", charges: [], costStatus: "unknown", reservation: { status: "retained" }, error: { code: "PROVIDER_CONTRACT_CHANGED" } })
+      expect(settled.providerRequestId).toBeUndefined()
+    }
+    expect(await journal.list()).toHaveLength(2)
+    expect(JournalDocument.safeParse(JSON.parse(readFileSync(join(dir, "journal.json"), "utf8"))).success).toBe(true)
   })
 
   test("one call is one operation: a reused intent is refused, and only the owner dispatches a planned record", async () => {
