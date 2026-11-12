@@ -98,23 +98,30 @@ validates the output against the tool's own schema. So a control added there hol
 
 ## Extraction
 
-`src/providers/openrouter/extractions.ts` is the alpha Extractions adapter, with a documentation-derived and unverified
-wire contract (`WIRE_REVISION`, part of every request fingerprint):
+`src/providers/openrouter/extractions.ts` is the alpha Extractions adapter. Its wire contract (`WIRE_REVISION`, part
+of every request fingerprint) follows OpenRouter's API reference (its OpenAPI `ExtractionsRequest` and
+`ExtractionsResponse`) and was checked against the structure of one live Clairic answer; no route is enabled until its
+canary passes:
 
-- **Request.** `model`, the text as `state` (or one image or PDF as an ordered `assets` entry, base64), `fields` in the
-  provider's snake_case vocabulary (`null_threshold`, `decimals`, `integer`, `unit`, `items`, `max_items`) and
-  `provider.allow_fallbacks: false`. Plugin-only options (`required`) are never sent. The route's constraints are
-  refused locally with coded errors: a null threshold where the route or the field kind does not take it (Clairic lists,
-  ScaleDown, unknown support), an image over Clairic's per-image or decoded-total limit or of a type it does not take,
-  a PDF on a route without PDF input, a body over the route's request limit.
+- **Request.** `model`, the text as `state` (or one image or PDF as the `assets` map's `source` entry, with `type`,
+  `format` and `data_base64`, and no `state`), `fields` with only the documented keys (`instructions` for the
+  description, `null_threshold`, `decimals`, `integer`, `unit`, a list's `items` as a string) and
+  `provider.allow_fallbacks: false`. Plugin-only options (`required`, a list's `maxItems`) are never sent. The route's
+  constraints are refused locally with coded errors: a null threshold where the route or the field kind does not take
+  it (Clairic lists, ScaleDown, unknown support), more than 6 decimals, a duration field (its answer is a number in a
+  unit the result cannot carry yet), an image over Clairic's per-image or decoded-total limit or of a type it does not
+  take, a PDF on a route without PDF input, a body over the route's request limit.
 - **Answer.** Read with a strict JSON reader (`src/domain/json.ts`) that keeps each number's literal and refuses
-  duplicate keys. `answers` must have exactly the requested keys; each value must have its field's JSON type;
-  probabilities must lie in 0..1; spans must be code-point ranges of the exact text sent, or name asset 0 for the one
-  asset sent; the model must be the requested one. Any of these failing is `PROVIDER_CONTRACT_CHANGED`. Unknown
-  metadata is ignored, bounded and counted in coverage warnings.
+  duplicate keys. `answers` must have exactly the requested keys; each answer must name its field's `type` and its
+  `value` must have that type's JSON type; `confidence`, `p_null`, `spell_confidence` and a list's `confidences` must
+  lie in 0..1; a `span` (a list's `spans`, one per item, `null` for an item without one) must be a code-point range of
+  the exact text sent, and none may come back for a file; `source` must be where the answer could be read from; `model`
+  must be the route's model id or its reviewed canonical slug (`canonicalSlug` in the fixture, such as
+  `cloudflare/clairic-20261029`). Any of these failing is `PROVIDER_CONTRACT_CHANGED`. Unknown metadata is ignored,
+  bounded and counted in coverage warnings.
 - **Result.** Per field: the nullable value (a number also as `exact`, its literal), `derivation`, the reported
   confidence, null probability and spelling confidence when present (absent otherwise, never 0), the diagnostic guess
-  apart from the value, evidence (`exact-text` spans with the span's own hash; `unavailable` for an image), list items
+  apart from the value, evidence (`exact-text` spans with the span's own hash; none for a file), list items
   with their own evidence (an item without a span keeps an empty list), and review reasons: `FIELD_ABSENT`,
   `REQUIRED_FIELD_ABSENT`, `CONFIDENCE_MISSING`, `EVIDENCE_UNAVAILABLE`, `EVIDENCE_MISMATCH`, `VALIDATION_FAILED`
   (integer, decimals, calendar dates and times, list size) and `PROVIDER_TRUNCATED`. Checks never repair a value.

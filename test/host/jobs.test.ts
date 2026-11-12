@@ -36,7 +36,7 @@ const fixture = {
 const ANSWER = JSON.stringify({
   id: "gen-jobs-1",
   model: "cloudflare/clairic",
-  answers: { issued_on: { value: "2026-11-01", confidence: 0.9, evidence: [{ start: 22, end: 32 }] }, net_days: { value: null, null_probability: 0.7 } },
+  answers: { issued_on: { type: "date", value: "2026-11-01", confidence: 0.9, span: [22, 32] }, net_days: { type: "number", value: null, p_null: 0.7 } },
   usage: { cost: 0.000003 },
 })
 

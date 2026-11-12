@@ -32,6 +32,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- The Extractions adapter follows OpenRouter's API reference and the live Clairic answer (wire revision `openrouter-alpha-extractions-2026-11-12.1`): a field's description is sent as `instructions`, a list's `items` as a string and `maxItems` is checked locally only; a file is a keyed `assets` entry with `type`, `format` and `data_base64`; each answer names its `type`, and `p_null`, `spell_confidence`, `source`, `span` and a list's `spans` and `confidences` are read; usage reports `input_tokens` and `output_tokens`. A `duration` field and more than 6 decimals are refused locally.
 - An answer is accepted from exactly the route's model id or its reviewed canonical slug (such as `cloudflare/clairic-20261029`, recorded in the capability fixture from OpenRouter's catalog), never a prefix or a newer slug; the catalog check reports a reviewed model whose canonical slug moved.
 - The catalog check reports a `~` alias (such as `~typesafe/jev-latest`) with its target, and any other unexpected entry as drift by its id's shape, instead of stopping the canary; a reviewed model is still matched only by its exact id.
 - The canaries take `--shape`: each answer's structure and the adapter's exact refusal (path, expectation, type found) go into the report, never a value. It adds no request.

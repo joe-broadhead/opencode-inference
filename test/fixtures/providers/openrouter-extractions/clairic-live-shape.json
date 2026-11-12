@@ -1,0 +1,123 @@
+{
+  "_about": "The structure of the live Clairic answer to the canary's text request (Total EUR 1.00; one number field, total, decimals 2), recorded by scripts/canary-extractions.ts --shape on 2026-11-12 (paths, types and lengths only, no value), and a synthetic answer with exactly that structure. The test checks that the synthetic answer has the recorded structure and that the adapter accepts it.",
+  "recorded": {
+    "status": 200,
+    "contentType": "application/json",
+    "bytes": 378,
+    "entries": [
+      {
+        "path": "$",
+        "type": "object",
+        "length": 6
+      },
+      {
+        "path": "$.model",
+        "type": "string",
+        "length": 27
+      },
+      {
+        "path": "$.answers",
+        "type": "object",
+        "length": 1
+      },
+      {
+        "path": "$.answers.total",
+        "type": "object",
+        "length": 5
+      },
+      {
+        "path": "$.answers.total.type",
+        "type": "string",
+        "value": "number",
+        "length": 6
+      },
+      {
+        "path": "$.answers.total.value",
+        "type": "integer"
+      },
+      {
+        "path": "$.answers.total.guess",
+        "type": "integer"
+      },
+      {
+        "path": "$.answers.total.p_null",
+        "type": "number"
+      },
+      {
+        "path": "$.answers.total.confidence",
+        "type": "number"
+      },
+      {
+        "path": "$.truncated",
+        "type": "boolean"
+      },
+      {
+        "path": "$.usage",
+        "type": "object",
+        "length": 7
+      },
+      {
+        "path": "$.usage.input_tokens",
+        "type": "integer"
+      },
+      {
+        "path": "$.usage.output_tokens",
+        "type": "integer"
+      },
+      {
+        "path": "$.usage.state_tokens",
+        "type": "integer"
+      },
+      {
+        "path": "$.usage.image_tokens",
+        "type": "integer"
+      },
+      {
+        "path": "$.usage.schema_tokens",
+        "type": "integer"
+      },
+      {
+        "path": "$.usage.passes",
+        "type": "integer"
+      },
+      {
+        "path": "$.usage.cost",
+        "type": "number"
+      },
+      {
+        "path": "$.id",
+        "type": "string",
+        "length": 39
+      },
+      {
+        "path": "$.provider",
+        "type": "string",
+        "length": 10
+      }
+    ]
+  },
+  "synthetic": {
+    "model": "cloudflare/clairic-20261029",
+    "answers": {
+      "total": {
+        "type": "number",
+        "value": 1,
+        "guess": 1,
+        "p_null": 0.0001,
+        "confidence": 0.99
+      }
+    },
+    "truncated": false,
+    "usage": {
+      "input_tokens": 120,
+      "output_tokens": 0,
+      "state_tokens": 5,
+      "image_tokens": 0,
+      "schema_tokens": 100,
+      "passes": 1,
+      "cost": 1.25e-05
+    },
+    "id": "gen-ext-1794000000-ABCDEFGHIJKLMNOPQRST",
+    "provider": "Cloudflare"
+  }
+}

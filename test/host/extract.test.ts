@@ -43,7 +43,7 @@ describe(`inference_extract on OpenCode ${HOST_VERSION} (embedded SDK), against 
         const parsed = JSON.parse(body) as Record<string, any>
         seen.push({ path: request.url ?? "", authorization: request.headers.authorization, body: parsed })
         // Answer text with the fixture; a file source gets an answer for its one field.
-        const answer = parsed.state === STATE ? FIXTURE : JSON.stringify({ model: "cloudflare/clairic", id: "gen-file-1", answers: { title: { value: "Quarterly", confidence: 0.8, evidence: [{ start: 0, end: 9 }] } }, usage: { cost: 0.000002 } })
+        const answer = parsed.state === STATE ? FIXTURE : JSON.stringify({ model: "cloudflare/clairic", id: "gen-file-1", answers: { title: { type: "text", value: "Quarterly", confidence: 0.8, span: [0, 9] } }, usage: { cost: 0.000002, input_tokens: 10, output_tokens: 0 } })
         response.writeHead(200, { "content-type": "application/json" })
         response.end(answer)
       })

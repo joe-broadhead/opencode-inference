@@ -1,75 +1,75 @@
 {
   "id": "gen-extract-fixture-0001",
-  "model": "cloudflare/clairic",
-  "object": "extraction",
+  "model": "cloudflare/clairic-20261029",
+  "provider": "Cloudflare",
+  "truncated": false,
   "answers": {
     "name": {
+      "type": "text",
       "value": "Zoé",
       "confidence": 0.91,
-      "evidence": [
-        {
-          "start": 2,
-          "end": 6,
-          "text": "Zoé"
-        }
+      "span": [
+        2,
+        6
       ]
     },
     "currency": {
+      "type": "text",
       "value": "EUR",
       "confidence": 0.97,
-      "null_probability": 0.01,
-      "evidence": [
-        {
-          "start": 10,
-          "end": 13
-        }
+      "p_null": 0.01,
+      "span": [
+        10,
+        13
       ]
     },
     "total": {
+      "type": "number",
       "value": 120.00,
+      "guess": 120.00,
+      "p_null": 2.3e-08,
       "confidence": 0.88,
-      "evidence": [
-        {
-          "start": 14,
-          "end": 20,
-          "text": "120.00"
-        }
+      "span": [
+        14,
+        20
       ]
     },
     "due_on": {
+      "type": "date",
       "value": null,
-      "null_probability": 0.93,
-      "guess": "2026-12-01",
-      "evidence": []
+      "p_null": 0.93,
+      "guess": "2026-12-01"
     },
     "items": {
+      "type": "list",
       "value": [
         "pens",
         "ink"
       ],
       "confidence": 0.7,
-      "items": [
-        {
-          "value": "pens",
-          "evidence": [
-            {
-              "start": 40,
-              "end": 44
-            }
-          ]
-        },
-        {
-          "value": "ink"
-        }
+      "spans": [
+        [
+          40,
+          44
+        ],
+        null
+      ],
+      "confidences": [
+        0.8,
+        0.6
       ]
     }
   },
   "usage": {
-    "prompt_tokens": 61,
-    "completion_tokens": 40,
     "cost": 0.000012345678901234,
+    "input_tokens": 61,
+    "output_tokens": 40,
+    "state_tokens": 20,
+    "image_tokens": 0,
+    "schema_tokens": 41,
+    "passes": 1,
     "cost_details": {
-      "upstream_inference_cost": 0.00001
+      "upstream_inference_cost": 1e-05
     }
   },
   "diagnostics": {

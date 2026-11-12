@@ -12,11 +12,15 @@ import { answeredBy, countOf, entries, isObject, probabilityOf as sharedProbabil
 
 // The OpenRouter alpha Extractions adapter (POST /api/alpha/extractions, handoff §3, §5.4, §7, §7.3).
 //
-// WIRE CONTRACT, documentation-derived and UNVERIFIED: transcribed from the handoff's summary of OpenRouter's guide
-// and API reference (A1, A2, A4) on 2026-11-11, never observed from the live API. The request carries `model`, the text
-// as `state` (or one image as an ordered `assets` entry), `fields` in the provider's snake_case vocabulary and
-// `provider.allow_fallbacks: false`; the answer is `answers` (not `fields`), one entry per requested key. Every route
-// stays disabled until the opt-in compatibility canary (scripts/canary-extractions.ts) has confirmed this contract.
+// WIRE CONTRACT, from OpenRouter's API reference (A4, its OpenAPI schemas ExtractionsRequest and ExtractionsResponse)
+// and guide (A2) as read on 2026-11-12, and checked against the structure of one live Clairic answer (the canary of
+// 2026-11-12, recorded in test/fixtures/providers/openrouter-extractions/clairic-live-shape.json). The request carries
+// `model`, the text as `state` (or one file as an `assets` map entry with no `state`), `fields` in the provider's
+// vocabulary (`instructions`, `null_threshold`, `decimals`, `integer`, `unit`, a list's `items` as a string) and
+// `provider.allow_fallbacks: false`. The answer is `answers`, one per requested key, each with its `type`, `value`,
+// `guess`, `p_null`, `confidence`, `spell_confidence`, `source`, and a code-point `span` (`spans`, one per item, for a
+// list); `model` names the route's model id or its reviewed canonical slug; usage reports `input_tokens`,
+// `output_tokens` and `cost`. Every route stays disabled until the opt-in canary (scripts/canary-extractions.ts) passes.
 //
 // Strict where it matters, tolerant where it is harmless: every consumed key, type, probability, span and amount is
 // checked, and a changed required field or type is PROVIDER_CONTRACT_CHANGED; unknown metadata is ignored, bounded and
@@ -25,7 +29,7 @@ import { answeredBy, countOf, entries, isObject, probabilityOf as sharedProbabil
 
 export const EXTRACTIONS_PATH = "/api/alpha/extractions"
 /** The reviewed wire contract's revision. Part of every request fingerprint. */
-export const WIRE_REVISION = "openrouter-alpha-extractions-2026-11-11.1"
+export const WIRE_REVISION = "openrouter-alpha-extractions-2026-11-12.1"
 
 type Field = z.infer<typeof ExtractField>
 type Input = z.infer<typeof ExtractInput>
@@ -39,21 +43,37 @@ const sha256 = (text: string) => createHash("sha256").update(text).digest("hex")
 
 // --- Request ----------------------------------------------------------------------------------------------------------
 
-/** One field in the provider's vocabulary. Plugin-only options (`required`) are never sent. */
+/**
+ * One field in the provider's vocabulary (A4: every field schema has additionalProperties false). The description is
+ * sent as `instructions`; plugin-only options (`required`, a list's `maxItems`, checked locally) are never sent.
+ */
 function wireField(field: Field): Record<string, unknown> {
   const out: Record<string, unknown> = { type: field.type }
-  if (field.description !== undefined) out["description"] = field.description
+  if (field.description !== undefined) out["instructions"] = field.description
   if (field.nullThreshold !== undefined) out["null_threshold"] = field.nullThreshold
   if (field.type === "number") {
     if (field.decimals !== undefined) out["decimals"] = field.decimals
     if (field.integer !== undefined) out["integer"] = field.integer
     if (field.unit !== undefined) out["unit"] = field.unit
   }
-  if (field.type === "list") {
-    out["items"] = { type: field.items }
-    if (field.maxItems !== undefined) out["max_items"] = field.maxItems
-  }
+  if (field.type === "list") out["items"] = field.items
   return out
+}
+
+/** The documented format of a file asset (A2: png, jpg, jpeg, webp, pdf), or undefined for any other type. */
+function assetFormat(mimeType: string) {
+  switch (mimeType) {
+    case "image/png":
+      return "png"
+    case "image/jpeg":
+      return "jpeg"
+    case "image/webp":
+      return "webp"
+    case "application/pdf":
+      return "pdf"
+    default:
+      return undefined
+  }
 }
 
 /** The route's own constraints on this request, beyond the shared eligibility (routing.ts). Refused locally. */
@@ -61,6 +81,10 @@ function checkConstraints(input: Input, source: Snapshot, route: RouteCapability
   for (const [key, field] of Object.entries(input.fields)) {
     if (field.nullThreshold !== undefined && (route.nullThreshold.supported !== true || route.nullThreshold.unsupportedOn.includes(field.type)))
       throw unsupported(`${route.model} does not take a null threshold on the ${field.type} field ${key}.`)
+    // A duration answer is a number in a requested unit on this endpoint (A4), not the ISO 8601 text this version's
+    // result carries: refused until the result can say which unit a duration is in.
+    if (field.type === "duration") throw unsupported(`The duration field ${key} is not supported on ${route.model} in this version: its answer is a number in a unit the result cannot carry yet.`)
+    if (field.type === "number" && field.decimals !== undefined && field.decimals > 6) throw unsupported(`${route.model} keeps at most 6 decimal places; the field ${key} asks for ${field.decimals}.`)
   }
   if (source.modality === "image") {
     const images = route.inputs.images
@@ -85,8 +109,11 @@ function request(raw: unknown, source: Snapshot, route: RouteCapability) {
   }
   if (source.modality === "text") body["state"] = source.text()
   else {
-    // An ordered asset list, so evidence that names asset 0 is attributed to this image and no other.
-    body["assets"] = [{ type: source.modality === "pdf" ? "file" : "image", media_type: source.mimeType, data: Buffer.from(source.content()).toString("base64") }]
+    // One file, file-only: no `state`, so the asset is read without a reference (A2).
+    const format = assetFormat(source.mimeType)
+    if (format === undefined) throw unsupported(`${route.model} does not take ${source.mimeType} files.`)
+    // The one asset's key is `source`; with no `state`, the assets are read without a reference (A2).
+    body["assets"] = { source: { type: source.modality === "pdf" ? "document" : "image", format, data_base64: Buffer.from(source.content()).toString("base64") } }
   }
   if (input.referenceDate !== undefined) body["reference_date"] = input.referenceDate
   const bytes = new TextEncoder().encode(JSON.stringify(body))
@@ -122,37 +149,23 @@ interface Text {
   readonly artifactId?: string
 }
 
-function spansOf(value: Json | undefined, what: string, source: Snapshot, text: Text | undefined, reasons: Set<Reason>): Evidence[] {
-  if (value === undefined || value === null) return []
-  if (!Array.isArray(value) || value.length > 64) throw changed(`${what}.evidence is not a bounded list`)
-  const out: Evidence[] = []
-  for (const span of value) {
-    if (!isObject(span)) throw changed(`${what}.evidence has an entry that is not an object`)
-    const fields = entries(span)
-    const start = count(fields.get("start"), `${what}.evidence.start`)
-    const end = count(fields.get("end"), `${what}.evidence.end`)
-    const asset = count(fields.get("asset"), `${what}.evidence.asset`)
-    const quoted = fields.get("text")
-    if (quoted !== undefined && quoted !== null && typeof quoted !== "string") throw changed(`${what}.evidence.text is not a string`)
-    if (text) {
-      // Text state: code-point offsets into exactly the text that was sent.
-      if (asset !== undefined) throw changed(`${what}.evidence names an asset, but the source was text`)
-      if (start === undefined || end === undefined || end < start || end > text.points.length) throw changed(`${what}.evidence is not a span of the source text`)
-      const slice = text.points.slice(start, end).join("")
-      if (typeof quoted === "string" && quoted !== slice) {
-        reasons.add("EVIDENCE_MISMATCH")
-        continue
-      }
-      out.push({ ...(text.artifactId ? { artifactId: text.artifactId } : {}), sourceHash: text.sha256, basis: "exact-text", textRange: { start, end, unit: "unicode-code-point", textHash: sha256(slice) } })
-    } else {
-      // One asset was sent, as asset 0. Evidence naming another asset is a contract failure, never re-attributed.
-      if (asset !== undefined && asset !== 0) throw changed(`${what}.evidence names asset ${asset}, but one asset was sent`)
-      reasons.add("EVIDENCE_UNAVAILABLE")
-      out.push({ ...(source.artifactId ? { artifactId: source.artifactId } : {}), sourceHash: source.sha256, basis: "unavailable" })
-    }
-  }
-  return out
+/**
+ * One documented span, `[start, end)` in Unicode code points of exactly the text sent (A4), as evidence. A span on an
+ * answer to a file is refused: the file was not text, and an offset into it would be invented.
+ */
+function spanOf(value: Json | undefined, what: string, text: Text | undefined): Evidence | undefined {
+  if (value === undefined || value === null) return undefined
+  if (!text) throw changed(`${what} is a text span, but the source was a file`)
+  if (!Array.isArray(value) || value.length !== 2) throw changed(`${what} is not a [start, end] pair`)
+  const start = count(value[0], `${what} start`)
+  const end = count(value[1], `${what} end`)
+  if (start === undefined || end === undefined || end < start || end > text.points.length) throw changed(`${what} is not a span of the source text`)
+  const slice = text.points.slice(start, end).join("")
+  return { ...(text.artifactId ? { artifactId: text.artifactId } : {}), sourceHash: text.sha256, basis: "exact-text", textRange: { start, end, unit: "unicode-code-point", textHash: sha256(slice) } }
 }
+
+/** The quoted source text of a piece of evidence. */
+const quotedText = (text: Text, evidence: Evidence) => text.points.slice(evidence.textRange!.start, evidence.textRange!.end).join("")
 
 /** Text the result can carry: anything longer is refused here, before settling, never later as an invalid output. */
 function text(value: string, what: string) {
@@ -212,7 +225,8 @@ function guessOf(field: Field, value: Json | undefined, what: string): Extracted
   return text(value, `${what}.guess`)
 }
 
-const ANSWER_KEYS = new Set(["value", "confidence", "null_probability", "spelling_confidence", "guess", "evidence", "items", "truncated"])
+/** The documented answer keys (A4), and `truncated`, which an answer may carry; estimate and forecast keys are not ours. */
+const ANSWER_KEYS = new Set(["type", "value", "guess", "p_null", "confidence", "spell_confidence", "source", "span", "spans", "confidences", "unit", "truncated"])
 
 function answerOf(key: string, field: Field, raw: Json | undefined, source: Snapshot, sourceText: Text | undefined, warnings: string[]): { field: Extracted; truncated: boolean } {
   const what = `answers.${key}`
@@ -221,44 +235,65 @@ function answerOf(key: string, field: Field, raw: Json | undefined, source: Snap
   const unknown = [...answer.keys()].filter((name) => !ANSWER_KEYS.has(name))
   if (unknown.length > 8) throw changed(`${what} has too many unknown keys`)
   if (unknown.length) warnings.push(`${what}: ${unknown.length} unknown key(s) ignored`)
+  // Each answer names its type (A4: required); it must be the type asked for, or the value is not this field's.
+  if (answer.get("type") !== field.type) throw changed(`${what}.type is not ${field.type}`)
   const reasons = new Set<Reason>()
   const { value, exact } = typedValue(field, answer.get("value"), what, reasons)
   const confidence = probabilityOf(answer.get("confidence"), `${what}.confidence`)
-  const nullProbability = probabilityOf(answer.get("null_probability"), `${what}.null_probability`)
-  const spellingConfidence = probabilityOf(answer.get("spelling_confidence"), `${what}.spelling_confidence`)
+  const nullProbability = probabilityOf(answer.get("p_null"), `${what}.p_null`)
+  const spellingConfidence = probabilityOf(answer.get("spell_confidence"), `${what}.spell_confidence`)
   const guess = guessOf(field, answer.get("guess"), what)
-  const evidence = spansOf(answer.get("evidence"), what, source, sourceText, reasons)
+  // Where the answer was read from: the state text for a text source, the file for a file source; never the other.
+  const read = answer.get("source")
+  const expectedSource = source.modality === "text" ? "state" : source.modality === "pdf" ? "document" : "image"
+  if (read !== undefined && read !== null && read !== expectedSource) throw changed(`${what}.source is not ${expectedSource}`)
   const truncatedRaw = answer.get("truncated")
   if (truncatedRaw !== undefined && truncatedRaw !== null && typeof truncatedRaw !== "boolean") throw changed(`${what}.truncated is not a boolean`)
   const truncated = truncatedRaw === true
 
+  let evidence: Evidence[] = []
   let items: Extracted["items"]
-  const rawItems = answer.get("items")
-  if (rawItems !== undefined && rawItems !== null) {
-    if (field.type !== "list") throw changed(`${what}.items on a field that is not a list`)
-    if (!Array.isArray(rawItems) || !Array.isArray(value) || rawItems.length !== value.length) throw changed(`${what}.items does not match the list's values`)
-    items = rawItems.map((item, index) => {
-      if (!isObject(item)) throw changed(`${what}.items has an entry that is not an object`)
-      const fields = entries(item)
-      if (fields.get("value") !== value[index]) throw changed(`${what}.items does not match the list's values`)
+  if (field.type === "list") {
+    if (answer.get("span") !== undefined && answer.get("span") !== null) throw changed(`${what}.span on a list, which has spans`)
+    const values = Array.isArray(value) ? (value as string[]) : undefined
+    const rawSpans = answer.get("spans")
+    let spans: (Evidence | undefined)[] = []
+    if (rawSpans !== undefined && rawSpans !== null) {
+      if (!Array.isArray(rawSpans) || !values || rawSpans.length !== values.length) throw changed(`${what}.spans does not match the list's values`)
+      spans = rawSpans.map((span) => spanOf(span, `${what}.spans entry`, sourceText))
+    }
+    const confidences = answer.get("confidences")
+    if (confidences !== undefined && confidences !== null) {
+      if (!Array.isArray(confidences) || !values || confidences.length !== values.length) throw changed(`${what}.confidences does not match the list's values`)
+      confidences.forEach((item) => probabilityOf(item, `${what}.confidences entry`))
+    }
+    if (values) {
       // An item without a span keeps an empty list: its offsets are never invented.
-      const itemEvidence = spansOf(fields.get("evidence"), `${what}.items`, source, sourceText, reasons)
-      if (itemEvidence.length === 0) reasons.add("EVIDENCE_UNAVAILABLE")
-      return { value: value[index]!, evidence: itemEvidence.slice(0, 16) }
-    })
-  } else if (Array.isArray(value)) items = value.map((item) => ({ value: item, evidence: [] }))
+      items = values.map((item, index) => {
+        const span = spans[index]
+        if (!span) reasons.add("EVIDENCE_UNAVAILABLE")
+        else if (sourceText && !quotedText(sourceText, span).includes(item)) reasons.add("EVIDENCE_MISMATCH")
+        return { value: item, evidence: span ? [span] : [] }
+      })
+    }
+  } else {
+    if (answer.get("spans") !== undefined && answer.get("spans") !== null) throw changed(`${what}.spans on a field that is not a list`)
+    if (answer.get("confidences") !== undefined && answer.get("confidences") !== null) throw changed(`${what}.confidences on a field that is not a list`)
+    const span = spanOf(answer.get("span"), `${what}.span`, sourceText)
+    if (span) evidence = [span]
+  }
 
   if (value === null) reasons.add("FIELD_ABSENT")
   if (value === null && field.required === true) reasons.add("REQUIRED_FIELD_ABSENT")
   if (confidence === undefined) reasons.add("CONFIDENCE_MISSING")
   if (value !== null && evidence.length === 0 && !(items && items.some((item) => item.evidence.length > 0))) reasons.add("EVIDENCE_UNAVAILABLE")
   // A located value must be what its evidence quotes: a text value as written, a number by its significant digits
-  // ("120.00" matches "EUR 120.00" and "120"). A span with no quoted text is checked against the source the same way.
-  const quotes = sourceText && evidence.length > 0 ? evidence.map((item) => sourceText.points.slice(item.textRange!.start, item.textRange!.end).join("")) : []
-  if (field.type === "text" && typeof value === "string" && quotes.length > 0 && !quotes.some((quote) => quote.includes(value))) reasons.add("EVIDENCE_MISMATCH")
+  // ("120.00" matches "EUR 120.00" and "120"); a date, time or datetime as written.
+  const quotes = sourceText ? evidence.map((item) => quotedText(sourceText, item)) : []
+  if (typeof value === "string" && quotes.length > 0 && !quotes.some((quote) => quote.includes(value))) reasons.add("EVIDENCE_MISMATCH")
   if (field.type === "number" && exact !== undefined && quotes.length > 0) {
     const digits = digitsOf(exact)
-    if (digits !== undefined && !quotes.some((quote) => (quote.replace(/[^0-9]/g, "").replace(/^0+/, "")).includes(digits))) reasons.add("EVIDENCE_MISMATCH")
+    if (digits !== undefined && !quotes.some((quote) => quote.replace(/[^0-9]/g, "").replace(/^0+/, "").includes(digits))) reasons.add("EVIDENCE_MISMATCH")
   }
   if (truncated) reasons.add("PROVIDER_TRUNCATED")
   return {
@@ -272,14 +307,15 @@ function answerOf(key: string, field: Field, raw: Json | undefined, source: Snap
       ...(nullProbability !== undefined ? { nullProbability } : {}),
       ...(spellingConfidence !== undefined ? { spellingConfidence } : {}),
       ...(guess !== undefined ? { guess } : {}),
-      evidence: evidence.slice(0, 64),
+      evidence,
       ...(items ? { items } : {}),
       review: [...reasons].sort(),
     },
   }
 }
 
-const TOP_KEYS = new Set(["id", "model", "answers", "usage", "truncated", "object", "created"])
+/** The documented top-level keys (A4). */
+const TOP_KEYS = new Set(["id", "model", "provider", "answers", "usage", "truncated", "state_text"])
 
 const usageOf = (raw: Json | undefined) => sharedUsage(raw, changed)
 
@@ -306,6 +342,8 @@ function parse(response: TransportResponse, context: { readonly source: Snapshot
   if (!answeredBy(model, route)) throw changed("the answer came from another model")
   const id = top.get("id")
   if (id !== undefined && (typeof id !== "string" || !REQUEST_ID.test(id))) throw changed("id is not a request id")
+  const provider = top.get("provider")
+  if (provider !== undefined && provider !== null && (typeof provider !== "string" || provider.length > 128)) throw changed("provider is not a provider name")
   const truncatedTop = top.get("truncated")
   if (truncatedTop !== undefined && truncatedTop !== null && typeof truncatedTop !== "boolean") throw changed("truncated is not a boolean")
 
