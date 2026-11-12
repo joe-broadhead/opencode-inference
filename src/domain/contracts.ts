@@ -22,7 +22,8 @@ export const ModelId = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-
 export const ProfileName = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/, "must be lowercase letters, digits and dashes, starting with a letter")
 /** A field or question key: a stable identifier the result keeps. */
 export const Key = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, "must be lowercase letters, digits and underscores, starting with a letter, at most 64 characters")
-const MAX_TEXT = 1_000_000
+/** The longest text a field value, guess or list item may be (UTF-16 units, as zod counts). */
+export const MAX_TEXT = 1_000_000
 
 // --- 5.1 Source and artifact references ---------------------------------------------------------------------------
 
@@ -328,6 +329,8 @@ export const FIELD_REVIEW = [
 ] as const
 
 const scalar = z.union([z.string().max(MAX_TEXT), z.number().finite()])
+/** The longest number literal kept in `exact`. A longer one is refused by the adapter, never cut. */
+export const MAX_LITERAL = 1024
 const probability = z.number().finite().min(0).max(1)
 
 export const ExtractedField = z
@@ -336,7 +339,7 @@ export const ExtractedField = z
     value: z
       .union([scalar, z.array(z.string().max(MAX_TEXT)).max(256), z.null()])
       .describe("The provider's answer, or null when the source does not state it. null is a result, never an error, and a guess never fills it."),
-    exact: z.string().max(64).optional().describe("A number exactly as the provider wrote it; `value` is its float for convenience. Use `exact` for money."),
+    exact: z.string().max(MAX_LITERAL).optional().describe("A number exactly as the provider wrote it, never shortened; `value` is its float for convenience. Use `exact` for money."),
     derivation: z.enum(["extracted", "unknown"]).describe("extracted: located in the source by the provider; unknown: no value."),
     confidence: probability.optional().describe("The provider's reported confidence. A model statistic, not calibrated accuracy. Absent when not reported, never 0."),
     nullProbability: probability.optional().describe("The provider's reported probability that the source does not state the field."),

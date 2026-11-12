@@ -135,6 +135,28 @@ describe("the answer", () => {
     expect(fields.quoted.review).toContain("EVIDENCE_MISMATCH")
   })
 
+  test("a number's evidence is checked against its digits, quoted or not", async () => {
+    const result = await parse(
+      withAnswers({ right: { value: 120.0, confidence: 0.9, evidence: [{ start: 14, end: 20 }] }, wrong: { value: 120.0, confidence: 0.9, evidence: [{ start: 10, end: 13 }] } }),
+      { right: { type: "number" }, wrong: { type: "number" } },
+    )
+    const fields = (result.data as { fields: Record<string, any> }).fields
+    expect(fields.right.review).not.toContain("EVIDENCE_MISMATCH")
+    expect(fields.wrong.review).toContain("EVIDENCE_MISMATCH")
+  })
+
+  test("a long number literal is kept whole; past 1024 characters, and text past 1 MB, is a contract failure before settling", async () => {
+    const long = `0.${"1".repeat(100)}`
+    const kept = await parse(withAnswers({ total: { value: "__N__", confidence: 0.9 } }).replace('"__N__"', long), { total: { type: "number" } })
+    expect((kept.data as any).fields.total.exact).toBe(long)
+    expect(ExtractData.safeParse(kept.data).success).toBe(true)
+    await contractFailure(parse(withAnswers({ total: { value: "__N__" } }).replace('"__N__"', `0.${"1".repeat(1100)}`), { total: { type: "number" } }))
+    const huge = "x".repeat(1_000_001)
+    await contractFailure(parse(withAnswers({ name: { value: huge } }), { name: { type: "text" } }))
+    await contractFailure(parse(withAnswers({ name: { value: null, guess: huge } }), { name: { type: "text" } }))
+    await contractFailure(parse(withAnswers({ tags: { value: [huge] } }), { tags: { type: "list", items: "text" } }))
+  })
+
   test("truncation is partial coverage and a review reason", async () => {
     const result = await parse(withAnswers({ name: { value: "Zoé", confidence: 0.9, evidence: [{ start: 2, end: 6 }], truncated: true } }), { name: { type: "text" } })
     expect(result.coverage).toMatchObject({ status: "partial", providerTruncated: true })

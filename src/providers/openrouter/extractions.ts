@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import type * as z from "zod"
-import type { EvidenceRef, ExtractField, ExtractInput, ExtractedField, FIELD_REVIEW } from "../../domain/contracts.js"
+import { MAX_LITERAL, MAX_TEXT, type EvidenceRef, type ExtractField, type ExtractInput, type ExtractedField, type FIELD_REVIEW } from "../../domain/contracts.js"
 import { InferenceError } from "../../domain/errors.js"
 import { decimalOf, JsonNumber, parseJson, type Json } from "../../domain/json.js"
 import { format, money, roundUp } from "../../domain/money.js"
@@ -197,6 +197,15 @@ function spansOf(value: Json | undefined, what: string, source: Snapshot, text: 
   return out
 }
 
+/** Text the result can carry: anything longer is refused here, before settling, never later as an invalid output. */
+function text(value: string, what: string) {
+  if (value.length > MAX_TEXT) throw changed(`${what} is longer than ${MAX_TEXT} characters`)
+  return value
+}
+
+/** The significant digits of a plain number literal: "120.00" and "120" both give "12". Undefined with an exponent. */
+const digitsOf = (literal: string) => (/[eE]/.test(literal) ? undefined : literal.replace(/^-/, "").replace(".", "").replace(/^0+/, "").replace(/0+$/, ""))
+
 /** The typed value of one answer, or null. A JSON type the field cannot have is a contract failure. */
 function typedValue(field: Field, value: Json | undefined, what: string, reasons: Set<Reason>): { value: Extracted["value"]; exact?: string } {
   if (value === undefined) throw changed(`${what} has no value`)
@@ -204,20 +213,22 @@ function typedValue(field: Field, value: Json | undefined, what: string, reasons
   switch (field.type) {
     case "number": {
       if (!(value instanceof JsonNumber) || !Number.isFinite(value.value)) throw changed(`${what} is not a number`)
+      if (value.text.length > MAX_LITERAL) throw changed(`${what} is a number literal longer than ${MAX_LITERAL} characters`)
       const fraction = /\.(\d+)/.exec(value.text.replace(/[eE].*$/, ""))?.[1] ?? ""
       const exponent = /[eE]/.test(value.text)
       if (field.integer === true && (exponent ? !Number.isInteger(value.value) : /[1-9]/.test(fraction))) reasons.add("VALIDATION_FAILED")
       if (field.decimals !== undefined && !exponent && fraction.replace(/0+$/, "").length > field.decimals) reasons.add("VALIDATION_FAILED")
-      return { value: value.value, exact: value.text.slice(0, 64) }
+      return { value: value.value, exact: value.text }
     }
     case "list": {
       if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) throw changed(`${what} is not a list of text`)
       if (field.maxItems !== undefined && value.length > field.maxItems) reasons.add("VALIDATION_FAILED")
       if (value.length > 256) throw changed(`${what} has more than 256 items`)
-      return { value: value as string[] }
+      return { value: (value as string[]).map((item) => text(item, `${what} item`)) }
     }
     default: {
       if (typeof value !== "string") throw changed(`${what} is not text`)
+      text(value, what)
       const valid =
         field.type === "date" ? validDate(value)
         : field.type === "time" ? TIME.test(value)
@@ -238,15 +249,15 @@ function guessOf(field: Field, value: Json | undefined, what: string): Extracted
   }
   if (field.type === "list") {
     if (!Array.isArray(value) || value.length > 256 || value.some((item) => typeof item !== "string")) throw changed(`${what}.guess is not a list of text`)
-    return value as string[]
+    return (value as string[]).map((item) => text(item, `${what}.guess item`))
   }
   if (typeof value !== "string") throw changed(`${what}.guess is not text`)
-  return value
+  return text(value, `${what}.guess`)
 }
 
 const ANSWER_KEYS = new Set(["value", "confidence", "null_probability", "spelling_confidence", "guess", "evidence", "items", "truncated"])
 
-function answerOf(key: string, field: Field, raw: Json | undefined, source: Snapshot, text: Text | undefined, warnings: string[]): { field: Extracted; truncated: boolean } {
+function answerOf(key: string, field: Field, raw: Json | undefined, source: Snapshot, sourceText: Text | undefined, warnings: string[]): { field: Extracted; truncated: boolean } {
   const what = `answers.${key}`
   if (!isObject(raw)) throw changed(`${what} is missing or not an object`)
   const answer = entries(raw)
@@ -259,7 +270,7 @@ function answerOf(key: string, field: Field, raw: Json | undefined, source: Snap
   const nullProbability = probabilityOf(answer.get("null_probability"), `${what}.null_probability`)
   const spellingConfidence = probabilityOf(answer.get("spelling_confidence"), `${what}.spelling_confidence`)
   const guess = guessOf(field, answer.get("guess"), what)
-  const evidence = spansOf(answer.get("evidence"), what, source, text, reasons)
+  const evidence = spansOf(answer.get("evidence"), what, source, sourceText, reasons)
   const truncatedRaw = answer.get("truncated")
   if (truncatedRaw !== undefined && truncatedRaw !== null && typeof truncatedRaw !== "boolean") throw changed(`${what}.truncated is not a boolean`)
   const truncated = truncatedRaw === true
@@ -274,7 +285,7 @@ function answerOf(key: string, field: Field, raw: Json | undefined, source: Snap
       const fields = entries(item)
       if (fields.get("value") !== value[index]) throw changed(`${what}.items does not match the list's values`)
       // An item without a span keeps an empty list: its offsets are never invented.
-      const itemEvidence = spansOf(fields.get("evidence"), `${what}.items`, source, text, reasons)
+      const itemEvidence = spansOf(fields.get("evidence"), `${what}.items`, source, sourceText, reasons)
       if (itemEvidence.length === 0) reasons.add("EVIDENCE_UNAVAILABLE")
       return { value: value[index]!, evidence: itemEvidence.slice(0, 16) }
     })
@@ -284,10 +295,13 @@ function answerOf(key: string, field: Field, raw: Json | undefined, source: Snap
   if (value === null && field.required === true) reasons.add("REQUIRED_FIELD_ABSENT")
   if (confidence === undefined) reasons.add("CONFIDENCE_MISSING")
   if (value !== null && evidence.length === 0 && !(items && items.some((item) => item.evidence.length > 0))) reasons.add("EVIDENCE_UNAVAILABLE")
-  // A located text value must be what its evidence quotes.
-  if (field.type === "text" && typeof value === "string" && text && evidence.length > 0) {
-    const quotes = evidence.map((item) => text.points.slice(item.textRange!.start, item.textRange!.end).join(""))
-    if (!quotes.some((quote) => quote.includes(value))) reasons.add("EVIDENCE_MISMATCH")
+  // A located value must be what its evidence quotes: a text value as written, a number by its significant digits
+  // ("120.00" matches "EUR 120.00" and "120"). A span with no quoted text is checked against the source the same way.
+  const quotes = sourceText && evidence.length > 0 ? evidence.map((item) => sourceText.points.slice(item.textRange!.start, item.textRange!.end).join("")) : []
+  if (field.type === "text" && typeof value === "string" && quotes.length > 0 && !quotes.some((quote) => quote.includes(value))) reasons.add("EVIDENCE_MISMATCH")
+  if (field.type === "number" && exact !== undefined && quotes.length > 0) {
+    const digits = digitsOf(exact)
+    if (digits !== undefined && !quotes.some((quote) => (quote.replace(/[^0-9]/g, "").replace(/^0+/, "")).includes(digits))) reasons.add("EVIDENCE_MISMATCH")
   }
   if (truncated) reasons.add("PROVIDER_TRUNCATED")
   return {
