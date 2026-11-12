@@ -8,8 +8,8 @@ Report a vulnerability privately through GitHub's security advisories for this r
 
 - `inference_status`, `inference_capabilities` and `inference_plan` are local: they read the plugin options, a committed
   capability fixture and the host's own state.
-- `inference_extract` sends the source to OpenRouter and can be charged, but only on an enabled route, and every route
-  is disabled in this version: it refuses before reading a file, resolving the key or sending anything. A route is
+- `inference_extract` and `inference_decide` send the source to OpenRouter and can be charged, but only on an enabled
+  route, and every route is disabled in this version: it refuses before reading a file, resolving the key or sending anything. A route is
   enabled only in a reviewed change after the opt-in canary has passed.
 - The OpenRouter transport (`src/providers/openrouter/http.ts`) is the only code that reaches the network or resolves
   the key: one trusted origin, two reviewed paths, the key in one `Authorization` header, no redirects followed, a
@@ -19,8 +19,10 @@ Report a vulnerability privately through GitHub's security advisories for this r
   approval are refused, and the type comes from the bytes.
 - The operation journal is private (a 0700 folder, a 0600 file) and holds hashes, ids, the route, timing, amounts and
   error codes: never a key, source text, a request or response body, or a URL.
-- No key is an option. The canary script reads a key only from `OPENROUTER_CANARY_KEY`, refuses in CI and without a
-  budget and an explicit acknowledgement, and is never run by the checks.
+- A decision's accepted label is information, never a permission: no label, probability or acceptance grants a file
+  read, a send, a budget or any other action.
+- No key is an option. The canary scripts read a key only from `OPENROUTER_CANARY_KEY`, refuse in CI and without a
+  budget, a per-call worst case and an explicit acknowledgement, and are never run by the checks.
 - Errors follow `CODE: what happened. Next step: …` and carry no key, source text or field value.
 
 Content a caller supplies, and anything a provider returns in a later release, is untrusted data, never instructions.

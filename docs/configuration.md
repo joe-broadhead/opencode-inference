@@ -39,9 +39,9 @@ by value: the OpenRouter key goes in `/connect`.
 <!-- /generated:options -->
 
 - `access`: `all`, `ask-changes` or `read-only`. Decides the default rules below.
-- `modules`: switches for the operations. `extractions` turns `inference_extract` on or off (it is refused with
-  `MODULE_DISABLED` at execution when off); `decisions` and `understanding` change only what capabilities and plan report
-  and status's `state`, as their tools do not exist yet.
+- `modules`: switches for the operations. `extractions` and `decisions` turn `inference_extract` and
+  `inference_decide` on or off (refused with `MODULE_DISABLED` at execution when off); `understanding` changes only what
+  capabilities and plan report and status's `state`, as its tool does not exist yet.
 - `profiles`: named routes, `{ "<name>": { "model": "<provider>/<model>" } }`. Setting it replaces the three defaults.
   A profile names a model; it never overrides a permission.
 - `routing.mode` is `explicit` and `routing.fallbacks` must be empty: automatic fallback stays off until evaluated.
@@ -56,6 +56,14 @@ by value: the OpenRouter key goes in `/connect`.
 - `data.requireZdr`: `true` makes a route without documented zero data retention ineligible. `false` means you have not
   asked for that restriction; it does not claim a provider retains nothing.
 - `cache.enabled` must be `false`: the result cache is not implemented.
+- `questionSets`: versioned question sets for `inference_decide`, `{ "<name>-v<n>": { "questions": { ... } } }`. The
+  version is part of the name: change a set's labels, prompts or option order under a new name.
+- `acceptanceProfiles`: versioned acceptance profiles, `{ "<name>-v<n>": { "mode": "review" | "automatic", "rules":
+  { "noul": { "accept" }, "choice": { "minProbability", "minMargin" }, "score": { "minProbability" } }, ... } }`.
+  `review-first-v1` is built in and accepts nothing. An `automatic` profile also needs `model`, `questionSet`,
+  `maxFalseAcceptRate` and a held-out `report` from `scripts/evaluate-decisions.ts` for exactly that profile, model,
+  question set and thresholds, with at least 30 held-out cases and a false-accept rate within the maximum; otherwise
+  setup fails with `OPTIONS_INVALID`. Thresholds belong to the task and its consequences: there is no universal one.
 - `allowUntestedHost`: run on an OpenCode outside `>=2.2.3 <2.3.0`, with a warning as the next step.
 
 ## Spend
@@ -130,7 +138,7 @@ own `permissions`, followed by your top-level `inference_*` rules.
 
 <!-- /generated:rules-read-only -->
 
-`inference_extract` gets the send effect of `access`; the namespace rule covers the send tools a later release adds; the
+`inference_extract` and `inference_decide` get the send effect of `access`; the namespace rule covers the send tools a later release adds; the
 three local reads are always allowed. Reading a file for `inference_extract` also asks the host's own `read` (and
 `external_directory` outside the project).
 

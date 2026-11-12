@@ -21,6 +21,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - Catalog drift as a compatibility status that never enables a model, and a per-route canary status the fixture requires before a route can be enabled.
 - `scripts/canary-extractions.ts`: the opt-in live canary (text, image, PDF, malformed request, catalog), refusing without an explicit key, budget and acknowledgement.
 
+- `inference_decide` (class `send`) with the OpenRouter alpha Decisions adapter: noul, choice and score questions over text; probabilities and distributions exactly as reported (never renormalised, rounded or completed); the provider's confidence kept apart; per-question refusal; Box and images refused locally; the route's effective context enforced by refusing, never truncating. Every route stays disabled until its canary passes.
+- Versioned question sets and acceptance profiles in the trusted options (`questionSets`, `acceptanceProfiles`): deterministic acceptance, `review-first-v1` built in, and automatic profiles that load only with a matching held-out report.
+- `scripts/evaluate-decisions.ts`: held-out reports from labelled cases and recorded answers, split by document.
+- `scripts/canary-decisions.ts`: the opt-in Decisions canary (catalog, text, malformed request).
+
 ### Changed
 
 - Status lists an agent as unguarded when its own rules would run any non-read Inference action without asking, registered or planned, not only the planned ones.

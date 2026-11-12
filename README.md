@@ -2,11 +2,10 @@
 
 Unofficial OpenCode plugin. Not affiliated with OpenCode or OpenRouter.
 
-**Not released yet.** This stage of `@joe-broadhead/opencode-inference` adds typed extraction (`inference.extract`)
-through OpenRouter's alpha Extractions API, keeping nulls, evidence, coverage, uncertainty and cost in every result.
-**Every route is disabled** until a compatibility canary has verified it against the live API, so in this version
-`inference_extract` refuses with that reason and nothing is sent. Bounded decisions (`inference.decide`) are a reserved
-name, not a tool.
+**Not released yet.** `@joe-broadhead/opencode-inference` offers typed extraction (`inference.extract`) and bounded
+decisions (`inference.decide`) through OpenRouter's alpha Extractions and Decisions APIs, keeping nulls, evidence,
+probabilities, refusals, coverage and cost in every result. **Every route is disabled** until a compatibility canary
+has verified it against the live API, so in this version both tools refuse with that reason and nothing is sent.
 
 ## What works in this version
 
@@ -23,13 +22,22 @@ name, not a tool.
   exact source, review reasons, and the number exactly as written. It asks the host before reading a file, reserves
   budget before sending, and refuses provider constraints locally (no null threshold on a Clairic list or on ScaleDown,
   Clairic's image limits). With every route disabled, it refuses before reading or sending anything.
+- **`inference_decide`** (`send`): noul (the probability a proposition is true), choice and score (the expected,
+  possibly fractional, position on an ordered rubric) questions about supplied text, given inline or as a versioned
+  question set from the trusted options. Probabilities and distributions come back exactly as reported (never
+  renormalised or completed), the provider's confidence apart, and a refusal as its own outcome. A deterministic
+  acceptance profile marks each answer accepted, review or refused: the built-in `review-first-v1` accepts nothing, and
+  an automatic profile is accepted by the options only with a held-out report for the same model, question set and
+  thresholds. An accepted label is never a permission. Box questions are refused, and a request that may not fit the
+  route's effective context is refused rather than truncated.
 - `/inference-status` in a session, and the **Inference: Status** dialog (`/inference`) in the TUI.
 - Scripts call the same tools with no model through the tools RPC `inference.core.tools`
   ([docs/scripting.md](docs/scripting.md)).
 
 Every route in the capability fixture is disabled: the fixture is transcribed from public documentation (dated
 2026-11-11), not verified against the live API, and records no prices, so every quote is `unavailable`. A route is
-enabled only after the opt-in canary (`scripts/canary-extractions.ts`, which needs an explicit key and budget and is
+enabled only after its opt-in canary (`scripts/canary-extractions.ts`, `scripts/canary-decisions.ts`, which need an
+explicit key and budget and are
 never run by the checks) has passed against it.
 
 <!-- generated:tools -->

@@ -34,10 +34,15 @@ src/domain/                      zod contracts and pure logic, no host
   errors.ts                      CODE: what happened. Next step: …
   money.ts                       exact decimal money (10^-12 units, never floats)
   json.ts                        a strict JSON reader that keeps provider numbers as written
+  acceptance.ts                  acceptance profiles, question sets, the held-out report, deterministic acceptance
+  evaluation.ts                  held-out evaluation of a profile's thresholds
+  canonical.ts                   canonical JSON for digests
 src/providers/openrouter/
   capabilities.ts                the dated, documentation-derived capability fixture (data only)
   http.ts                        the transport boundary: the only fetch and the only key read
   extractions.ts                 the alpha Extractions adapter: wire request, constraints, strict answer, quote
+  decisions.ts                   the alpha Decisions adapter: questions, exact distributions, refusal, effective context
+  wire.ts                        shared readers: probabilities, amounts, usage, the quote
   catalog.ts                     catalog drift, reported as a compatibility status
 src/runtime/
   dispatch.ts                    the one dispatcher both host surfaces call
@@ -122,6 +127,41 @@ wire contract (`WIRE_REVISION`, part of every request fingerprint):
 - **Routes.** Every route stays `enabled: false`; the fixture's schema refuses an enabled route without a passed
   canary. `catalog.ts` compares OpenRouter's catalog with the fixture and reports drift (new candidates, missing
   models) without enabling anything. `scripts/canary-extractions.ts` is the opt-in live check (see CONTRIBUTING.md).
+
+## Decisions
+
+`src/providers/openrouter/decisions.ts` is the alpha Decisions adapter, with a documentation-derived and unverified wire
+contract (`WIRE_REVISION`):
+
+- **Request.** `model`, the text as `state`, named `questions` (noul with a prompt; choice with ordered `options`; score
+  with `levels` low to high) and `provider.allow_fallbacks: false`. A versioned `questionSet` comes only from the
+  trusted options, and its digest (labels, prompts and option order) travels with the result. Refused locally: Box
+  (no reviewed region representation), images, an unknown set or profile, and a request that may not fit the route's
+  effective context: the state and questions must fit its reviewed token limit counted as UTF-8 bytes (no tokenizer
+  emits more tokens than bytes), and an unreviewed limit refuses, so the end of a long source is never cut off silently.
+- **Answer.** `{ probability }` for noul, `{ choice, distribution? }` for choice, `{ score, distribution? }` for score
+  (the expected zero-based index), each with an optional `confidence`, or `{ refusal }`. Probabilities must lie in 0..1;
+  a distribution must name only asked labels and total at most 1; a complete score distribution must agree with its
+  expected index. All are stored exactly as reported: never renormalised, rounded or completed, and an unreported label
+  is absent, not 0. A refusal is its own outcome; a refusal that also answers is `PROVIDER_CONTRACT_CHANGED`.
+
+### Acceptance and evaluation
+
+`src/domain/acceptance.ts` decides acceptance in ordinary deterministic code. `review-first-v1` (built in) and any
+`mode: "review"` profile accept nothing. A `mode: "automatic"` profile accepts an answer only when its thresholds are
+met (noul: probability at least `accept`, or at most `1 - accept`; choice: top reported probability and margin; score:
+the most probable level), using the reported probability or distribution only: the reported confidence is derived from
+the distribution and is never counted again, and a missing probability cannot pass a threshold. It accepts only on the
+model and question set (by digest) its report measured; anything else is `CALIBRATION_MISMATCH`, and a truncated state
+is never accepted. The options are refused when an automatic profile has no held-out report for the same profile,
+model, question set and thresholds, with at least 30 held-out cases and a false-accept rate within its
+`maxFalseAcceptRate` (exact integer arithmetic). Accepted outcomes are labels: nothing in the plugin treats one as a
+permission.
+
+`src/domain/evaluation.ts` and `scripts/evaluate-decisions.ts` produce that report offline from labelled cases and
+recorded answers: thresholds are chosen on the tuning split, measured on the held-out split, and the splits are by
+document, so chunks of one document cannot leak from tuning into held-out. It reports accepts, false accepts, reviews,
+refusals and the noul Brier score. Recording the answers needs a key and spends; it is a separate, deliberate step.
 
 ## Reserved operations
 
