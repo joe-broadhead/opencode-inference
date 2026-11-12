@@ -38,7 +38,7 @@ export const jellyDeclaration = () => ({
         label: "Access",
         type: "string",
         default: DEFAULTS.access,
-        description: "all, ask-changes or read-only. Generates default rules for agents with a base allow rule; the three local reads always run.",
+        description: "all, ask-changes or read-only. Generates default rules for agents with a base allow rule; the three local reads always run, and extract follows access.",
       },
     ],
   },

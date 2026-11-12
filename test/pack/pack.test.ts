@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
-import { TOOL_NAMES } from "../../src/domain/registry.js"
+import { TOOL_NAMES, TOOLS } from "../../src/domain/registry.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { cleanup, npm, REPO, root, startStock, STOCK_VERSIONS, until, type Host } from "../host/harness.js"
@@ -140,14 +140,16 @@ for (const version of STOCK_VERSIONS)
       expect(build.slice(0, 1 + defaultRules().length)).toEqual([{ action: "*", resource: "*", effect: "allow" }, ...defaultRules()])
     })
 
-    test("the tools RPC describes the three methods and runs plan as a session; a denying agent is refused", async () => {
+    test("the tools RPC describes the registry's methods and classes and runs plan as a session; a denying agent is refused", async () => {
       const described = await rpc(host, TOOLS_RPC_ID, "describe", {})
-      expect(described.value.methods.map((method: { name: string; class: string }) => [method.name, method.class])).toEqual(TOOL_NAMES.map((name) => [name, "read"]))
+      expect(described.value.methods.map((method: { name: string; class: string }) => [method.name, method.class])).toEqual(TOOLS.map((tool) => [tool.name, tool.class]))
       const session = async (agent: string) => (await host.client.session.create({ agent, location: host.location })).id
       const input = { task: "extract", input: { source: { kind: "text", text: "Total EUR 120.00" }, profile: "extract-typed", fields: { total: { type: "number" } } } }
       const planned = await rpc(host, TOOLS_RPC_ID, "plan", { sessionID: await session("build"), input })
       expect(planned.value).toMatchObject({ task: "extract", execution: { available: false }, quote: { kind: "unavailable" } })
       expect(await rpc(host, TOOLS_RPC_ID, "plan", { sessionID: await session("locked"), input })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
+      // The built extract runs as a session and refuses the disabled route before reading the key or sending.
+      expect(await rpc(host, TOOLS_RPC_ID, "extract", { sessionID: await session("build"), input: input.input })).toMatchObject({ type: "failed", code: "CAPABILITY_UNSUPPORTED" })
       await until("the server log is written", async () => host.log !== undefined)
     })
   })

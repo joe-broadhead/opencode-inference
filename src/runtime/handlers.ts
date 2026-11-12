@@ -3,12 +3,12 @@ import { capabilities, type CapabilitiesResult } from "../domain/capabilities.js
 import type { Config } from "../domain/config.js"
 import type { CapabilitiesInput, PlanInput, PlanResult } from "../domain/contracts.js"
 import type { StatusSummary } from "../domain/ids.js"
-import { implemented, PLANNED } from "../domain/registry.js"
+import { implemented, OPERATION_INFO } from "../domain/registry.js"
 import { plan } from "../domain/routing.js"
 import type { CapabilityFixture } from "../providers/openrouter/capabilities.js"
 import type { Handler, ToolResult } from "./dispatch.js"
 
-// The handlers of the three local tools. None touches the network, a file or a credential: status reads the host's own
+// The handlers of the local tools (status, capabilities, plan). None touches the network, a file or a credential: status reads the host's own
 // state through `status`, and capabilities and plan are pure functions of the options, the fixture and the clock.
 
 export interface HandlerSources {
@@ -45,7 +45,7 @@ export function planText(result: PlanResult) {
 
 export function createHandlers(sources: HandlerSources): Record<"status" | "capabilities" | "plan", Handler> {
   const now = sources.now ?? (() => new Date())
-  const context = () => ({ config: sources.config, fixture: sources.fixture, implemented, operations: PLANNED, now: now() })
+  const context = () => ({ config: sources.config, fixture: sources.fixture, implemented, operations: OPERATION_INFO, now: now() })
   const status = async (): Promise<ToolResult> => {
     const summary = await sources.status()
     return { output: summary, text: sources.statusText(summary) }

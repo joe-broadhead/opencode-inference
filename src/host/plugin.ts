@@ -12,6 +12,7 @@ import { createDispatcher } from "../runtime/dispatch.js"
 import { createHandlers } from "../runtime/handlers.js"
 import { Journal } from "../runtime/journal.js"
 import type { Adapter, OperationRuntime } from "../runtime/operation.js"
+import { extractionsAdapter } from "../providers/openrouter/extractions.js"
 import { createTransport } from "../providers/openrouter/http.js"
 import { commandTransform } from "./commands.js"
 import { checkHost } from "./compat.js"
@@ -34,11 +35,10 @@ export interface PluginSources {
 }
 
 /**
- * The provider adapters, by tool name. Empty in this version: no billable tool is registered, so the operation pipeline
- * is wired and tested (with a test-only operation) but unreachable. The extraction adapter (handoff PR 3) goes here
- * together with its registry entry.
+ * The provider adapters, by tool name: every non-read tool in the registry has one here. A route still runs only when
+ * the fixture enables it, which waits for its compatibility canary.
  */
-export const ADAPTERS: Readonly<Record<string, Adapter>> = {}
+export const ADAPTERS: Readonly<Record<string, Adapter>> = { extract: extractionsAdapter }
 
 type Disposable = { readonly dispose: () => Promise<void> | void }
 

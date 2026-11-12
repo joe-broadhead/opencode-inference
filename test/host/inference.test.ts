@@ -95,7 +95,8 @@ describe(`defaults on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
     expect(value.id).toBe(TOOLS_RPC_ID)
     expect(value.methods.map((method: { name: string }) => method.name)).toEqual([...TOOL_NAMES])
     for (const [index, method] of value.methods.entries()) {
-      expect(method).toMatchObject({ kind: "plugin", class: "read", action: `inference_${TOOLS[index]!.name}`, available: true, permission: "allow" })
+      // The class is the registry's: read for the local tools, send for extract. The build agent allows both at `all`.
+      expect(method).toMatchObject({ kind: "plugin", class: TOOLS[index]!.class, action: `inference_${TOOLS[index]!.name}`, available: true, permission: "allow" })
       expect(method.input).toEqual(jsonSchemaOf(TOOLS[index]!.input, "input"))
     }
   })
@@ -116,7 +117,8 @@ describe(`defaults on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
     expect(asked.message).toMatch(/would ask for this session's agent, and a script cannot answer/)
     const bad = await script(host, "plan", { sessionID: sessions.build, input: { task: "extract", input: { source: text, fields: {} } } })
     expect(bad).toMatchObject({ type: "failed", code: "INPUT_INVALID" })
-    expect(await script(host, "extract", { sessionID: sessions.build, input: {} })).not.toMatchObject({ value: expect.anything() })
+    expect(await script(host, "extract", { sessionID: sessions.build, input: {} })).toMatchObject({ type: "failed", code: "INPUT_INVALID" })
+    expect(await script(host, "decide", { sessionID: sessions.build, input: {} })).not.toMatchObject({ value: expect.anything() })
   })
 
   test("Code Mode calls the tools and keeps the structured output, review and coverage included", async () => {
@@ -129,8 +131,11 @@ const status = await tools.inference.status({})
 seen.state = status.state`,
     )
     expect(seen).toEqual({ review: { likely: true, reasons: ["CALIBRATION_UNAVAILABLE"], profileVersion: "review-first-v1" }, coverage: "complete", quote: "unavailable", digest: "sha256:", state: "local_only" })
+    // extract is a Code Mode tool now; every route is disabled, so it is refused with that reason before anything is read.
+    const refused = await codemode(host, sessions.build!, `try { await tools.inference.extract(${JSON.stringify(planInput.input)}) } catch (error) { seen.error = String(error.message ?? error) }`)
+    expect(refused.error).toMatch(/CAPABILITY_UNSUPPORTED: cloudflare\/clairic is disabled in this version/)
     // A reserved operation is no Code Mode tool at all: the host refuses the program before it runs.
-    await expect(codemode(host, sessions.build!, "seen.x = await tools.inference.extract({})")).rejects.toThrow(/Unknown Code Mode tool: inference\.extract/)
+    await expect(codemode(host, sessions.build!, "seen.x = await tools.inference.decide({})")).rejects.toThrow(/Unknown Code Mode tool: inference\.decide/)
   })
 
   test("/connect lists OpenRouter for Inference; a connected key shows as connected and never appears anywhere", async () => {

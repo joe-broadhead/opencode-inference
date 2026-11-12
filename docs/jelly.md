@@ -9,16 +9,17 @@ is a clean SVG of drawing elements.
 
 ## Tools and permissions
 
-3 tools are declared (3 read-only): `inference.status`, `inference.capabilities` and `inference.plan`, the three local
-tools of this version. None calls a network service. Jelly's agents have no base "allow everything" rule, so this
-plugin's own default rules never reach them; every declared tool is `allow`, so a declared effect changes nothing in
-Jelly.
+4 tools are declared (3 read-only): `inference.status`, `inference.capabilities` and `inference.plan`, which are local,
+and `inference.extract`, which sends the source to OpenRouter and can be charged (class `send`; it runs only on a
+verified, enabled route, and no route is enabled in this version). Jelly's agents have no base "allow everything" rule,
+so this plugin's own default rules never reach them; every declared tool's effect is the one the default rules give at
+`access: "all"`.
 
 - Ask: none.
 - Off: none.
 
 The declaration is generated from the registry (`src/domain/registry.ts`) and checked by `test/unit/registry.test.ts`.
-The send tools a later release adds are not declared until they exist.
+`inference.decide` and `inference.read` are not declared until they exist.
 
 ## Skills
 

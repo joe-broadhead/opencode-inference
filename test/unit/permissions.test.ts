@@ -8,9 +8,11 @@ const rule = (action: string, effect: Rule["effect"]): Rule => ({ action, resour
 
 describe("the default block", () => {
   test("is generated from the registry's classes: the namespace pattern first, then each registered tool", () => {
-    expect(defaultRules("all")).toEqual([rule("inference_*", "allow"), rule("inference_status", "allow"), rule("inference_capabilities", "allow"), rule("inference_plan", "allow")])
-    expect(defaultRules("ask-changes")).toEqual([rule("inference_*", "ask"), rule("inference_status", "allow"), rule("inference_capabilities", "allow"), rule("inference_plan", "allow")])
-    expect(defaultRules("read-only")).toEqual([rule("inference_*", "deny"), rule("inference_status", "allow"), rule("inference_capabilities", "allow"), rule("inference_plan", "allow")])
+    const reads = (effect: Rule["effect"]) => [rule("inference_status", "allow"), rule("inference_capabilities", "allow"), rule("inference_plan", "allow"), rule("inference_extract", effect)]
+    expect(defaultRules("all")).toEqual([rule("inference_*", "allow"), ...reads("allow")])
+    // extract is a send: it follows access like the namespace rule.
+    expect(defaultRules("ask-changes")).toEqual([rule("inference_*", "ask"), ...reads("ask")])
+    expect(defaultRules("read-only")).toEqual([rule("inference_*", "deny"), ...reads("deny")])
     expect(defaultRules().map((item) => item.action).slice(1)).toEqual(TOOLS.map((tool) => actionOf(tool.name)))
   })
 
@@ -28,7 +30,8 @@ describe("the access matrix, through the host's last-match evaluation after a ba
   for (const access of ACCESS_VALUES)
     test(`access: ${access}`, () => {
       const rules = [BASE, ...defaultRules(access)]
-      for (const tool of TOOLS) expect({ tool: tool.name, effect: evaluate(rules, actionOf(tool.name)) }).toEqual({ tool: tool.name, effect: expected[access].read })
+      for (const tool of TOOLS)
+        expect({ tool: tool.name, effect: evaluate(rules, actionOf(tool.name)) }).toEqual({ tool: tool.name, effect: tool.class === "read" ? expected[access].read : expected[access].send })
       for (const operation of PLANNED) expect({ tool: operation.tool, effect: evaluate(rules, operation.tool) }).toEqual({ tool: operation.tool, effect: expected[access].send })
       // A user's later rule still wins over the block.
       expect(evaluate([...rules, rule("inference_plan", "deny")], "inference_plan")).toBe("deny")
@@ -93,13 +96,16 @@ describe("unguarded agents", () => {
 
   test("every non-read action is probed, registered or planned, not only the planned ones", () => {
     const probe = { ...TOOLS[0], name: "probe", class: "send" as const }
-    expect(guardedActions([...TOOLS, probe])).toEqual(["inference_probe", ...PLANNED.map((operation) => operation.tool)])
+    expect(guardedActions([...TOOLS, probe])).toEqual(["inference_extract", "inference_probe", ...PLANNED.map((operation) => operation.tool)])
     // An agent that allows exactly a registered send (and asks for the namespace and every planned tool) is unguarded.
     const narrow = [{ id: "narrow", permissions: [BASE, rule("inference_*", "ask"), rule("inference_probe", "allow")] }]
     expect(unguardedAgents(narrow, "ask-changes", guardedActions([...TOOLS, probe]))).toEqual(["narrow"])
     expect(unguardedAgents(narrow, "ask-changes")).toEqual([])
     // Reads never count: allowing every registered read is not unguarded.
-    expect(unguardedAgents([{ id: "reads", permissions: [BASE, rule("inference_*", "ask"), ...TOOLS.map((tool) => rule(actionOf(tool.name), "allow"))] }], "ask-changes")).toEqual([])
+    const reads = TOOLS.filter((tool) => tool.class === "read").map((tool) => rule(actionOf(tool.name), "allow"))
+    expect(unguardedAgents([{ id: "reads", permissions: [BASE, rule("inference_*", "ask"), ...reads] }], "ask-changes")).toEqual([])
+    // Allowing the registered send, extract, is unguarded.
+    expect(unguardedAgents([{ id: "sends", permissions: [BASE, rule("inference_*", "ask"), rule("inference_extract", "allow")] }], "ask-changes")).toEqual(["sends"])
   })
 
   test("at all nothing is held back, so none is listed", () => {

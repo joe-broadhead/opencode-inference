@@ -114,6 +114,12 @@
         "permission": "inference_plan",
         "effect": "allow",
         "readOnly": true
+      },
+      {
+        "name": "inference.extract",
+        "permission": "inference_extract",
+        "effect": "allow",
+        "readOnly": false
       }
     ],
     "skills": [],
@@ -141,7 +147,7 @@
           "label": "Access",
           "type": "string",
           "default": "all",
-          "description": "all, ask-changes or read-only. Generates default rules for agents with a base allow rule; the three local reads always run."
+          "description": "all, ask-changes or read-only. Generates default rules for agents with a base allow rule; the three local reads always run, and extract follows access."
         }
       ]
     }
