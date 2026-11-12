@@ -1,6 +1,6 @@
 import * as z from "zod"
 import { CapabilitiesResult, type OperationInfo } from "./capabilities.js"
-import { CapabilitiesInput, PlanInput, PlanResult, StatusInput } from "./contracts.js"
+import { CapabilitiesInput, PlanInput, PlanResult, StatusInput, type Operation } from "./contracts.js"
 import { NAMESPACE, PERMISSION_PREFIX, type MethodClass, type Module } from "./ids.js"
 import { StatusSummarySchema } from "./status-schema.js"
 
@@ -30,6 +30,8 @@ export interface ToolSpec {
   readonly effects: Effects
   /** Set when the tool is available only while that module is enabled. */
   readonly module?: Module
+  /** For a non-read tool: the operation its provider adapter implements. It runs the operation pipeline, not a handler. */
+  readonly operation?: Operation
   readonly description: string
   readonly input: z.ZodType
   readonly output: z.ZodType

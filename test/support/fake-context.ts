@@ -25,7 +25,27 @@ export interface FakeOptions {
   /** The active connection of the inference-openrouter integration, if any. */
   readonly connection?: { type: "credential"; status?: unknown } | undefined
   readonly sessions?: Record<string, { agent?: string; permissions?: Rule[] }>
+  /**
+   * Emulate the host's assert: evaluate the agent's and the session's rules for each resource, run the registered
+   * `evaluate` hooks, throw a host tool error on deny, and call `onAsk` on ask (rejecting when it is not given).
+   * Without it, assert allows everything.
+   */
+  readonly hostPermissions?: boolean
+  readonly onAsk?: (request: AssertRequest) => Promise<"once" | "reject">
 }
+
+export interface AssertRequest {
+  readonly sessionID: string
+  readonly agent?: string
+  readonly action: string
+  readonly resources: readonly string[]
+  readonly source?: { type: "tool"; messageID: string; id: string }
+}
+
+const wildcard = (pattern: string, value: string) => new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`).test(value)
+const ruleEffect = (rules: readonly Rule[], action: string, resource: string) => rules.findLast((rule) => wildcard(rule.action, action) && wildcard(rule.resource, resource))?.effect ?? "ask"
+/** The host's tool error: a tagged error whose cause carries the request for an ask. */
+const hostError = (message: string, cause: unknown) => Object.assign(new Error(message), { _tag: "Tool.Error", error: cause })
 
 export function fakeContext(input: FakeOptions = {}) {
   let count = 0
@@ -49,7 +69,8 @@ export function fakeContext(input: FakeOptions = {}) {
   const rpc = new Map<string, { contract: { id: string; methods: Record<string, unknown> }; handlers: Record<string, (input: unknown, context: unknown) => unknown> }>()
   const commands: { name: string; execute: (input: unknown) => Promise<void> }[] = []
   const synthetic: { text: string }[] = []
-  const hooks: unknown[] = []
+  const hooks: { name: string; callback: unknown }[] = []
+  const asserted: AssertRequest[] = []
   const resolved: unknown[] = []
   let agentTransform: ((editor: unknown) => void) | undefined
 
@@ -132,7 +153,24 @@ export function fakeContext(input: FakeOptions = {}) {
         hooks.push({ name, callback })
         return register(`hook:${name}`)
       },
-      assert: async () => undefined,
+      assert: async (request: AssertRequest) => {
+        asserted.push(request)
+        if (!input.hostPermissions) return
+        const agent = agents.find((item) => item.id === request.agent)
+        const rules = [...(agent?.permissions ?? []), ...(input.sessions?.[request.sessionID]?.permissions ?? [])]
+        const effects = request.resources.map((resource) => ruleEffect(rules, request.action, resource))
+        let effect: Rule["effect"] = effects.includes("deny") ? "deny" : effects.includes("ask") ? "ask" : "allow"
+        if (effect === "deny") throw hostError(`Permission denied: ${request.action}`, {})
+        for (const hook of hooks.filter((item) => item.name === "evaluate")) {
+          type Evaluation = { source: AssertRequest["source"]; action: string; resources: readonly string[]; effect: Rule["effect"]; message: string | undefined }
+          const evaluation: Evaluation = { source: request.source, action: request.action, resources: request.resources, effect, message: undefined }
+          ;(hook.callback as (value: Evaluation) => void)(evaluation)
+          effect = evaluation.effect
+        }
+        if (effect === "deny") throw hostError(`Permission refused: ${request.action}`, { request: { action: request.action } })
+        if (effect === "ask" && (await (input.onAsk?.(request) ?? Promise.resolve("reject" as const))) === "reject")
+          throw hostError(`The user rejected ${request.action}`, { request: { action: request.action } })
+      },
     },
     command: {
       transform: async (callback: (editor: unknown) => void) => {
@@ -172,6 +210,7 @@ export function fakeContext(input: FakeOptions = {}) {
     commands,
     synthetic,
     hooks,
+    asserted,
     agents,
     resolved,
     call,

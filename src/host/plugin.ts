@@ -10,10 +10,15 @@ import { OPENROUTER_CAPABILITIES, type CapabilityFixture } from "../providers/op
 import { compactStatus, formatSummary, Inference } from "../rpc.js"
 import { createDispatcher } from "../runtime/dispatch.js"
 import { createHandlers } from "../runtime/handlers.js"
+import { Journal } from "../runtime/journal.js"
+import type { Adapter, OperationRuntime } from "../runtime/operation.js"
+import { createTransport } from "../providers/openrouter/http.js"
 import { commandTransform } from "./commands.js"
 import { checkHost } from "./compat.js"
 import { connectionState, registerIntegration } from "./integration.js"
-import { registerDefaultRules } from "./permissions.js"
+import { files } from "./files.js"
+import { journalDirectory, journalStore, stateRoot } from "./journal-store.js"
+import { createAuthorize, registerDefaultRules } from "./permissions.js"
 import { registerScripting } from "./scripting.js"
 import { buildStatus } from "./status.js"
 import { toolTransform } from "./tools.js"
@@ -24,7 +29,16 @@ export interface PluginSources {
   /** The capability fixture; tests pass their own. */
   readonly fixture?: CapabilityFixture
   readonly now?: () => Date
+  /** The private state folder for the operation journal; tests pass a temporary one. */
+  readonly stateRoot?: string
 }
+
+/**
+ * The provider adapters, by tool name. Empty in this version: no billable tool is registered, so the operation pipeline
+ * is wired and tested (with a test-only operation) but unreachable. The extraction adapter (handoff PR 3) goes here
+ * together with its registry entry.
+ */
+export const ADAPTERS: Readonly<Record<string, Adapter>> = {}
 
 type Disposable = { readonly dispose: () => Promise<void> | void }
 
@@ -90,8 +104,31 @@ export function createPlugin(sources: PluginSources): Plugin.Plugin {
             ...(sources.now ? { now: sources.now } : {}),
           })
         const handlers = createHandlers({ config, fixture, status: async () => compactStatus(await status()), statusText: formatSummary, ...(sources.now ? { now: sources.now } : {}) })
-        // The one dispatcher for the model's tools and the tools RPC. Availability is checked on every call.
-        const runTool = createDispatcher({ tools: TOOLS, handlers, unavailable: () => (closed ? new InferenceError("CLOSED") : undefined) })
+        const journals = new Map<string, Journal>()
+        const root = sources.stateRoot ?? stateRoot()
+        const operations: OperationRuntime = {
+          config,
+          fixture,
+          project: { id: ctx.location.project.id, directory: ctx.location.directory, worktree: ctx.location.project.directory },
+          files,
+          authorize: createAuthorize((input) => ctx.permission.assert(input)),
+          transport: createTransport(ctx.integration),
+          journal: (scope) => {
+            const journal = journals.get(scope) ?? new Journal(journalStore(journalDirectory(root, scope)), scope, sources.now)
+            journals.set(scope, journal)
+            return journal
+          },
+          adapters: ADAPTERS,
+          ...(sources.now ? { now: sources.now } : {}),
+        }
+        // The one dispatcher for the model's tools and the tools RPC. Availability is checked on every call: the plugin
+        // is open and the tool's module is on in the trusted options.
+        const runTool = createDispatcher({
+          tools: TOOLS,
+          handlers,
+          operations,
+          unavailable: (tool) => (closed ? new InferenceError("CLOSED") : tool.module !== undefined && !config.modules[tool.module] ? new InferenceError("MODULE_DISABLED") : undefined),
+        })
 
         try {
           stack.push(await registerIntegration(ctx.integration))
