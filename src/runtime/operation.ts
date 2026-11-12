@@ -44,6 +44,12 @@ export interface Adapter {
    * repairs a malformed answer into success.
    */
   parse(response: TransportResponse, context: { readonly source: Snapshot; readonly route: RouteCapability; readonly input: unknown }): AdapterResult
+  /**
+   * Resolves what the input names in the trusted options (a question set, an acceptance profile) before anything else
+   * runs, refusing what does not exist. Its result is what quote, request and parse receive, and what the request
+   * fingerprint covers. Pure.
+   */
+  prepare?(input: unknown, config: Config): unknown
   /** What an error answer (non-2xx) cost, when the endpoint documents it. Unknown otherwise. */
   failureCost?(response: TransportResponse): Pick<z.infer<typeof Usage>, "charges" | "costStatus"> | undefined
 }
@@ -224,6 +230,8 @@ export async function runOperation(tool: { readonly name: string }, adapter: Ada
   const { config, fixture } = runtime
 
   // 3. Route and key presence, before any file or prompt.
+  // What the input names in the trusted options, resolved first: an unknown question set or profile sends nothing.
+  const prepared = adapter.prepare ? adapter.prepare(input, config) : input
   const route = resolveRoute(adapter.operation, input, config, fixture)
   const connected = await runtime.transport.account()
   if (connected === undefined) throw new InferenceError("AUTH_REQUIRED")
@@ -243,16 +251,17 @@ export async function runOperation(tool: { readonly name: string }, adapter: Ada
 
   // 6. Re-validate against the snapshot and build the exact request.
   revalidate(route, source)
-  const request = adapter.request(input, source, route)
+  const request = adapter.request(prepared, source, route)
   if (route.maxRequestBytes !== null && request.body.byteLength > route.maxRequestBytes) throw new InferenceError("CONTEXT_LIMIT")
   const deadlineMs = Math.min(config.limits.deadlineMs, input.limits?.deadlineMs ?? Number.POSITIVE_INFINITY)
-  const { source: _source, ...rest } = input
+  // The fingerprint covers what is actually asked: the prepared input, with any question set resolved.
+  const { source: _source, ...rest } = prepared as OperationInput
   const ref = routeRef(route, fixture)
   const constraints = { deadlineMs, maxFields: config.limits.maxFields, spend: config.spend, requested: input.limits ?? {}, requireZdr: config.data.requireZdr }
   const fingerprint = digest({ sources: [source.sha256], input: rest, route: ref, adapter: adapter.revision, preprocessing: "none" })
 
   // 7. Reserve and persist before anything is sent.
-  const quote = adapter.quote(route, source, input)
+  const quote = adapter.quote(route, source, prepared)
   const reservation = reservationFor(quote, config.spend, input.limits?.maxEstimatedCostUsd)
   const release = await slots.take(call.signal)
   try {
@@ -320,7 +329,7 @@ export async function runOperation(tool: { readonly name: string }, adapter: Ada
     }
     let result: AdapterResult
     try {
-      result = adapter.parse(response, { source, route, input })
+      result = adapter.parse(response, { source, route, input: prepared })
     } catch (error) {
       await journal.settle(record.id, { state: "failed", code: "PROVIDER_CONTRACT_CHANGED", sent: true, ...(response.requestId ? { providerRequestId: response.requestId } : {}) })
       if (error instanceof InferenceError && error.code === "PROVIDER_CONTRACT_CHANGED") throw error

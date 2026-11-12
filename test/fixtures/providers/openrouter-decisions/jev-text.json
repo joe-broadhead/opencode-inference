@@ -1,0 +1,12 @@
+{
+  "id": "gen-decide-fixture-0001",
+  "model": "typesafe/jev-1.14",
+  "object": "decision",
+  "answers": {
+    "kind": { "choice": "invoice", "distribution": { "invoice": 0.7, "receipt": 0.2 }, "confidence": 0.81 },
+    "paid": { "probability": 0.12 },
+    "urgency": { "score": 1.0, "distribution": { "low": 0.5, "mid": 0.0, "high": 0.5 } },
+    "language": { "refusal": "The text does not show its language reliably." }
+  },
+  "usage": { "prompt_tokens": 80, "completion_tokens": 12, "cost": 0.0000420000000001 }
+}
