@@ -40,15 +40,55 @@ moment of the call, and the same output. A result is the tool's own output as pl
 
 ## Examples
 
-```sh
-opencode api post /api/rpc/inference.core.tools/plan -H "x-opencode-directory:$PWD" -d '{"input":{"sessionID":"<session>","input":{
-  "task":"extract",
-  "input":{"source":{"kind":"text","text":"Invoice AB-72. Total EUR 120.00."},"profile":"extract-typed",
-           "fields":{"invoice_id":{"type":"text"},"total":{"type":"number","decimals":2}}}}}}'
+Plan an extraction first: it is local and spends nothing. The method's input:
+
+<!-- example: plan -->
+```json
+{
+  "task": "extract",
+  "input": {
+    "source": { "kind": "text", "text": "Invoice AB-72. Total EUR 120.00." },
+    "profile": "extract-typed",
+    "fields": { "invoice_id": { "type": "text" }, "total": { "type": "number", "decimals": 2 } }
+  }
+}
 ```
 
-The plan says the route is ineligible (`ROUTE_DISABLED`, `NOT_IMPLEMENTED`, `PRICE_UNKNOWN`), that execution is not
-available in this version, and that nothing was read, sent or charged.
+sent as:
+
+```sh
+opencode api post /api/rpc/inference.core.tools/plan -H "x-opencode-directory:$PWD" \
+  -d '{"input":{"sessionID":"<session>","input":<the input above>}}'
+```
+
+<!-- outcome: plan -->
+The plan says the route is ineligible (`ROUTE_DISABLED`, `PRICE_UNKNOWN`): every route is disabled until its
+compatibility canary passes, and no price is known. Nothing is read, sent or charged.
+
+The same input without `task` is what `extract` takes:
+
+<!-- example: extract -->
+```json
+{
+  "source": { "kind": "text", "text": "Invoice AB-72. Total EUR 120.00." },
+  "profile": "extract-typed",
+  "fields": { "invoice_id": { "type": "text" }, "total": { "type": "number", "decimals": 2 } }
+}
+```
+
+and a decision takes questions, or a versioned `questionSet` from the trusted options:
+
+<!-- example: decide -->
+```json
+{
+  "source": { "kind": "text", "text": "Payment received for invoice AB-72." },
+  "profile": "decide-text",
+  "questions": { "paid": { "type": "noul", "prompt": "Has the invoice been paid?" } }
+}
+```
+
+In this version both are refused with `CAPABILITY_UNSUPPORTED` before anything is read or sent, because every route is
+disabled. For a scheduled script, see the [Jobs recipe](jobs.md).
 
 ## Errors
 
