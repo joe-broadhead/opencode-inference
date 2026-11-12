@@ -149,6 +149,7 @@ not provider wire schemas: an adapter maps them inside the adapter. Exported as 
 - `Coverage`
 - `Usage`
 - `ExtractData`
+- `DecideData`
 - `InferenceResult`
 - `ExtractField`
 - `QuestionInput`

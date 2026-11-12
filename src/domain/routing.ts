@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import type * as z from "zod"
-import { profileModel, type Config } from "./config.js"
+import { canonical } from "./canonical.js"
+import { acceptanceProfileOf, profileModel, questionSetOf, type Config } from "./config.js"
 import { FIELD_TYPES, type DecideInput, type Exclusion, type ExtractInput, type Operation, type PlanInput, type PlanResult, type ReadInput, type SourceInput } from "./contracts.js"
 import { INTEGRATION_ID, type Module } from "./ids.js"
 import { fixtureAgeDays, STALE_AFTER_DAYS, type CapabilityFixture, type RouteCapability } from "../providers/openrouter/capabilities.js"
@@ -10,6 +11,9 @@ import { fixtureAgeDays, STALE_AFTER_DAYS, type CapabilityFixture, type RouteCap
 // route is listed as an alternative with its reasons and is never chosen automatically.
 
 export const OPERATION_MODULE: { readonly [O in Operation]: Module } = { extract: "extractions", decide: "decisions", read: "understanding" }
+/** The question types this version implements. Box is documented for Jev but not adopted (no region representation). */
+export const IMPLEMENTED_QUESTION_TYPES: readonly string[] = ["noul", "choice", "score"]
+
 /** The acceptance profile every result uses until a calibrated one exists. */
 export const REVIEW_PROFILE = "review-first-v1"
 
@@ -52,17 +56,7 @@ export function modalityOf(source: Source): { modality: Modality; mimeType?: str
   }
 }
 
-/** Sorted-key JSON, so equal requests digest equally. */
-export function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`
-  if (value && typeof value === "object")
-    return `{${Object.entries(value)
-      .filter(([, item]) => item !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
-      .join(",")}}`
-  return JSON.stringify(value)
-}
+export { canonical } from "./canonical.js"
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex")
 
 /** The task's digest: everything but source content, which a plan never reads beyond supplied text. */
@@ -143,11 +137,13 @@ export function exclusions(request: PlanRequest, route: RouteCapability, context
     if (fields.some((field) => field.nullThreshold !== undefined && (thresholds.supported !== true || thresholds.unsupportedOn.includes(field.type)))) reasons.add("NULL_THRESHOLD_UNSUPPORTED")
   }
   if (request.task === "decide") {
-    if (request.input.questionSet !== undefined) reasons.add("QUESTION_SET_UNKNOWN")
-    const questions = Object.values(request.input.questions ?? {})
-    const imageSource = input.source.kind !== "bundle" && modalityOf(input.source).modality === "image"
-    if (questions.some((question) => !route.questionTypes.includes(question.type) || (question.type === "box" && (!imageSource || route.inputs.images === null))))
-      reasons.add("QUESTION_TYPE_UNSUPPORTED")
+    // A versioned question set comes only from the trusted options.
+    const set = request.input.questionSet !== undefined ? questionSetOf(config, request.input.questionSet) : undefined
+    if (request.input.questionSet !== undefined && !set) reasons.add("QUESTION_SET_UNKNOWN")
+    const questions = Object.values(set?.questions ?? request.input.questions ?? {})
+    // Box answers need an image-region representation and capability tests this version does not have: refused here,
+    // before anything is uploaded, whatever the route documents.
+    if (questions.some((question) => !route.questionTypes.includes(question.type) || !IMPLEMENTED_QUESTION_TYPES.includes(question.type))) reasons.add("QUESTION_TYPE_UNSUPPORTED")
     if (questions.length > config.limits.maxFields) reasons.add("FIELD_LIMIT")
   }
 
@@ -246,7 +242,10 @@ export function plan(request: PlanRequest, context: PlanContext): PlanResult {
 
   const review: PlanResult["review"] = {
     likely: true,
-    reasons: ["CALIBRATION_UNAVAILABLE", ...(input.acceptanceProfile !== undefined && input.acceptanceProfile !== REVIEW_PROFILE ? ["ACCEPTANCE_PROFILE_UNKNOWN"] : [])],
+    reasons: [
+      ...(acceptanceProfileOf(config, input.acceptanceProfile ?? REVIEW_PROFILE)?.mode === "automatic" ? [] : ["CALIBRATION_UNAVAILABLE"]),
+      ...(input.acceptanceProfile !== undefined && input.acceptanceProfile !== REVIEW_PROFILE && !acceptanceProfileOf(config, input.acceptanceProfile) ? ["ACCEPTANCE_PROFILE_UNKNOWN"] : []),
+    ],
     profileVersion: REVIEW_PROFILE,
   }
   const tool = TOOL_OF[request.task]

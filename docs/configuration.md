@@ -33,6 +33,8 @@ by value: the OpenRouter key goes in `/connect`.
 | `data.requireZdr` | `false` |
 | `cache.enabled` | `false` |
 | `allowUntestedHost` | `false` |
+| `questionSets` | `{}` |
+| `acceptanceProfiles` | `{}` |
 
 <!-- /generated:options -->
 

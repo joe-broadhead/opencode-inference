@@ -251,3 +251,23 @@ describe("plan quotes for per-token prices", () => {
     expect(quote({ revision: "t", currency: "USD", perMillionInputTokens: "0.2", upperBound: false, ceiling: { amount: "0.02", source: "A4" } })).toMatchObject({ kind: "upper_bound", amount: "0.02" })
   })
 })
+
+describe("decide plans: question sets from the trusted options, and Box refused locally", () => {
+  const SET = { questions: { kind: { type: "choice", prompt: "Which kind?", options: [{ id: "invoice", description: "invoice" }, { id: "other", description: "other" }] } } }
+  const decide = (input: Record<string, unknown>, config = loadConfig({ questionSets: { "document-kind-v1": SET } })) =>
+    run({ task: "decide", input: { source: text, profile: "decide-text", ...input } }, { config })
+  test("a configured versioned set resolves; an unknown one is QUESTION_SET_UNKNOWN", () => {
+    expect(decide({ questionSet: "document-kind-v1" }).route.selected!.exclusions).not.toContain("QUESTION_SET_UNKNOWN")
+    expect(decide({ questionSet: "document-kind-v2" }).route.selected!.exclusions).toContain("QUESTION_SET_UNKNOWN")
+    expect(() => PlanInput.parse({ task: "decide", input: { source: text, profile: "decide-text", questionSet: "unversioned" } })).toThrow()
+  })
+  test("Box is refused whatever the route documents; noul, choice and score are not", () => {
+    expect(decide({ questions: { region: { type: "box", prompt: "Where is the total?" } } }).route.selected!.exclusions).toContain("QUESTION_TYPE_UNSUPPORTED")
+    expect(decide({ questions: { paid: { type: "noul", prompt: "Paid?" } } }).route.selected!.exclusions).not.toContain("QUESTION_TYPE_UNSUPPORTED")
+  })
+  test("a configured acceptance profile is known; an unknown one is reported", () => {
+    const config = loadConfig({ acceptanceProfiles: { "careful-v1": { mode: "review" } } })
+    expect(decide({ questions: { paid: { type: "noul", prompt: "Paid?" } }, acceptanceProfile: "careful-v1" }, config).review.reasons).toEqual(["CALIBRATION_UNAVAILABLE"])
+    expect(decide({ questions: { paid: { type: "noul", prompt: "Paid?" } }, acceptanceProfile: "missing-v1" }, config).review.reasons).toEqual(["CALIBRATION_UNAVAILABLE", "ACCEPTANCE_PROFILE_UNKNOWN"])
+  })
+})
