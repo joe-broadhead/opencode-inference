@@ -44,12 +44,34 @@ by value: the OpenRouter key goes in `/connect`.
 - `routing.mode` is `explicit` and `routing.fallbacks` must be empty: automatic fallback stays off until evaluated.
 - `limits`: `concurrency` (1-8), `maxFields` (1-64; the schema's hard limit is 64), `deadlineMs` (1000-600000). A tool
   input can lower them, never raise them.
-- `spend`: exact decimal USD strings. `requirePricedRoute` makes a route with no known price ineligible;
-  `requireUpperBound` requires a genuine ceiling. Admission budgets apply once a later release sends anything.
+- `limits.concurrency` caps requests in flight in one process; more wait their turn. `limits.deadlineMs` bounds the
+  provider request.
+- `spend`: exact decimal USD strings, never floats. `requirePricedRoute` makes a route with no known price ineligible;
+  `requireUpperBound` requires a genuine ceiling. The three budgets are the handoff's proposed defaults, not measured
+  prices, and are still under review. See [Spend](#spend). No tool in this version spends.
 - `data.requireZdr`: `true` makes a route without documented zero data retention ineligible. `false` means you have not
   asked for that restriction; it does not claim a provider retains nothing.
 - `cache.enabled` must be `false`: the result cache is not implemented.
 - `allowUntestedHost`: run on an OpenCode outside `>=2.2.3 <2.3.0`, with a warning as the next step.
+
+## Spend
+
+The operation runtime (in place, but reached by no registered tool in this version) reserves before it sends:
+
+- **Request.** The reservation is the route's upper bound when one is known. An estimate is not a cap, so with only an
+  estimate, or with no price when `requirePricedRoute` is off, the call reserves the whole per-request budget
+  (`spend.requestUsd`, or a lower `limits.maxEstimatedCostUsd` from the tool input). That budget is an admission limit,
+  not a spend ceiling: OpenRouter does not enforce it.
+- **Session and rolling 24 hours.** A call is admitted only if its reservation, plus everything already counted, fits
+  `spend.sessionUsd` for its session and `spend.rolling24hUsd` for the last 24 hours. Counted are settled charges,
+  reservations in flight, and reservations kept for calls whose cost is unknown.
+- **Settlement.** Reported charges replace the reservation, platform and upstream charges kept separate. A call that
+  failed after it may have been sent, timed out, was cancelled mid-request or got a malformed answer keeps its
+  reservation: failure does not mean zero cost. Only a call that certainly never left releases it. Credits are never
+  added to dollars.
+- **Scope.** One journal per OpenRouter connection on this machine (`$XDG_STATE_HOME/opencode-inference`, or
+  `~/.local/state/opencode-inference`), shared by every project and process here. It is not an account-wide limit
+  across machines or other clients; OpenRouter's own key limits are the stronger, independent boundary.
 
 ## Default permission rules
 
@@ -103,7 +125,10 @@ The namespace rule covers the send tools a later release adds; the three local r
 ## Errors
 
 Every failure is `CODE: what happened. Next step: …`, with one next step, and never contains a key, source text or a
-field value. Host permission errors pass through unchanged.
+field value. Host permission errors pass through unchanged. Operation failures name the operation id when its
+reservation is kept, so it can be reconciled instead of resubmitted. `REVIEW_REQUIRED` is not a failure: it is
+`review.required` on a successful result. `OUTPUT_EXPIRED`, `OUTPUT_UNAVAILABLE` and `CANCEL_UNSUPPORTED` arrive with
+asynchronous operations.
 
 <!-- generated:errors -->
 

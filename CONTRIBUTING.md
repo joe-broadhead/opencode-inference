@@ -21,8 +21,10 @@ To try a checkout in OpenCode, build it and point a `plugins` entry at the repos
 
 1. `typecheck`: `tsc` over `src` and `test`.
 2. `test`: the unit tests (`bun test test/unit`): contracts, options, planning and capabilities, permissions and the
-   access matrix, the dispatcher, status, setup and failure cleanup, reload, the zero-network gate, and registry parity
-   with the generated Jelly declaration and docs.
+   access matrix, the dispatcher, the operation pipeline on both host surfaces with a test-only operation (permission
+   races, source integrity, budgets, ambiguous dispatch, secrets), the transport against loopback servers, the journal
+   and its lock across real child processes, status, setup and failure cleanup, reload, the zero-network gate, the lint
+   rules, and registry parity with the generated Jelly declaration and docs.
 3. `test:kit`: the release kit's own tests (`node --test scripts/release-kit.test.mjs`).
 4. `build`.
 5. `test:tui`: the built `dist/tui.js` with OpenTUI's test renderer.
@@ -33,7 +35,8 @@ To try a checkout in OpenCode, build it and point a `plugins` entry at the repos
    OpenCode release. Set `OPENCODE_BIN_2_2_3` and so on to stock binaries to skip installing them.
 
 The tested releases are one list, `TESTED_HOSTS` in `src/host/versions.ts`. No check calls OpenRouter or any other
-network service; the host harness fails a host that tried to leave loopback, and the unit tests spy every network path.
+network service; the host harness fails a host that tried to leave loopback, the unit tests spy every network path, and
+the transport tests talk only to loopback servers they start.
 The host and pack stages download the SDK and stock OpenCode releases from npm.
 
 The generated parts of `package.json` (`jelly`) and of the docs come from the registry. After changing a tool, an
