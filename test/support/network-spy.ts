@@ -1,5 +1,6 @@
 // Every way the plugin could reach a network, spied. Any call is recorded and refused, so a test can assert that a
 // local surface, or a refused operation, sent nothing.
+import dgram from "node:dgram"
 import dns from "node:dns"
 import http from "node:http"
 import http2 from "node:http2"
@@ -27,6 +28,10 @@ export function spyNetwork() {
   patch(net, "connect", "net.connect")
   patch(net, "createConnection", "net.createConnection")
   patch(tls, "connect", "tls.connect")
+  // A socket created directly, then connected; Bun's own TCP client; UDP.
+  patch(net.Socket.prototype, "connect", "net.Socket.connect")
+  patch(Bun, "connect", "Bun.connect")
+  patch(dgram, "createSocket", "dgram.createSocket")
   for (const name of ["lookup", "lookupService", "resolve", "resolve4", "resolve6", "resolveAny", "resolveTxt", "resolveSrv"]) patch(dns, name, `dns.${name}`)
   for (const name of ["lookup", "resolve", "resolve4", "resolve6"]) patch(dns.promises, name, `dns.promises.${name}`)
   // A constructor, so it is replaced by a class that records and refuses.
