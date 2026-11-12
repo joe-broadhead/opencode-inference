@@ -40,13 +40,19 @@ the first provider adapter goes into `ADAPTERS` (src/host/plugin.ts) with its re
   it settles (`createAuthorize`). Host permission errors propagate unchanged.
 - **Cloud inference is `send`.** It transmits content and can spend. A model's answer never grants a permission.
 - **The transport boundary.** `src/providers/openrouter/http.ts` is the only file that may reach the network or read
-  the key. `npm run lint` checks the syntax tree (`scripts/check-network.mjs`, the TypeScript compiler API) and refuses,
-  everywhere else in `src/`: importing, requiring or dynamically importing `http`, `https`, `http2`, `net`, `tls`,
-  `dns`, `dgram`, `undici`, `child_process`, `worker_threads` or `module` (bare or `node:`, any subpath, string or
-  template), a non-literal module specifier, `import.meta.require`, `process.getBuiltinModule` and the other loader
-  escapes; any reference to `fetch`, `WebSocket`, `XMLHttpRequest`, `EventSource`, `Bun` or `Reflect`; computed access
-  on or aliasing of `globalThis`/`window`/`self`; and the host's connection API other than as a direct
-  `….connection.<method>(…)` call that is not `resolve`. Trusted origin only, the key in one header, no redirects, deadline, byte caps, cancellation.
+  the key. `npm run lint` checks the syntax tree (`scripts/check-network.mjs`, the TypeScript compiler API). Everywhere
+  else in `src/`, modules are an ALLOW-LIST: a literal specifier naming a relative path, a listed builtin written with
+  `node:` (`node:crypto`, `node:fs`, `node:fs/promises`, `node:os`, `node:path`, `node:url`) or a listed package
+  (`zod`, `@opencode/plugin` and its used subpaths, `solid-js`); anything else, `bun`, `node:vm` and non-literal
+  specifiers included, is refused. Also refused: `eval`, `Function`, `.constructor` reads, `fetch`, `WebSocket`,
+  `XMLHttpRequest`, `EventSource`, `Bun`, `Reflect`, `getBuiltinModule` and the loader escapes; `globalThis`, `window`,
+  `self` and `global` other than a plain read of an allowed name; `process` other than `process.<name>`; `require`
+  other than a literal call, and any `.require`; a computed key on anything that is, or aliases, the integration, a
+  connection, `process`, a global or `Reflect`; the host connection API other than `….connection.<method>(…)` with a
+  method that is not `resolve`. Known false positives (any `x.connection` kept as a value, the string `"resolve"`,
+  `Reflect.*`, a variable named `self`): read members directly, rename, or use the plain operation; a new builtin or
+  package is added to the allow-list in its own reviewed change. Trusted origin only, the key in one header, no
+  redirects, deadline, byte caps, cancellation.
   Tests spy every network path (`test/support/network-spy.ts`) and assert zero calls from setup, status, capabilities,
   plan and every refused operation; transport tests use loopback servers only.
 - **Operations.** A non-read tool runs the ordered pipeline in `src/runtime/operation.ts` (handoff §7): trusted route,

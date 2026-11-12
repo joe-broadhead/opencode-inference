@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { execFileSync, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -75,6 +75,31 @@ test("the network check refuses each reviewed bypass of the old text rule", () =
     "import.meta.require": 'const h = import.meta.require("https")',
     "require as a value": "const r = require\nr('https')",
     "Bun.connect": "await Bun.connect({ hostname: 'x', port: 1 })",
+    // The second review's bypasses of the deny-list.
+    eval: 'eval("fetch(1)")',
+    "indirect eval": '(0, eval)("fetch(1)")',
+    "new Function": 'new Function("return this")()',
+    "Function call": 'const g = Function("return this")()',
+    "constructor route": '({}).constructor.constructor("return this")()',
+    "bun module connect": 'import B from "bun"\nawait B.connect({ hostname: "x", port: 1 })',
+    "bun spawn and $": 'import { spawn, $ } from "bun"',
+    "node:vm": 'import vm from "node:vm"',
+    _http_client: 'import c from "_http_client"',
+    _tls_wrap: 'const t = require("_tls_wrap")',
+    "getBuiltinModule from node:process": 'import { getBuiltinModule } from "node:process"',
+    "getBuiltinModule destructured from process": "const { getBuiltinModule } = process",
+    "process aliased": "const p = process\nconst h = p.getBuiltinModule",
+    "computed process": "const k = 'env'\nconst v = process[k]",
+    "computed names on an integration alias": 'const i = ctx.integration\nawait i["conn" + "ection"]["reso" + "lve"](c)',
+    "computed names on integration": 'await ctx.integration["conn" + "ection"]["reso" + "lve"](c)',
+    "global alias": "const g = global\nconst f = g.fetch",
+    "self as a value": "const s = self",
+    "module.require": 'const h = module.require("https")',
+    "Reflect.apply": "Reflect.apply(f, undefined, [])",
+    "Reflect.construct": "Reflect.construct(C, [])",
+    "unprefixed builtin": 'import { readFileSync } from "fs"',
+    "unlisted package": 'import got from "got"',
+    "template with substitution": "const m = 'https'\nconst h = await import(`node:${m}`)",
   }
   const files = Object.fromEntries(Object.values(bypasses).map((text, index) => [`src/host/bypass${index}.ts`, `${text}\n`]))
   const output = lintMany(files)
@@ -82,11 +107,20 @@ test("the network check refuses each reviewed bypass of the old text rule", () =
   expect(caught).toEqual(Object.keys(bypasses).map((name) => ({ name, caught: true })))
 }, 60_000)
 
-test("the network check refuses every network module, bare or node:-prefixed, imported, required or dynamically imported", () => {
-  for (const name of ["http", "https", "http2", "net", "tls", "dns", "dns/promises", "dgram", "undici", "child_process", "worker_threads", "module"])
-    for (const prefix of ["", "node:"])
-      for (const form of [`import x from "${prefix}${name}"`, `export * from "${prefix}${name}"`, `const x = await import("${prefix}${name}")`, `const x = require("${prefix}${name}")`, `import x = require("${prefix}${name}")`])
-        expect(network(form)).toContain(`network module import outside the transport boundary: ${prefix}${name}`)
+test("modules are an allow-list: relative paths, the listed node: builtins and the listed packages, in every import form", () => {
+  const refused = ["http", "https", "http2", "net", "tls", "dns", "dns/promises", "dgram", "undici", "child_process", "worker_threads", "module", "vm", "process", "util", "fs", "path", "_http_client", "_tls_wrap"]
+  for (const name of [...refused.map((name) => `node:${name}`).filter((name) => !["node:fs", "node:path"].includes(name)), ...refused, "bun", "bun:ffi", "got", "@opencode/client"])
+    for (const form of [`import x from "${name}"`, `export * from "${name}"`, `const x = await import("${name}")`, `const x = require("${name}")`, `import x = require("${name}")`, `type T = typeof import("${name}")`])
+      expect(network(form)).toContain(`a module outside the allow-list: ${name}`)
+  for (const name of ["node:crypto", "node:fs", "node:fs/promises", "node:os", "node:path", "node:url", "zod", "@opencode/plugin", "@opencode/plugin/rpc", "solid-js", "./x.js", "../domain/ids.js"])
+    for (const form of [`import x from "${name}"`, `export * from "${name}"`, `const x = await import("${name}")`])
+      expect(network(form)).toEqual([])
+})
+
+test("the current src/ passes the network check unchanged", () => {
+  const files = execFileSync("git", ["ls-files", "src"], { cwd: new URL("../../", import.meta.url).pathname, encoding: "utf8" }).split("\n").filter(Boolean)
+  const problems = files.flatMap((file) => networkProblems(file, readFileSync(new URL(`../../${file}`, import.meta.url), "utf8")).map(([line, message]) => `${file}:${line}: ${message}`))
+  expect(problems).toEqual([])
 })
 
 test("the network check refuses every network global, however it is reached", () => {
@@ -109,6 +143,9 @@ test("the network check allows the transport boundary, method calls on the conne
         'import { createHash } from "node:crypto"',
         'import x from "./http.js"',
         "const self_ = 1",
+        "const t = globalThis.structuredClone(x)",
+        "const env = process.env.HOME",
+        "const v = record[key]",
       ].join("\n"),
     ),
   ).toEqual([])
