@@ -28,6 +28,7 @@ export const RecordedAnswers = z.strictObject({
   model: ModelId,
   questionSet: VersionedName,
   questionSetDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  adapterRevision: z.string().min(1).max(128).describe("The adapter wire revision the answers were recorded with."),
   answers: z.record(z.string().min(1).max(128), z.record(Key, z.unknown())),
 })
 export type RecordedAnswers = z.infer<typeof RecordedAnswers>
@@ -116,6 +117,7 @@ export function evaluate(input: {
     model: run.model,
     questionSet: input.questionSetName,
     questionSetDigest: digest,
+    adapterRevision: run.adapterRevision,
     thresholds: input.rules,
     dataset: { revision: dataset.revision, sha256: createHash("sha256").update(canonical(dataset)).digest("hex"), tuning: dataset.cases.length - heldOutCases, heldOut: heldOutCases },
     heldOut: counts["held-out"],

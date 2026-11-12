@@ -26,7 +26,7 @@ function fixture() {
     answers[id] = { paid: held >= 38 ? { type: "noul", refusal: { reason: "unclear" } } : { type: "noul", probability: String(probability) } }
   }
   const dataset: Dataset = { revision: "paid-2026-11", cases }
-  const recorded: RecordedAnswers = { model: "typesafe/jev-1.14", questionSet: "paid-v1", questionSetDigest: questionSetDigest(SET), answers }
+  const recorded: RecordedAnswers = { model: "typesafe/jev-1.14", questionSet: "paid-v1", questionSetDigest: questionSetDigest(SET), adapterRevision: "openrouter-alpha-decisions-2026-11-11.1", answers }
   return { dataset, recorded }
 }
 
@@ -36,6 +36,7 @@ describe("the held-out report", () => {
     const result = evaluate({ profile: "paid-auto-v1", rules: RULES, questionSetName: "paid-v1", questionSet: SET, dataset, recorded, now: NOW })
     expect(result.report.heldOut).toEqual({ answers: 40, accepted: 32, falseAccepts: 2, reviewed: 6, refused: 2 })
     expect(result.report.dataset).toMatchObject({ revision: "paid-2026-11", tuning: 10, heldOut: 40 })
+    expect(result.report.adapterRevision).toBe("openrouter-alpha-decisions-2026-11-11.1")
     expect(result.tuning).toEqual({ answers: 10, accepted: 10, falseAccepts: 0, reviewed: 0, refused: 0 })
     // (30 x 0.03^2 + 2 x 0.98^2 + 6 x 0.5^2) / 38 for the 38 answered held-out cases.
     expect(result.noulBrier).toBeCloseTo((30 * 0.03 ** 2 + 2 * 0.98 ** 2 + 6 * 0.25) / 38, 12)
@@ -50,7 +51,7 @@ describe("the held-out report", () => {
     expect(automaticProblem("paid-auto-v1", { ...profile, maxFalseAcceptRate: "0.06" }, { "paid-v1": SET })).toMatch(/false-accept rate/)
     const config = loadConfig({ questionSets: { "paid-v1": SET }, acceptanceProfiles: { "paid-auto-v1": profile } })
     const resolved = { name: "paid-auto-v1", profile: config.acceptanceProfiles["paid-auto-v1"]! }
-    expect(accept({ type: "noul", probability: "0.95" }, SET.questions.paid!, resolved, { model: "typesafe/jev-1.14", questionSet: { name: "paid-v1", digest: questionSetDigest(SET) }, truncated: false })).toEqual({ disposition: "accepted", outcome: true, reasons: [] })
+    expect(accept({ type: "noul", probability: "0.95" }, SET.questions.paid!, resolved, { model: "typesafe/jev-1.14", adapterRevision: "openrouter-alpha-decisions-2026-11-11.1", questionSet: { name: "paid-v1", digest: questionSetDigest(SET) }, truncated: false })).toEqual({ disposition: "accepted", outcome: true, reasons: [] })
   })
 
   test("refuses a document split across tuning and held-out, another question set's answers, and a missing answer", () => {

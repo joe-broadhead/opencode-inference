@@ -7,7 +7,7 @@ import { questionSetDigest, type HeldOutReport, type QuestionSet } from "../../s
 import { loadConfig, type Options } from "../../src/domain/config.js"
 import { DecideData, DecideInput } from "../../src/domain/contracts.js"
 import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
-import { DECISIONS_PATH, decisionsAdapter, type PreparedDecision } from "../../src/providers/openrouter/decisions.js"
+import { DECISIONS_PATH, decisionsAdapter, WIRE_REVISION, type PreparedDecision } from "../../src/providers/openrouter/decisions.js"
 import { snapshot, type FileAccess, type Snapshot } from "../../src/runtime/sources.js"
 
 const STATE = "Payment received for invoice AB-72. Thank you."
@@ -99,6 +99,7 @@ describe("the answer", () => {
       model: "typesafe/jev-1.14",
       questionSet: "document-kind-v1",
       questionSetDigest: questionSetDigest(SET),
+      adapterRevision: WIRE_REVISION,
       thresholds: { noul: { accept: 0.85 } },
       dataset: { revision: "r1", sha256: "b".repeat(64), tuning: 100, heldOut: 50 },
       heldOut: { answers: 200, accepted: 120, falseAccepts: 1, reviewed: 70, refused: 10 },

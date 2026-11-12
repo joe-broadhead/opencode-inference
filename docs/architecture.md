@@ -167,6 +167,18 @@ recorded answers: thresholds are chosen on the tuning split, measured on the hel
 document, so chunks of one document cannot leak from tuning into held-out. It reports accepts, false accepts, reviews,
 refusals and the noul Brier score. Recording the answers needs a key and spends; it is a separate, deliberate step.
 
+What a report does NOT establish, by design:
+
+- **It is not authenticated.** It is plain JSON in the trusted plugin options, so anyone who can edit `opencode.json`
+  can write one. The plugin checks that it is consistent with the profile; it cannot check that it is genuine. Treat a
+  change to `acceptanceProfiles` like a code change: review it.
+- **The dataset is not re-checked.** The report records the dataset's revision and SHA-256, but the plugin never has
+  the dataset, so it cannot verify the counts against it. Keep the dataset and recompute the report in review.
+- **What it matches:** the profile name, model, question set (by digest), the adapter's wire revision and the
+  thresholds. A change to any of them turns acceptance back into review (`CALIBRATION_MISMATCH`) or refuses the options.
+  It does not cover changes on the provider's side under the same model id and wire revision; the canary and a fresh
+  evaluation are how those are caught.
+
 ## Reserved operations
 
 Named for capabilities, plan and these docs; not tools, methods or permission rules in this version. Each is `send`:

@@ -22,7 +22,9 @@ a callable stub, a method or a permission rule.
 - **Decisions** (PR 4): `inference_decide` with the alpha Decisions adapter (`decisions.ts`). Probabilities and
   distributions are stored exactly as reported: never renormalise, round, complete or invent one, and never use the
   reported confidence as corroboration. Acceptance is deterministic (`src/domain/acceptance.ts`); an automatic profile
-  loads only with a matching held-out report (`src/domain/evaluation.ts`). Labels never authorize anything. Box is
+  loads only with a matching held-out report (`src/domain/evaluation.ts`): profile, model, question-set digest, adapter
+  wire revision and thresholds. A report is unauthenticated JSON in the trusted options and its dataset hash is never
+  re-checked (the plugin has no dataset): never describe it as proof. Labels never authorize anything. Box is
   refused until it has a reviewed representation; the effective context is enforced by refusing, never truncating, and
   is usable only net of a documented template allowance (`contextAllowance`, like `pricing.ceiling` for prices).
 - **The canaries** (`scripts/canary-extractions.ts`, `scripts/canary-decisions.ts`) spend money: never run them from a

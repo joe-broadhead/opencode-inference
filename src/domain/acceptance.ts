@@ -11,7 +11,7 @@ import { canonical } from "./canonical.js"
 // - `review-first-v1` (built in, uncalibrated) and any `mode: "review"` profile accept nothing: every answer is
 //   returned for review, with the reasons that apply.
 // - A `mode: "automatic"` profile accepts an answer only when its thresholds are met, and only if it carries a held-out
-//   report for the same profile, model, question set (by digest) and thresholds, measured on held-out data with an
+//   report for the same profile, model, question set (by digest), adapter wire revision and thresholds, measured on held-out data with an
 //   acceptable false-accept rate. The options are refused otherwise. At run time, a different model or question set
 //   than the report's turns every answer back to review (CALIBRATION_MISMATCH): changing either invalidates calibration.
 // - Thresholds use only the reported probability or distribution, exactly as reported (exact decimals): never
@@ -45,6 +45,7 @@ export const HeldOutReport = z
     model: ModelId,
     questionSet: VersionedName,
     questionSetDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+    adapterRevision: z.string().min(1).max(128).describe("The wire revision of the adapter whose answers were measured. A different revision is not the measured system."),
     thresholds: AcceptanceRules,
     dataset: z.strictObject({ revision: z.string().min(1).max(128), sha256: z.string().regex(/^[0-9a-f]{64}$/), tuning: z.number().int().nonnegative(), heldOut: z.number().int().min(1) }),
     heldOut: z.strictObject({
@@ -182,14 +183,20 @@ export function accept(
   answer: Unaccepted,
   question: Question,
   resolved: ResolvedProfile,
-  context: { readonly model: string; readonly questionSet?: { readonly name: string; readonly digest: string }; readonly truncated: boolean },
+  context: { readonly model: string; readonly adapterRevision: string; readonly questionSet?: { readonly name: string; readonly digest: string }; readonly truncated: boolean },
 ): Result {
   if (answer.refusal !== undefined) return { disposition: "refused", reasons: ["REFUSED"] }
   const reasons = new Set<Reason>()
   if (context.truncated) reasons.add("PROVIDER_TRUNCATED")
   const { profile } = resolved
   if (profile.mode !== "automatic") reasons.add("CALIBRATION_UNAVAILABLE")
-  else if (profile.model !== context.model || !context.questionSet || profile.questionSet !== context.questionSet.name || profile.report?.questionSetDigest !== context.questionSet.digest)
+  else if (
+    profile.model !== context.model ||
+    !context.questionSet ||
+    profile.questionSet !== context.questionSet.name ||
+    profile.report?.questionSetDigest !== context.questionSet.digest ||
+    profile.report?.adapterRevision !== context.adapterRevision
+  )
     reasons.add("CALIBRATION_MISMATCH")
   const applied = applyRules(answer, question, profile.rules)
   // Under a review profile the thresholds still name why an answer is weak (no probability, a split distribution), but

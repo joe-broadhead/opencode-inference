@@ -62,8 +62,10 @@ by value: the OpenRouter key goes in `/connect`.
   { "noul": { "accept" }, "choice": { "minProbability", "minMargin" }, "score": { "minProbability" } }, ... } }`.
   `review-first-v1` is built in and accepts nothing. An `automatic` profile also needs `model`, `questionSet`,
   `maxFalseAcceptRate` and a held-out `report` from `scripts/evaluate-decisions.ts` for exactly that profile, model,
-  question set and thresholds, with at least 30 held-out cases and a false-accept rate within the maximum; otherwise
-  setup fails with `OPTIONS_INVALID`. Thresholds belong to the task and its consequences: there is no universal one.
+  question set, adapter wire revision and thresholds, with at least 30 held-out cases and a false-accept rate within
+  the maximum; otherwise setup fails with `OPTIONS_INVALID`. Thresholds belong to the task and its consequences: there
+  is no universal one. A report is unauthenticated JSON, and its dataset hash is not re-checked by the plugin (see
+  docs/architecture.md): review changes to `acceptanceProfiles` like code.
 - `allowUntestedHost`: run on an OpenCode outside `>=2.2.3 <2.3.0`, with a warning as the next step.
 
 ## Spend

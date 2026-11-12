@@ -42,6 +42,7 @@ const OPTIONS = {
         model: "typesafe/jev-1.14",
         questionSet: "document-kind-v1",
         questionSetDigest: questionSetDigest(SET),
+        adapterRevision: "openrouter-alpha-decisions-2026-11-11.1",
         thresholds: RULES,
         dataset: { revision: "r1", sha256: "b".repeat(64), tuning: 100, heldOut: 50 },
         heldOut: { answers: 200, accepted: 120, falseAccepts: 1, reviewed: 70, refused: 10 },

@@ -18,6 +18,7 @@ const report = (overrides: Partial<HeldOutReport> = {}): HeldOutReport => ({
   model: "typesafe/jev-1.14",
   questionSet: "document-kind-v1",
   questionSetDigest: questionSetDigest(KIND),
+  adapterRevision: "openrouter-alpha-decisions-2026-11-11.1",
   thresholds: RULES,
   dataset: { revision: "docs-2026-11", sha256: "a".repeat(64), tuning: 120, heldOut: 60 },
   heldOut: { answers: 180, accepted: 100, falseAccepts: 1, reviewed: 75, refused: 5 },
@@ -26,7 +27,7 @@ const report = (overrides: Partial<HeldOutReport> = {}): HeldOutReport => ({
 })
 const automatic = (overrides: Partial<AcceptanceProfile> = {}): AcceptanceProfile => ({ mode: "automatic", model: "typesafe/jev-1.14", questionSet: "document-kind-v1", rules: RULES, maxFalseAcceptRate: "0.02", report: report(), ...overrides })
 const AUTO = { name: "document-kind-auto-v1", profile: automatic() }
-const CONTEXT = { model: "typesafe/jev-1.14", questionSet: { name: "document-kind-v1", digest: questionSetDigest(KIND) }, truncated: false }
+const CONTEXT = { model: "typesafe/jev-1.14", adapterRevision: "openrouter-alpha-decisions-2026-11-11.1", questionSet: { name: "document-kind-v1", digest: questionSetDigest(KIND) }, truncated: false }
 const q = KIND.questions
 
 describe("an automatic profile must be backed by a matching held-out report", () => {
@@ -114,7 +115,9 @@ describe("acceptance uses reported probabilities exactly", () => {
     const answer = { type: "noul" as const, probability: "0.99" }
     expect(accept(answer, q.paid!, AUTO, { ...CONTEXT, model: "typesafe/jev-2" }).reasons).toEqual(["CALIBRATION_MISMATCH"])
     expect(accept(answer, q.paid!, AUTO, { ...CONTEXT, questionSet: { name: "document-kind-v1", digest: `sha256:${"1".repeat(64)}` } }).reasons).toEqual(["CALIBRATION_MISMATCH"])
-    expect(accept(answer, q.paid!, AUTO, { model: CONTEXT.model, truncated: false }).reasons).toEqual(["CALIBRATION_MISMATCH"])
+    expect(accept(answer, q.paid!, AUTO, { model: CONTEXT.model, adapterRevision: CONTEXT.adapterRevision, truncated: false }).reasons).toEqual(["CALIBRATION_MISMATCH"])
+    // Another adapter wire revision is not the system the report measured.
+    expect(accept(answer, q.paid!, AUTO, { ...CONTEXT, adapterRevision: "openrouter-alpha-decisions-2027-01-01.1" }).reasons).toEqual(["CALIBRATION_MISMATCH"])
     expect(accept(answer, q.paid!, AUTO, { ...CONTEXT, truncated: true }).reasons).toEqual(["PROVIDER_TRUNCATED"])
   })
 

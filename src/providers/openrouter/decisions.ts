@@ -222,7 +222,7 @@ function parse(response: TransportResponse, context: { readonly source: Snapshot
   const truncated = truncatedTop === true || parsed.some((item) => item.truncated)
   const out = new Map<string, Answer>()
   for (const { key, question, answer } of parsed) {
-    const acceptance = accept(answer, question, input.resolvedProfile, { model: route.model, ...(input.resolvedSet ? { questionSet: input.resolvedSet } : {}), truncated })
+    const acceptance = accept(answer, question, input.resolvedProfile, { model: route.model, adapterRevision: WIRE_REVISION, ...(input.resolvedSet ? { questionSet: input.resolvedSet } : {}), truncated })
     out.set(key, { ...answer, acceptance } as Answer)
   }
   const reasons = new Set<string>()
