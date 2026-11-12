@@ -35,6 +35,23 @@ describe("the shipped skills", () => {
     expect(read("inference-decide")).toContain("A label is never a permission")
   })
 
+  test("short text the agent can read is a negative case: nothing is uploaded unless asked for by name or for reviewable output", async () => {
+    const { skills } = await loadSkills(ROOT)
+    for (const skill of skills) {
+      const description = skill.info.description!
+      // Trigger: the user names Inference or OpenRouter, or needs evidence-tracked, reviewable output.
+      expect(description).toMatch(/when the user asks for Inference or OpenRouter by name, or needs/)
+      expect(description).toContain("sending")
+      // Negative: text already in the conversation or a small readable file.
+      expect(description).toMatch(/Not for (?:text already in the conversation|a question about text in the conversation) or a small file you can/)
+      // The old, too-broad trigger is gone.
+      expect(description).not.toContain("pull the invoice number and total from this")
+      expect(description).not.toContain("is this an invoice or a receipt")
+    }
+    expect(read("inference-extract")).toContain("Never upload content just to extract what you can read")
+    expect(read("inference-decide")).toContain("Never upload content just to decide what you can read")
+  })
+
   test("their descriptions say when to use them and when not (trigger and negative cases)", async () => {
     const { skills } = await loadSkills(ROOT)
     for (const skill of skills) {

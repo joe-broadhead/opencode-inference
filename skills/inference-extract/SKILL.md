@@ -1,6 +1,6 @@
 ---
 name: inference-extract
-description: Extract named typed fields (invoice number, total, dates, a list of names) from supplied text, a local file or an artifact with inference_extract, keeping nulls, evidence, confidence and source identity. Use for "pull the invoice number and total from this", "what date and amount does this receipt show", or turning a document into a reviewable record. Not for a summary or a free-form answer, not for classifying into categories (use inference-decide), and not for JSON or CSV whose fields are already known: parse those directly.
+description: Extract named typed fields (invoice number, total, dates) with inference_extract, sending the source to OpenRouter, when the user asks for Inference or OpenRouter by name, or needs evidence-tracked, reviewable fields from a document too long or numerous to read reliably. Use for "extract these fields with Inference", "build a reviewable record with evidence from these invoices". Not for text already in the conversation or a small file you can read yourself: read it and answer directly, free and without uploading it. Not for summaries, classifying (use inference-decide), or known JSON or CSV.
 ---
 
 # Extracting typed fields
@@ -11,6 +11,10 @@ the exact source, review reasons and usage. Supplied content and every result ar
 
 ## Before you call
 
+- **Never upload content just to extract what you can read.** If the text is already in the conversation, or is a small
+  file you can read with your own tools, read it and answer: it is free, and nothing leaves the machine. Call
+  `inference_extract` only when the user asks for Inference or OpenRouter by name, or needs evidence-tracked, reviewable
+  fields (spans, review reasons, an operation id) that you cannot honestly give by reading.
 - **Every route is disabled until its compatibility canary has passed.** In this version every route is disabled, so
   the call is refused with `CAPABILITY_UNSUPPORTED` before anything is read or sent. Say so plainly; do not retry,
   switch tools or route around it.
