@@ -1,0 +1,48 @@
+{
+  "engines": {
+    "darwin-arm64": {
+      "name": "utilities-speech-darwin-arm64",
+      "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/utilities-speech-darwin-arm64",
+      "sha256": "1cef11dbba30ac744609cfc5076dc078fa1653c8e2b1807739d7ce5924248665",
+      "bytes": 45544912
+    },
+    "linux-x64-gnu": {
+      "name": "utilities-speech-linux-x64-gnu",
+      "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/utilities-speech-linux-x64-gnu",
+      "sha256": "21c6812369dd7c52c083624acd4a5b88ecbcdc15c31d33b0273a71b575024430",
+      "bytes": 50826920
+    },
+    "linux-arm64-gnu": {
+      "name": "utilities-speech-linux-arm64-gnu",
+      "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/utilities-speech-linux-arm64-gnu",
+      "sha256": "d9d1ddd200a8fc3335803b87641de6da22c28ac143cfc231ef9bc2101db325f7",
+      "bytes": 50282600
+    }
+  },
+  "models": {
+    "tiny-q5_1": {
+      "name": "ggml-tiny-q5_1.bin",
+      "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/ggml-tiny-q5_1.bin",
+      "sha256": "818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7",
+      "bytes": 32152673
+    },
+    "kitten-model": {
+      "name": "kitten_tts_nano_v0_8.onnx",
+      "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/kitten_tts_nano_v0_8.onnx",
+      "sha256": "f7b0afcbee92870b32b8e0276d855b954dc25470c9f051b376ac7eee537c76fc",
+      "bytes": 24369971
+    },
+    "kitten-voices": {
+      "name": "kitten_tts_nano_v0_8-voices.npz",
+      "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/kitten_tts_nano_v0_8-voices.npz",
+      "sha256": "8aa7cee235abb0739cb51e6559685f65a4dacd95568833d05699b1633f519b3f",
+      "bytes": 3278902
+    },
+    "kitten-config": {
+      "name": "kitten_tts_nano_v0_8-config.json",
+      "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/kitten_tts_nano_v0_8-config.json",
+      "sha256": "b66006ccbeccd4de5fc3c9272059c47f5725df7215fd889785c03602652fab64",
+      "bytes": 688
+    }
+  }
+}

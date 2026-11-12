@@ -82,6 +82,15 @@ describe(`inference_extract on OpenCode ${HOST_VERSION} (embedded SDK), against 
       expect(result.data.fields.due_on).toMatchObject({ value: null, guess: "2026-12-01", derivation: "unknown" })
       expect(result.usage.charges).toEqual([{ party: "platform", currency: "USD", amount: "0.000012345679", basis: "reported" }])
     }
+    // Code Mode keeps every required output field: the operation, route, coverage, review, usage and trace.
+    for (const result of [viaScript, viaModel]) {
+      expect(Object.keys(result).sort()).toEqual(["coverage", "data", "operationId", "review", "route", "schemaVersion", "trace", "trust", "usage"])
+      expect(result.operationId).toMatch(/^op_[0-9a-f-]{36}$/)
+      expect(result.trace).toMatchObject({ attempts: 1, cacheHit: false, elapsedMs: expect.any(Number) })
+      expect(result.review).toEqual(expect.objectContaining({ required: expect.any(Boolean), reasons: expect.any(Array), profileVersion: expect.any(String) }))
+    }
+    expect(viaModel.operationId).not.toBe(viaScript.operationId)
+    expect({ route: viaModel.route, coverage: viaModel.coverage, review: viaModel.review, usage: viaModel.usage }).toEqual({ route: viaScript.route, coverage: viaScript.coverage, review: viaScript.review, usage: viaScript.usage })
     expect(viaModel.data).toEqual(viaScript.data)
     expect(seen).toHaveLength(2)
     for (const request of seen) {

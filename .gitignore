@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# The vendored family plugins' released dist/ is a test fixture (test/fixtures/family/README.md).
+!test/fixtures/family/*/dist/
 *.tgz
 .env
 .env.*

@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "plugin": "opencode-utilities",
+  "repository": "joe-broadhead/opencode-utilities",
+  "tag": "v0.0.0",
+  "built": {
+    "commit": "8d4adf363d8a04ff217704d07dfbf5aacba603e2",
+    "run": 43023378818,
+    "workflow": "native"
+  },
+  "modules": {
+    "time-keep": {
+      "darwin-arm64": {
+        "name": "time-keep-darwin-arm64.gz",
+        "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/time-keep-darwin-arm64.gz",
+        "bytes": 3591628,
+        "sha256": "6bf09815125e35e61a25700d8e8613134fc9cd44c9e03c93ac021d8a6a1b33a7",
+        "executable": {
+          "name": "time-keep",
+          "bytes": 11319360,
+          "sha256": "481159d088edbde4fad4669797e39360bff003269bc0cc36f164df6d46d9aff6"
+        }
+      },
+      "darwin-x64": {
+        "name": "time-keep-darwin-x64.gz",
+        "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/time-keep-darwin-x64.gz",
+        "bytes": 3977801,
+        "sha256": "8f5b78e8e4619c6ec1ce6530219357e747c3b80d263fa4bf2c86b6aab2e30941",
+        "executable": {
+          "name": "time-keep",
+          "bytes": 12385668,
+          "sha256": "08a03bff4343efe96b8553e503424604f73cef0ee6f980f4f94f2944df1a61a4"
+        }
+      },
+      "linux-x64-gnu": {
+        "name": "time-keep-linux-x64-gnu.gz",
+        "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/time-keep-linux-x64-gnu.gz",
+        "bytes": 4133137,
+        "sha256": "6bbbcacc8883a9a8e95e4c08ff32f9a39c10b352b07596fb083d2a220ad8ab2a",
+        "executable": {
+          "name": "time-keep",
+          "bytes": 13458904,
+          "sha256": "51e39cb22cf74c5ee5de6930b21a1033e3649ae194022163d80de9188d2d7764"
+        }
+      },
+      "linux-arm64-gnu": {
+        "name": "time-keep-linux-arm64-gnu.gz",
+        "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/time-keep-linux-arm64-gnu.gz",
+        "bytes": 3748569,
+        "sha256": "cf9620521751822538b366bc2e0a967f239225b6c63ef28a985374e1c8fde89b",
+        "executable": {
+          "name": "time-keep",
+          "bytes": 12080032,
+          "sha256": "71cd2342bf7440abce0a835290c6334df3fffd52b72f8b7baea5ce75df73aa8a"
+        }
+      }
+    },
+    "weather-signal": {
+      "darwin-arm64": {
+        "name": "weather-signal-darwin-arm64.gz",
+        "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/weather-signal-darwin-arm64.gz",
+        "bytes": 4390593,
+        "sha256": "82aa1b002a2d5c77ec4371f6d81169d5feea6c71abeab95df899397bc7824953",
+        "executable": {
+          "name": "weather-signal",
+          "bytes": 10214144,
+          "sha256": "3379562eb79106c53117a3a7a63226dd1f4b35e2b362d1d91293d6d0f1c103fe"
+        }
+      },
+      "darwin-x64": {
+        "name": "weather-signal-darwin-x64.gz",
+        "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/weather-signal-darwin-x64.gz",
+        "bytes": 4578476,
+        "sha256": "9b19a5c5d6d2d52c0f431c1ef58cf08f925915d6428a65b0ad580262459f48d3",
+        "executable": {
+          "name": "weather-signal",
+          "bytes": 10701864,
+          "sha256": "bb5af61896dcb2670cde785ce05e559164dd5e913782c63a923c74e1888134bf"
+        }
+      },
+      "linux-x64-gnu": {
+        "name": "weather-signal-linux-x64-gnu.gz",
+        "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/weather-signal-linux-x64-gnu.gz",
+        "bytes": 4678393,
+        "sha256": "653fe961f1fcf62ea6233e76d7655de18fd77229a6b42e3149cdbfbed36b49ae",
+        "executable": {
+          "name": "weather-signal",
+          "bytes": 11355488,
+          "sha256": "8c3eec87bb4e84e2e57a1661c404f8a34189656901d0c327db54ddce5a160c25"
+        }
+      },
+      "linux-arm64-gnu": {
+        "name": "weather-signal-linux-arm64-gnu.gz",
+        "url": "https://github.com/joe-broadhead/opencode-utilities/releases/download/v0.0.0/weather-signal-linux-arm64-gnu.gz",
+        "bytes": 4495615,
+        "sha256": "c597f63617941bef07a895879802e94af3ed734c5eeed63f71dbe26d674b4644",
+        "executable": {
+          "name": "weather-signal",
+          "bytes": 10365088,
+          "sha256": "835896d6fe41508b993a9ca2481004971956e1b801f64a83b39ae8eb2739ee12"
+        }
+      }
+    }
+  }
+}

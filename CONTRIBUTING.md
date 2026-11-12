@@ -46,6 +46,15 @@ option default, a failure code or the fixture, run:
 UPDATE_GENERATED=1 bun test test/unit/registry.test.ts
 ```
 
+## The Jobs recipe test
+
+`test/host/jobs.test.ts` runs the recipe in [docs/jobs.md](docs/jobs.md) through the released Jobs and Utilities
+plugins on the embedded host. They are vendored in `test/fixtures/family/<name>@<version>/`, byte for byte from their
+verified `v0.0.0` Release tarballs, and every file is checked against the folder's committed `FILES.sha256` before it is
+loaded; [the folder's README](test/fixtures/family/README.md) records the source URLs and digests and how to update
+them. The test never touches the network or your home folder. The extraction reaches a loopback fake; nothing is paid
+for.
+
 ## The compatibility canary
 
 `scripts/canary-extractions.ts` checks the reviewed Extractions contract against the live API. It spends money, so no

@@ -57,6 +57,8 @@ describe(`defaults on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
     for (const tool of tools) expect(tool.options).toMatchObject({ namespace: "inference", permission: tool.id })
     const { data: commands } = await host.client.command.list({ location: host.location })
     expect(commands.map((command) => command.name)).toContain("inference-status")
+    const { data: skills } = await host.client.skill.list({ location: host.location })
+    expect(skills.map((skill: { name: string }) => skill.name).filter((name: string) => name.startsWith("inference-")).sort()).toEqual(["inference-decide", "inference-extract"])
   })
 
   test("puts the default block right after each built-in agent's base allow, and the host enforces it", async () => {

@@ -1,0 +1,202 @@
+{
+  "name": "@joe-broadhead/opencode-jobs",
+  "version": "0.0.0",
+  "description": "Unofficial OpenCode plugin that runs agent prompts, slash commands, reminders and no-model scripts on cron, interval and one-off schedules, inside OpenCode, with run history and unattended permissions",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "jobs"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joe-broadhead/opencode-jobs.git"
+  },
+  "homepage": "https://github.com/joe-broadhead/opencode-jobs#readme",
+  "bugs": {
+    "url": "https://github.com/joe-broadhead/opencode-jobs/issues"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js",
+    "./icon.svg": "./assets/icon.svg",
+    "./icon-128.png": "./assets/icon-128.png",
+    "./icon-256.png": "./assets/icon-256.png"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "assets/icon.svg",
+    "assets/icon-128.png",
+    "assets/icon-256.png",
+    "NOTICE",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "opencode": {
+    "host": ">=2.2.3 <2.3.0",
+    "icons": [
+      {
+        "src": "assets/icon.svg",
+        "mimeType": "image/svg+xml",
+        "sizes": [
+          "any"
+        ]
+      },
+      {
+        "src": "assets/icon-128.png",
+        "mimeType": "image/png",
+        "sizes": [
+          "128x128"
+        ]
+      },
+      {
+        "src": "assets/icon-256.png",
+        "mimeType": "image/png",
+        "sizes": [
+          "256x256"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "typecheck": "node scripts/check.mjs typecheck",
+    "test": "node scripts/check.mjs unit",
+    "test:host": "node scripts/check.mjs host",
+    "test:pack": "node scripts/check.mjs pack",
+    "lint": "node scripts/check.mjs forbidden",
+    "drift": "bun scripts/drift.mjs"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-typescript": "7.27.1",
+    "@opencode/client": "2.2.3",
+    "@opencode/plugin": "2.2.3",
+    "@opencode/sdk": "2.2.3",
+    "@opentui/core": "0.8.0",
+    "@opentui/solid": "0.8.0",
+    "@types/bun": "1.4.4",
+    "@types/node": "24.19.2",
+    "babel-preset-solid": "1.9.16",
+    "croner": "11.0.0",
+    "esbuild": "0.28.2",
+    "quickjs-wasi": "3.6.2",
+    "solid-js": "1.9.17",
+    "typescript": "5.9.3",
+    "yaml": "2.9.1"
+  },
+  "jelly": {
+    "title": "Jobs",
+    "summary": "Run prompts, slash commands, reminders and no-model scripts on a schedule, inside OpenCode.",
+    "icon": "assets/icon.svg",
+    "tools": [
+      {
+        "name": "jobs.status",
+        "permission": "jobs_status",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "jobs.list",
+        "permission": "jobs_list",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "jobs.get",
+        "permission": "jobs_get",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "jobs.history",
+        "permission": "jobs_history",
+        "effect": "allow",
+        "readOnly": true
+      },
+      {
+        "name": "jobs.pause",
+        "permission": "jobs_pause",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.pause_all",
+        "permission": "jobs_pause_all",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.create",
+        "permission": "jobs_create",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.update",
+        "permission": "jobs_update",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.delete",
+        "permission": "jobs_delete",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.run_now",
+        "permission": "jobs_run_now",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.resume",
+        "permission": "jobs_resume",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.extend",
+        "permission": "jobs_extend",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.approve",
+        "permission": "jobs_approve",
+        "effect": "allow",
+        "readOnly": false
+      },
+      {
+        "name": "jobs.run_script",
+        "permission": "jobs_run_script",
+        "effect": "allow",
+        "readOnly": false
+      }
+    ],
+    "skills": [
+      "jobs"
+    ],
+    "rpc": [],
+    "views": [],
+    "signIns": [],
+    "contributes": {
+      "homeFeeds": [],
+      "homeWidgets": [],
+      "workKinds": [],
+      "settings": [
+        {
+          "key": "access",
+          "label": "Access",
+          "type": "string",
+          "default": "all",
+          "description": "all, ask-changes or read-only. all allows every jobs tool; ask-changes asks before a change; read-only denies every change."
+        }
+      ]
+    }
+  }
+}

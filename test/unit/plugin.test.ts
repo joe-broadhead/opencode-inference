@@ -23,7 +23,7 @@ describe("setup", () => {
   test("registers the integration, rules, tools, both RPCs, the RPC's ask hook and the command, and nothing touches the network", async () => {
     const fake = fakeContext({ sessions: { ses_1: { agent: "build" } } })
     const cleanup = await plugin().setup(fake.context)
-    expect(fake.live().map((item) => item.kind)).toEqual(["integration", "agent", "tool", `rpc:${PLUGIN_ID}`, `rpc:${TOOLS_RPC_ID}`, "hook:evaluate", "command"])
+    expect(fake.live().map((item) => item.kind)).toEqual(["integration", "agent", "tool", `rpc:${PLUGIN_ID}`, `rpc:${TOOLS_RPC_ID}`, "hook:evaluate", "skill", "command"])
     expect(fake.integrations.get("inference-openrouter")).toEqual({ id: "inference-openrouter", name: "OpenRouter for Inference" })
     expect(fake.methods).toEqual([{ integrationID: "inference-openrouter", method: { type: "key", label: "OpenRouter API key" } }])
     expect(fake.tools.map((tool) => tool.name)).toEqual(["status", "capabilities", "plan", "extract", "decide"])
@@ -121,7 +121,7 @@ describe("reload", () => {
     await first()
     expect(fake.live()).toEqual([])
     const second = (await plugin().setup(fake.context)) as () => Promise<void>
-    expect(fake.live().length).toBe(7)
+    expect(fake.live().length).toBe(8)
     // The agents are the same objects across both setups, and the transform is replayed: still exactly one block.
     fake.replayAgents()
     const block = JSON.stringify(defaultRules("ask-changes"))

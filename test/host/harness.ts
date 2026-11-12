@@ -8,7 +8,7 @@
 // off loopback from this process fails the host's close.
 import { spawn, spawnSync } from "node:child_process"
 import { randomBytes } from "node:crypto"
-import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { cpSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { createServer, type AddressInfo, type Server, type Socket } from "node:net"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { OpenCode as Client, type OpenCodeClient } from "@opencode/client"
 import { Plugin, type PluginOptions } from "@opencode/plugin"
 import plugin from "../../src/index.js"
+import { familyProblems } from "../support/family.js"
 import { TESTED_HOSTS } from "../../src/host/versions.js"
 
 export const REPO = fileURLToPath(new URL("../../", import.meta.url))
@@ -84,6 +85,8 @@ export interface HostInput {
   readonly options?: PluginOptions
   /** The plugin to host instead of src/index.ts's, such as one built with test sources (a fixture, a loopback origin). */
   readonly plugin?: Plugin.Plugin
+  /** Other plugins to host alongside it, such as the family's Jobs and Utilities (familyPlugin). */
+  readonly plugins?: readonly Plugin.Plugin[]
   readonly config?: Record<string, unknown>
 }
 
@@ -138,7 +141,7 @@ export async function startHost(input: HostInput = {}): Promise<Host> {
   })
   const observer = Plugin.define({ id: "test.observer", setup: (ctx) => void contexts.set(realpathSync(ctx.location.directory), ctx) })
   const client = await OpenCode.create({
-    plugins: [counted, observer],
+    plugins: [counted, observer, ...(input.plugins ?? [])],
     app: { version: HOST_VERSION },
     config: { content: JSON.stringify({ ...QUIET, ...input.config }), directory: join(base, "config"), project: false, claude: false },
     database: { path: join(base, "opencode.db") },
@@ -280,4 +283,26 @@ export async function until<T>(what: string, check: () => Promise<T | false | un
 
 export function cleanup() {
   rmSync(root, { recursive: true, force: true })
+}
+
+/** The vendored family plugins (test/fixtures/family/README.md): the released version of each. */
+export const FAMILY_VERSIONS = { jobs: "0.0.0", utilities: "0.0.0" } as const
+
+/**
+ * A released family plugin, Jobs or Utilities, loaded from its vendored, digest-checked copy in
+ * test/fixtures/family/<name>@<version>/. Never the network, never the user's home. Its dist/ imports only the
+ * host-provided @opencode/plugin, so a copy is staged in the temp root where that resolves to this repository's.
+ */
+export async function familyPlugin(name: "jobs" | "utilities"): Promise<Plugin.Plugin> {
+  const dir = join(REPO, "test", "fixtures", "family", `${name}@${FAMILY_VERSIONS[name]}`)
+  const problems = familyProblems(dir)
+  if (problems.length) throw new Error(`the vendored ${name} plugin is not the released one: ${problems.join("; ")}`)
+  const staged = join(root, "family", name)
+  const target = join(staged, "node_modules", "@joe-broadhead", `opencode-${name}`)
+  if (!existsSync(target)) {
+    mkdirSync(join(staged, "node_modules"), { recursive: true })
+    cpSync(dir, target, { recursive: true })
+    symlinkSync(join(REPO, "node_modules", "@opencode"), join(staged, "node_modules", "@opencode"), "dir")
+  }
+  return ((await import(pathToFileURL(join(target, "dist", "index.js")).href)) as { default: Plugin.Plugin }).default
 }
