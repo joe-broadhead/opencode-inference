@@ -45,6 +45,8 @@ export const probeRoute = (overrides: Partial<RouteCapability> = {}): RouteCapab
   nullThreshold: { supported: true, unsupportedOn: [] },
   pricing: { revision: "test-1", currency: "USD", perRequest: "0.01", upperBound: true },
   zdr: "unknown",
+  // Test routes stand for verified ones.
+  canary: { status: "passed", on: "2026-11-12" },
   notes: [],
   ...overrides,
 })
@@ -136,6 +138,8 @@ export interface ProbeOptions {
   readonly available?: () => InferenceError | undefined
   /** A transport to use instead of the recording fake. */
   readonly transport?: Transport
+  /** The tool to register instead of the probe; its adapter is `adapter`. */
+  readonly tool?: ToolSpec
   readonly now?: () => Date
 }
 
@@ -158,7 +162,7 @@ export async function probeHarness(options: ProbeOptions = {}) {
   const store = createJournalStore(join(state, "journal"), { lockWaitMs: 200 })
   const journal = new Journal(store, "openrouter:0123456789abcdef", options.now)
   const runTool = createDispatcher({
-    tools: [PROBE],
+    tools: [options.tool ?? PROBE],
     handlers: {},
     unavailable: options.available ?? (() => undefined),
     operations: {
@@ -169,13 +173,14 @@ export async function probeHarness(options: ProbeOptions = {}) {
       authorize: createAuthorize((input) => fake.context.permission.assert(input)),
       transport: options.transport ?? transport,
       journal: () => journal,
-      adapters: { probe: options.adapter ?? probeAdapter() },
+      adapters: { [(options.tool ?? PROBE).name]: options.adapter ?? probeAdapter() },
       ...(options.now ? { now: options.now } : {}),
     },
   })
-  await fake.context.tool.transform(toolTransform(runTool, () => true, [PROBE]))
-  await registerScripting(fake.context as never, runTool, () => undefined, undefined, [PROBE])
-  const tool = fake.tools.find((item) => item.name === "probe")!
+  const spec = options.tool ?? PROBE
+  await fake.context.tool.transform(toolTransform(runTool, () => true, [spec]))
+  await registerScripting(fake.context as never, runTool, () => undefined, undefined, [spec])
+  const tool = fake.tools.find((item) => item.name === spec.name)!
   const call = (signal = new AbortController().signal, id = `call_${Math.random().toString(36).slice(2)}`) => ({ sessionID: "ses_1", agent: "build", messageID: "msg_1", id, signal, progress: async () => undefined })
   return {
     root,
@@ -191,7 +196,7 @@ export async function probeHarness(options: ProbeOptions = {}) {
     /** The model path: the host tool's execute. */
     model: (input: unknown, signal?: AbortSignal) => tool.execute(input, call(signal)),
     /** The tools RPC path, as a script. */
-    rpc: (input: unknown) => fake.call(TOOLS_RPC_ID, "probe", { sessionID: "ses_1", input }) as Promise<unknown>,
+    rpc: (input: unknown) => fake.call(TOOLS_RPC_ID, spec.name, { sessionID: "ses_1", input }) as Promise<unknown>,
   }
 }
 

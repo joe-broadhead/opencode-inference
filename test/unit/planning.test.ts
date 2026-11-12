@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { capabilities } from "../../src/domain/capabilities.js"
 import { loadConfig, type Config } from "../../src/domain/config.js"
 import { PlanInput, PlanResult } from "../../src/domain/contracts.js"
-import { implemented, PLANNED } from "../../src/domain/registry.js"
+import { implemented, OPERATION_INFO } from "../../src/domain/registry.js"
 import { canonical, fromMicros, plan, taskDigest, toMicros } from "../../src/domain/routing.js"
 import { CapabilityFixture, OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
 
@@ -47,9 +47,9 @@ describe("plan", () => {
   test("text extraction on the default profile: the route, every reason it cannot run, and nothing sent", () => {
     const result = run({ task: "extract", input: { source: text, profile: "extract-typed", fields } })
     expect(result.route).toMatchObject({ status: "ineligible", requested: { profile: "extract-typed" }, reasons: [] })
-    expect(result.route.selected).toMatchObject({ route: { model: "cloudflare/clairic", capabilityRevision: OPENROUTER_CAPABILITIES.revision }, eligible: false, exclusions: ["ROUTE_DISABLED", "NOT_IMPLEMENTED", "PRICE_UNKNOWN"] })
+    expect(result.route.selected).toMatchObject({ route: { model: "cloudflare/clairic", capabilityRevision: OPENROUTER_CAPABILITIES.revision }, eligible: false, exclusions: ["ROUTE_DISABLED", "PRICE_UNKNOWN"] })
     expect(result.execution).toMatchObject({ available: false, tool: "inference_extract" })
-    expect(result.execution.reasons[0]).toBe("inference_extract is not implemented in this version, so nothing can be sent.")
+    expect(result.execution.reasons).toEqual(["The selected route is not eligible: ROUTE_DISABLED, PRICE_UNKNOWN."])
     expect(result.quote).toMatchObject({ kind: "unavailable", basis: "none", freshness: { reviewedOn: "2026-11-11", ageDays: 1, stale: false } })
     expect(result.transmission).toEqual({ provider: "openrouter", apiRoute: "POST /api/alpha/extractions", representation: "text", credentialScope: "inference-openrouter" })
     expect(result.coverage).toMatchObject({ expected: "complete", basis: "provided-text" })
@@ -87,7 +87,7 @@ describe("plan", () => {
   test("a PDF suits ScaleDown's document route, but only for text fields", () => {
     const pdf = { kind: "path", path: "inputs/invoice.pdf" } as const
     const textOnly = run({ task: "extract", input: { source: pdf, profile: "extract-pdf", fields: { invoice_id: { type: "text" }, refs: { type: "list", items: "text" } } } })
-    expect(textOnly.route.selected!.exclusions).toEqual(["ROUTE_DISABLED", "NOT_IMPLEMENTED", "PRICE_UNKNOWN"])
+    expect(textOnly.route.selected!.exclusions).toEqual(["ROUTE_DISABLED", "PRICE_UNKNOWN"])
     expect(textOnly.preparation.map((step) => step.step)).toEqual(["authorize-and-snapshot"])
     const numbers = run({ task: "extract", input: { source: pdf, profile: "extract-pdf", fields } })
     expect(numbers.route.selected!.exclusions).toContain("FIELD_TYPE_UNSUPPORTED")
@@ -202,16 +202,17 @@ describe("quotes from a priced fixture (synthetic; the committed fixture has no 
 })
 
 describe("capabilities", () => {
-  const context = (config = loadConfig({})) => ({ config, fixture: OPENROUTER_CAPABILITIES, operations: PLANNED, implemented, now: NOW })
+  const context = (config = loadConfig({})) => ({ config, fixture: OPENROUTER_CAPABILITIES, operations: OPERATION_INFO, implemented, now: NOW })
 
-  test("names the planned send operations as not implemented, and every route with why it cannot run", () => {
+  test("names extract as implemented and decide and read as not, and every route with why it cannot run", () => {
     const result = capabilities({}, context())
     expect(result.operations.map((operation) => [operation.tool, operation.class, operation.implemented])).toEqual([
-      ["inference_extract", "send", false],
+      ["inference_extract", "send", true],
       ["inference_decide", "send", false],
       ["inference_read", "send", false],
     ])
-    expect(result.routes.every((route) => !route.available && route.reasons.includes("ROUTE_DISABLED") && route.reasons.includes("NOT_IMPLEMENTED"))).toBe(true)
+    expect(result.routes.every((route) => !route.available && route.reasons.includes("ROUTE_DISABLED"))).toBe(true)
+    expect(result.routes.filter((route) => route.reasons.includes("NOT_IMPLEMENTED")).map((route) => route.operation)).toEqual(["decide"])
     expect(result.routes.find((route) => route.model === "cloudflare/clairic")!.profiles).toEqual(["extract-typed"])
     expect(result.fixture).toMatchObject({ revision: OPENROUTER_CAPABILITIES.revision, verified: false, ageDays: 1, stale: false })
     expect(result.routing).toEqual({ mode: "explicit", fallbacks: [] })
@@ -222,5 +223,31 @@ describe("capabilities", () => {
     expect(capabilities({ model: "scaledown/extract" }, context()).routes.map((route) => route.model)).toEqual(["scaledown/extract"])
     const custom = capabilities({}, context(loadConfig({ profiles: { mine: { model: "acme/other" } } })))
     expect(custom.profiles).toEqual([{ name: "mine", model: "acme/other", operation: null }])
+  })
+})
+
+describe("null thresholds are refused locally where a route does not take them", () => {
+  const extract = (model: string, fieldsIn: Record<string, unknown>) => run({ task: "extract", input: { model, source: text, fields: fieldsIn } })
+  const excluded = (result: ReturnType<typeof run>) => result.route.selected!.exclusions.includes("NULL_THRESHOLD_UNSUPPORTED")
+  test("Clairic: on a text, number or date field yes; on a list no", () => {
+    expect(excluded(extract("cloudflare/clairic", { name: { type: "text", nullThreshold: 0.5 }, total: { type: "number", nullThreshold: 0.2 }, on: { type: "date", nullThreshold: 0.9 } }))).toBe(false)
+    expect(excluded(extract("cloudflare/clairic", { names: { type: "list", items: "text", nullThreshold: 0.5 } }))).toBe(true)
+  })
+  test("ScaleDown: never; a route whose support is unknown: never", () => {
+    expect(excluded(extract("scaledown/extract", { name: { type: "text", nullThreshold: 0.5 } }))).toBe(true)
+    expect(excluded(extract("inception/mercury-decide", { name: { type: "text", nullThreshold: 0.5 } }))).toBe(true)
+    expect(excluded(extract("scaledown/extract", { name: { type: "text" } }))).toBe(false)
+  })
+  test("a threshold must be a probability", () => {
+    expect(() => PlanInput.parse({ task: "extract", input: { model: "cloudflare/clairic", source: text, fields: { name: { type: "text", nullThreshold: 1.5 } } } })).toThrow()
+  })
+})
+
+describe("plan quotes for per-token prices", () => {
+  test("an estimate unless the fixture records a documented ceiling", () => {
+    const priced = (pricing: RouteCapability["pricing"]) => ({ ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route) => (route.model === "cloudflare/clairic" ? { ...route, pricing } : route)) })
+    const quote = (pricing: RouteCapability["pricing"]) => run({ task: "extract", input: { source: text, profile: "extract-typed", fields } }, { fixture: priced(pricing) }).quote
+    expect(quote({ revision: "t", currency: "USD", perMillionInputTokens: "0.2", upperBound: true }).kind).toBe("estimate")
+    expect(quote({ revision: "t", currency: "USD", perMillionInputTokens: "0.2", upperBound: false, ceiling: { amount: "0.02", source: "A4" } })).toMatchObject({ kind: "upper_bound", amount: "0.02" })
   })
 })

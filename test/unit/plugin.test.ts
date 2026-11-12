@@ -26,16 +26,21 @@ describe("setup", () => {
     expect(fake.live().map((item) => item.kind)).toEqual(["integration", "agent", "tool", `rpc:${PLUGIN_ID}`, `rpc:${TOOLS_RPC_ID}`, "hook:evaluate", "command"])
     expect(fake.integrations.get("inference-openrouter")).toEqual({ id: "inference-openrouter", name: "OpenRouter for Inference" })
     expect(fake.methods).toEqual([{ integrationID: "inference-openrouter", method: { type: "key", label: "OpenRouter API key" } }])
-    expect(fake.tools.map((tool) => tool.name)).toEqual(["status", "capabilities", "plan"])
+    expect(fake.tools.map((tool) => tool.name)).toEqual(["status", "capabilities", "plan", "extract"])
     expect(fake.commands.map((command) => command.name)).toEqual(["inference-status"])
     // Every local surface, on both paths.
-    for (const tool of fake.tools) {
+    for (const tool of fake.tools.filter((item) => item.name !== "extract")) {
       const input = tool.name === "plan" ? { task: "extract", input: { source: text, profile: "extract-typed", fields: { total: { type: "number" } } } } : {}
       const result = await tool.execute(input, toolCall())
       expect(result.output).toBeDefined()
       const scripted = (await fake.call(TOOLS_RPC_ID, tool.name, { sessionID: "ses_1", input })) as Record<string, unknown>
       expect(scripted.error).toBeUndefined()
     }
+    // extract is registered, but every route is disabled: it says so on both paths, before reading the key or sending.
+    const extract = { source: text, profile: "extract-typed", fields: { total: { type: "number" } } }
+    const refused = await fake.tools.find((tool) => tool.name === "extract")!.execute(extract, toolCall()).then(() => undefined, (error: Error) => error)
+    expect(refused?.message).toMatch(/^CAPABILITY_UNSUPPORTED: cloudflare\/clairic is disabled in this version: its route waits for a compatibility canary/)
+    expect(((await fake.call(TOOLS_RPC_ID, "extract", { sessionID: "ses_1", input: extract })) as { error: { data: { code: string } } }).error.data.code).toBe("CAPABILITY_UNSUPPORTED")
     await fake.call(PLUGIN_ID, "status", {})
     await fake.call(TOOLS_RPC_ID, "describe", {})
     await fake.commands[0]!.execute({ sessionID: "ses_1", delivery: "now" })

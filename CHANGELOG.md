@@ -16,6 +16,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - The operation runtime, wired into the one dispatcher for both host surfaces but reached by no registered tool yet: the ordered pipeline of handoff §7, approved local file reads through a descriptor into immutable snapshots, the OpenRouter transport boundary, a private operation journal with a process mutex and a cross-process lock that is never taken over, operation-keyed reservations at the request, session and rolling 24-hour scopes, and settlement that keeps the reservation when the cost is unknown.
 - Failure codes for operations: `CAPABILITY_UNSUPPORTED`, `UNSAFE_PATH`, `SOURCE_CHANGED`, `SOURCE_TYPE`, `SOURCE_LIMIT`, `CONTEXT_LIMIT`, `AUTH_REQUIRED`, `AUTH_REJECTED`, `PRICE_UNKNOWN`, `BUDGET_EXCEEDED`, `JOURNAL_LOCKED`, `JOURNAL_UNREADABLE`, `PROVIDER_ERROR`, `PROVIDER_CONTRACT_CHANGED`, `SUBMISSION_UNKNOWN` and `DEADLINE_EXCEEDED`.
 
+- `inference_extract` (class `send`) with the OpenRouter alpha Extractions adapter: nullable typed fields, evidence as Unicode code-point spans, lists with per-item evidence, reported confidence and null probability kept absent when not reported, diagnostic guesses kept apart from values, deterministic checks as review reasons, a strict consumed-response schema (`PROVIDER_CONTRACT_CHANGED` on a changed field or type), exact usage read from the answer's literal and rounded up, and an exact quote. Every route stays disabled until its compatibility canary passes.
+- A per-field `nullThreshold`, refused locally where the route does not take it (Clairic lists, ScaleDown, unknown support); Clairic's image limits enforced locally.
+- Catalog drift as a compatibility status that never enables a model, and a per-route canary status the fixture requires before a route can be enabled.
+- `scripts/canary-extractions.ts`: the opt-in live canary (text, image, PDF, malformed request, catalog), refusing without an explicit key, budget and acknowledgement.
+
 ### Changed
 
 - Status lists an agent as unguarded when its own rules would run any non-read Inference action without asking, registered or planned, not only the planned ones.

@@ -138,6 +138,9 @@ export function exclusions(request: PlanRequest, route: RouteCapability, context
     const types = fieldTypesOf(route)
     if (fields.some((field) => !types.includes(field.type) || (field.type === "list" && !route.listItemTypes.includes(field.items)))) reasons.add("FIELD_TYPE_UNSUPPORTED")
     if (fields.length > config.limits.maxFields) reasons.add("FIELD_LIMIT")
+    // A null threshold only where the route documents it, and never on a kind it refuses: an unknown is a refusal.
+    const thresholds = route.nullThreshold
+    if (fields.some((field) => field.nullThreshold !== undefined && (thresholds.supported !== true || thresholds.unsupportedOn.includes(field.type)))) reasons.add("NULL_THRESHOLD_UNSUPPORTED")
   }
   if (request.task === "decide") {
     if (request.input.questionSet !== undefined) reasons.add("QUESTION_SET_UNKNOWN")
@@ -170,6 +173,9 @@ export function quoteFor(route: RouteCapability | undefined, source: PlanResult[
     return { kind: "unavailable", basis: "none", freshness, unknowns: [route ? `no price for ${route.model} in the reviewed sources` : "no route is selected"] }
   }
   const unknowns: string[] = []
+  // A per-token price is a ceiling only through a ceiling the provider documents (see RouteCapability.pricing.ceiling).
+  if ((pricing.perMillionInputTokens !== undefined || pricing.perMillionOutputTokens !== undefined) && pricing.ceiling !== undefined)
+    return { kind: "upper_bound", currency: "USD", amount: pricing.ceiling.amount, basis: "fixture", priceRevision: pricing.revision, freshness, unknowns }
   if (pricing.perRequest !== undefined && pricing.perMillionInputTokens === undefined && pricing.perMillionOutputTokens === undefined) {
     return pricing.upperBound
       ? { kind: "upper_bound", currency: "USD", amount: pricing.perRequest, basis: "fixture", priceRevision: pricing.revision, freshness, unknowns }

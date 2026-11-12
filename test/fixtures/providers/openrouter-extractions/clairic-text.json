@@ -1,0 +1,78 @@
+{
+  "id": "gen-extract-fixture-0001",
+  "model": "cloudflare/clairic",
+  "object": "extraction",
+  "answers": {
+    "name": {
+      "value": "Zoé",
+      "confidence": 0.91,
+      "evidence": [
+        {
+          "start": 2,
+          "end": 6,
+          "text": "Zoé"
+        }
+      ]
+    },
+    "currency": {
+      "value": "EUR",
+      "confidence": 0.97,
+      "null_probability": 0.01,
+      "evidence": [
+        {
+          "start": 10,
+          "end": 13
+        }
+      ]
+    },
+    "total": {
+      "value": 120.00,
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "start": 14,
+          "end": 20,
+          "text": "120.00"
+        }
+      ]
+    },
+    "due_on": {
+      "value": null,
+      "null_probability": 0.93,
+      "guess": "2026-12-01",
+      "evidence": []
+    },
+    "items": {
+      "value": [
+        "pens",
+        "ink"
+      ],
+      "confidence": 0.7,
+      "items": [
+        {
+          "value": "pens",
+          "evidence": [
+            {
+              "start": 40,
+              "end": 44
+            }
+          ]
+        },
+        {
+          "value": "ink"
+        }
+      ]
+    }
+  },
+  "usage": {
+    "prompt_tokens": 61,
+    "completion_tokens": 40,
+    "cost": 0.000012345678901234,
+    "cost_details": {
+      "upstream_inference_cost": 0.00001
+    }
+  },
+  "diagnostics": {
+    "latency_ms": 812
+  }
+}

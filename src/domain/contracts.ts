@@ -22,7 +22,8 @@ export const ModelId = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-
 export const ProfileName = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/, "must be lowercase letters, digits and dashes, starting with a letter")
 /** A field or question key: a stable identifier the result keeps. */
 export const Key = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, "must be lowercase letters, digits and underscores, starting with a letter, at most 64 characters")
-const MAX_TEXT = 1_000_000
+/** The longest text a field value, guess or list item may be (UTF-16 units, as zod counts). */
+export const MAX_TEXT = 1_000_000
 
 // --- 5.1 Source and artifact references ---------------------------------------------------------------------------
 
@@ -187,29 +188,38 @@ export function InferenceResult<T extends z.ZodType>(data: T) {
 
 const description = bounded(1000).optional().describe("What the field means, in plain words. Sent to the provider as a hint, never as an instruction to change anything.")
 const required = z.boolean().optional().describe("Plugin-only: the acceptance profile reviews a result that leaves this field empty. Never sent to the provider.")
+const nullThreshold = z
+  .number()
+  .finite()
+  .min(0)
+  .max(1)
+  .optional()
+  .describe("Answer null when the provider's null probability is at least this. Only on routes and field kinds that support it; Clairic does not on lists, ScaleDown not at all. Refused locally otherwise.")
 
 /** The field kinds this version accepts. estimate and forecast stay out until they have their own result and evaluation. */
 export const FIELD_TYPES = ["text", "number", "date", "time", "datetime", "duration", "list"] as const
 export type FieldType = (typeof FIELD_TYPES)[number]
 
 export const ExtractField = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("text"), description, required }),
+  z.strictObject({ type: z.literal("text"), description, required, nullThreshold }),
   z.strictObject({
     type: z.literal("number"),
     description,
     required,
+    nullThreshold,
     decimals: z.number().int().min(0).max(12).optional(),
     integer: z.boolean().optional(),
     unit: bounded(32).optional().describe("The unit the value is expected in, such as EUR or kg. Conversion is a separate, explicit step."),
   }),
-  z.strictObject({ type: z.literal("date"), description, required }),
-  z.strictObject({ type: z.literal("time"), description, required }),
-  z.strictObject({ type: z.literal("datetime"), description, required }),
-  z.strictObject({ type: z.literal("duration"), description, required }),
+  z.strictObject({ type: z.literal("date"), description, required, nullThreshold }),
+  z.strictObject({ type: z.literal("time"), description, required, nullThreshold }),
+  z.strictObject({ type: z.literal("datetime"), description, required, nullThreshold }),
+  z.strictObject({ type: z.literal("duration"), description, required, nullThreshold }),
   z.strictObject({
     type: z.literal("list"),
     description,
     required,
+    nullThreshold,
     items: z.literal("text").describe("Only lists of text. A list of text is not a table of line items."),
     maxItems: z.number().int().min(1).max(256).optional(),
   }),
@@ -305,6 +315,54 @@ export const ReadInput = z
   })
   .superRefine(oneRoute)
 
+// --- 5.4 Extraction data ---------------------------------------------------------------------------------------------
+
+/** Field-level review reasons. A reason is information for the caller, not an error. */
+export const FIELD_REVIEW = [
+  "FIELD_ABSENT",
+  "REQUIRED_FIELD_ABSENT",
+  "CONFIDENCE_MISSING",
+  "EVIDENCE_UNAVAILABLE",
+  "EVIDENCE_MISMATCH",
+  "VALIDATION_FAILED",
+  "PROVIDER_TRUNCATED",
+] as const
+
+const scalar = z.union([z.string().max(MAX_TEXT), z.number().finite()])
+/** The longest number literal kept in `exact`. A longer one is refused by the adapter, never cut. */
+export const MAX_LITERAL = 1024
+const probability = z.number().finite().min(0).max(1)
+
+export const ExtractedField = z
+  .strictObject({
+    type: z.enum(FIELD_TYPES),
+    value: z
+      .union([scalar, z.array(z.string().max(MAX_TEXT)).max(256), z.null()])
+      .describe("The provider's answer, or null when the source does not state it. null is a result, never an error, and a guess never fills it."),
+    exact: z.string().max(MAX_LITERAL).optional().describe("A number exactly as the provider wrote it, never shortened; `value` is its float for convenience. Use `exact` for money."),
+    derivation: z.enum(["extracted", "unknown"]).describe("extracted: located in the source by the provider; unknown: no value."),
+    confidence: probability.optional().describe("The provider's reported confidence. A model statistic, not calibrated accuracy. Absent when not reported, never 0."),
+    nullProbability: probability.optional().describe("The provider's reported probability that the source does not state the field."),
+    spellingConfidence: probability.optional(),
+    guess: z
+      .union([scalar, z.array(z.string().max(MAX_TEXT)).max(256)])
+      .optional()
+      .describe("A diagnostic guess for an absent field. Never the value; never use it as one."),
+    evidence: z.array(EvidenceRef).max(64).describe("Where the value was observed, in Unicode code points of the exact source text."),
+    items: z
+      .array(z.strictObject({ value: z.string().max(MAX_TEXT), evidence: z.array(EvidenceRef).max(16) }))
+      .max(256)
+      .optional()
+      .describe("For a list: each item with its own evidence. An item without a span keeps an empty list; offsets are never invented."),
+    review: z.array(z.enum(FIELD_REVIEW)).max(FIELD_REVIEW.length),
+  })
+  .describe("One extracted field: the nullable typed value with everything needed to judge it.")
+
+export const ExtractData = z.strictObject({ fields: z.record(Key, ExtractedField) }).describe("data of an extract result: one entry per requested field, by its key.")
+
+/** The extract tool's output: the common envelope around ExtractData. */
+export const ExtractResult = InferenceResult(ExtractData)
+
 // --- Registered tool inputs and outputs (PR 1) ---------------------------------------------------------------------
 
 export const StatusInput = z.strictObject({})
@@ -337,6 +395,7 @@ export const EXCLUSIONS = [
   "FIELD_TYPE_UNSUPPORTED",
   "QUESTION_TYPE_UNSUPPORTED",
   "FIELD_LIMIT",
+  "NULL_THRESHOLD_UNSUPPORTED",
   "PRICE_UNKNOWN",
   "ZDR_UNKNOWN",
   "PROFILE_UNKNOWN",
@@ -421,6 +480,7 @@ export const CONTRACTS = {
   EvidenceRef,
   Coverage,
   Usage,
+  ExtractData,
   InferenceResult: InferenceResult(z.unknown().describe("The operation's data: { fields } for extract, { answers } for decide.")),
   ExtractField,
   QuestionInput,

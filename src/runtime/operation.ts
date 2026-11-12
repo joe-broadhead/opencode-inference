@@ -104,6 +104,7 @@ const UNSUPPORTED: readonly Exclusion[] = [
   "FIELD_TYPE_UNSUPPORTED",
   "QUESTION_TYPE_UNSUPPORTED",
   "FIELD_LIMIT",
+  "NULL_THRESHOLD_UNSUPPORTED",
   "ZDR_UNKNOWN",
   "QUESTION_SET_UNKNOWN",
 ]
@@ -118,6 +119,14 @@ export function resolveRoute(operation: Operation, input: OperationInput, config
   // The dispatcher only runs registered tools, so the operation is implemented by definition here.
   const reasons = exclusions({ task: operation, input } as never, route, { config, fixture, implemented: () => true, now: new Date(0) })
   if (reasons.includes("MODULE_DISABLED")) throw new InferenceError("MODULE_DISABLED")
+  // A disabled route says why and what would change it, before price or anything else: no route runs until its
+  // compatibility canary has verified the reviewed wire contract against the live API.
+  if (reasons.includes("ROUTE_DISABLED") || reasons.includes("ROUTE_UNCONFIRMED"))
+    throw new InferenceError(
+      "CAPABILITY_UNSUPPORTED",
+      `${model} is disabled in this version: its route waits for a compatibility canary against the live API. Nothing was read or sent.`,
+      "Check routes with inference_capabilities or inference_plan; a later release enables a route once it is verified.",
+    )
   if (reasons.includes("PRICE_UNKNOWN")) throw new InferenceError("PRICE_UNKNOWN", `No price, or no upper bound, is known for ${model}, and the spend options require one.`)
   const blocking = reasons.filter((reason) => UNSUPPORTED.includes(reason))
   if (blocking.length) throw new InferenceError("CAPABILITY_UNSUPPORTED", `${model} cannot serve this request: ${blocking.join(", ")}.`)

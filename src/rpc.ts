@@ -104,6 +104,8 @@ export const rulesToPaste = (view: Pick<StatusView, "permissions">) => {
 }
 
 const MODULE_TEXT: { readonly [M in Module]: string } = { extractions: "Extractions", decisions: "Decisions", understanding: "Reading" }
+/** The tool each module enables, to tell an implemented module from a reserved one. */
+const MODULE_TOOL: { readonly [M in Module]: string } = { extractions: "inference_extract", decisions: "inference_decide", understanding: "inference_read" }
 const CONNECTION_TEXT = {
   connected: "connected (OpenRouter key)",
   not_connected: "not connected",
@@ -127,7 +129,7 @@ export function statusLines(view: StatusView, { paste, agents }: { readonly past
     ),
     line("Account", "the key's own OpenRouter account; Inference never reads it in this version", true),
     line("Access", `${view.access}. Reads always run; sends ${view.access === "all" ? "run" : view.access === "ask-changes" ? "ask first" : "are denied"}`, true),
-    ...MODULES.map((name) => line(MODULE_TEXT[name], view.modules[name].enabled ? "on (not implemented in this version)" : "off", true)),
+    ...MODULES.map((name) => line(MODULE_TEXT[name], view.modules[name].enabled ? (view.tools.registered.includes(MODULE_TOOL[name]) ? "on" : "on (not implemented in this version)") : "off", true)),
     line("Capabilities", `${caps.basis}-derived fixture ${caps.revision}, reviewed ${caps.reviewedOn} (${caps.ageDays} days ago${caps.stale ? ", stale" : ""}); ${caps.enabledRoutes} of ${caps.routes} routes enabled`, !caps.stale),
     line("Spend", `limits ${view.spend.requestUsd} per request, ${view.spend.sessionUsd} per session, ${view.spend.rolling24hUsd} per 24 hours (USD); nothing is tracked because nothing is sent`, true),
     line("Tools", `${view.tools.registered.length} registered (${view.tools.registered.join(", ")}); planned: ${view.tools.planned.join(", ")}`, true),
