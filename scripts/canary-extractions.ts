@@ -5,6 +5,7 @@
 //   OPENROUTER_CANARY_KEY=<key>   an OpenRouter key in the environment, used only for this run (ideally a key with its
 //                                 own credit limit on OpenRouter: that limit is the stronger, independent cap)
 //   --budget-usd <amount>         the most this run may spend, at most 0.10
+//   --per-call-usd <amount>       the most one call may cost (its worst case), at most the budget
 //   --yes-spend                   an explicit acknowledgement that the run sends requests that are charged
 //
 // and it refuses in CI (CI set). Separate canaries, chosen with --only (default: all):
@@ -14,17 +15,19 @@
 //   pdf        one tiny PDF ScaleDown extraction
 //   malformed  a Clairic request that breaks a documented constraint (null_threshold on a list): OpenRouter should refuse it
 //
-// At most four POSTs, each through the plugin's own transport and adapter; the run stops once reported spend reaches
-// the budget. --dry-run prints what would be sent and sends nothing. It prints a JSON report with the suggested canary
+// At most four POSTs, each through the plugin's own transport and adapter. Before each POST the spend so far plus the
+// call's worst case must fit the budget, so the run cannot overshoot it by its own accounting; after it, the reported
+// charge is counted whatever the HTTP status, or the worst case when none is reported (canary-budget.ts). --dry-run prints what would be sent and sends nothing. It prints a JSON report with the suggested canary
 // status per route; it never edits the fixture or enables a route: a person reviews the report and changes the fixture.
 import { ExtractInput } from "../src/domain/contracts.js"
 import { InferenceError } from "../src/domain/errors.js"
-import { add, compare, format, money, zero } from "../src/domain/money.js"
+import { compare, format, money } from "../src/domain/money.js"
 import { catalogDrift, catalogModels } from "../src/providers/openrouter/catalog.js"
 import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../src/providers/openrouter/capabilities.js"
 import { extractionsAdapter } from "../src/providers/openrouter/extractions.js"
 import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
 import { snapshot, type FileAccess, type Snapshot } from "../src/runtime/sources.js"
+import { CanaryBudget } from "./canary-budget.js"
 
 const CANARIES = ["catalog", "text", "image", "pdf", "malformed"] as const
 type Canary = (typeof CANARIES)[number]
@@ -32,7 +35,7 @@ const MAX_BUDGET = money("0.10")
 
 function refuse(reason: string): never {
   console.error(`canary-extractions: refused: ${reason}`)
-  console.error("usage: OPENROUTER_CANARY_KEY=<key> bun scripts/canary-extractions.ts --budget-usd <at most 0.10> --yes-spend [--only text,image,pdf,malformed,catalog] [--dry-run]")
+  console.error("usage: OPENROUTER_CANARY_KEY=<key> bun scripts/canary-extractions.ts --budget-usd <at most 0.10> --per-call-usd <worst case per call> --yes-spend [--only text,image,pdf,malformed,catalog] [--dry-run]")
   process.exit(2)
 }
 
@@ -42,7 +45,7 @@ const value = (name: string) => {
   const index = args.indexOf(name)
   return index === -1 ? undefined : args[index + 1]
 }
-for (const arg of args) if (arg.startsWith("--") && !["--budget-usd", "--yes-spend", "--only", "--dry-run"].includes(arg)) refuse(`unknown option ${arg}`)
+for (const arg of args) if (arg.startsWith("--") && !["--budget-usd", "--per-call-usd", "--yes-spend", "--only", "--dry-run"].includes(arg)) refuse(`unknown option ${arg}`)
 if (process.env.CI) refuse("CI is set: the canary spends money and never runs in CI")
 if (!flag("--yes-spend")) refuse("--yes-spend is required: the canary sends requests that are charged")
 const budgetText = value("--budget-usd")
@@ -55,6 +58,16 @@ try {
 }
 if (compare(budget, MAX_BUDGET) > 0) refuse("--budget-usd is above the canary's ceiling of 0.10")
 if (budget.units === 0n) refuse("--budget-usd must be above zero")
+const perCallText = value("--per-call-usd")
+if (perCallText === undefined) refuse("--per-call-usd is required: the worst case of one call, checked before each call")
+let perCall
+try {
+  perCall = money(perCallText)
+} catch {
+  refuse("--per-call-usd must be an exact decimal such as 0.005")
+}
+if (perCall.units === 0n || compare(perCall, budget) > 0) refuse("--per-call-usd must be above zero and at most --budget-usd")
+const spend = new CanaryBudget(budget, perCall)
 const key = process.env.OPENROUTER_CANARY_KEY
 if (!key) refuse("OPENROUTER_CANARY_KEY is not set: the canary uses only an explicitly given key, never OpenCode's")
 const only = (value("--only") ?? CANARIES.join(",")).split(",")
@@ -100,7 +113,7 @@ const cases: Case[] = [
   { canary: "malformed", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "a, b" }, fields: { names: { type: "list", items: "text" } } }, source: () => snapshot({ kind: "text", text: "a, b" }, noFiles, route("cloudflare/clairic"), signal), refused: true },
 ]
 
-const report: Record<string, unknown> = { at: new Date().toISOString(), origin: OPENROUTER_ORIGIN, budgetUsd: format(budget), dryRun }
+const report: Record<string, unknown> = { at: new Date().toISOString(), origin: OPENROUTER_ORIGIN, budgetUsd: format(budget), perCallUsd: format(perCall), dryRun }
 
 if (selected.has("catalog")) {
   if (dryRun) report["catalog"] = { would: "GET /api/v1/models?endpoints=/api/alpha/extractions (no key)" }
@@ -118,7 +131,6 @@ const integration = {
   },
 }
 const transport = createTransport(integration as never)
-let spent = zero()
 const results: Record<string, unknown>[] = []
 for (const item of cases) {
   if (!selected.has(item.canary)) continue
@@ -129,36 +141,43 @@ for (const item of cases) {
     const body = { model: item.route.model, state: source.text(), fields: { names: { type: "list", items: { type: "text" }, null_threshold: 0.5 } }, provider: { allow_fallbacks: false } }
     request = { path: "/api/alpha/extractions", body: new TextEncoder().encode(JSON.stringify(body)) }
   } else request = extractionsAdapter.request(input, source, item.route)
-  if (dryRun) {
-    results.push({ canary: item.canary, model: item.route.model, would: `POST ${request.path}`, bytes: request.body.byteLength })
+  // The worst case must fit BEFORE the call, in a dry run too, so the report shows what a real run would skip.
+  if (!spend.canAfford()) {
+    results.push({ canary: item.canary, model: item.route.model, skipped: "the remaining budget cannot cover this call's worst case" })
     continue
   }
-  if (compare(spent, budget) >= 0) {
-    results.push({ canary: item.canary, skipped: "the budget is spent" })
+  if (dryRun) {
+    spend.record(undefined)
+    results.push({ canary: item.canary, model: item.route.model, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall) })
     continue
   }
   const account = await transport.account()
   if (account === undefined || account === "needs_auth") throw new Error("the canary key is not usable")
+  let answer: Uint8Array | undefined
   try {
     const response = await transport.post({ ...request, account, deadlineMs: 30_000, maxRequestBytes: 16 * 1024 * 1024, maxResponseBytes: 1024 * 1024, signal })
-    if (item.refused) {
-      results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: response.status >= 400 && response.status < 500 })
-      continue
-    }
-    if (response.status < 200 || response.status > 299) {
-      results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: false })
+    answer = response.body
+    const ok = response.status >= 200 && response.status <= 299
+    if (item.refused || !ok) {
+      // An error answer can still be charged: count what it reports, or the worst case.
+      const counted = spend.recordAnswer(answer)
+      results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: item.refused ? response.status >= 400 && response.status < 500 : false, counted })
       continue
     }
     const parsed = extractionsAdapter.parse(response, { source, route: item.route, input })
-    for (const charge of parsed.usage.charges) if (charge.currency === "USD") spent = add(spent, money(charge.amount))
-    results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: true, usage: parsed.usage, review: parsed.review.reasons })
+    const usd = parsed.usage.charges.filter((charge) => charge.currency === "USD")
+    const counted = parsed.usage.costStatus !== "known" || usd.length === 0 ? spend.record(undefined) : usd.map((charge) => spend.record(charge.amount)).join(" + ")
+    results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: true, usage: parsed.usage, review: parsed.review.reasons, counted })
   } catch (error) {
+    // A request that may have left is counted: what its answer reports, or the worst case. One that did not, is not.
+    const sent = !(error instanceof TransportError) || error.sent
+    const counted = sent ? spend.recordAnswer(answer) : "0"
     const reason = error instanceof InferenceError ? error.code : error instanceof TransportError ? `transport ${error.kind}` : "error"
-    results.push({ canary: item.canary, model: item.route.model, passed: false, reason })
+    results.push({ canary: item.canary, model: item.route.model, passed: false, reason, counted })
   }
 }
 report["results"] = results
-report["spentUsd"] = format(spent)
+report["spentUsd"] = spend.total
 report["next"] = dryRun
   ? "Dry run: nothing was sent."
   : "Review the results. Record a passed canary in src/providers/openrouter/capabilities.ts (route.canary and a new revision) in its own reviewed change; the canary never edits the fixture or enables a route."

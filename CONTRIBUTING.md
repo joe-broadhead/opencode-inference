@@ -52,10 +52,12 @@ UPDATE_GENERATED=1 bun test test/unit/registry.test.ts
 check runs it. To run it, use a dedicated OpenRouter key with its own credit limit:
 
 ```sh
-OPENROUTER_CANARY_KEY=<key> bun scripts/canary-extractions.ts --budget-usd 0.02 --yes-spend --only catalog,text
+OPENROUTER_CANARY_KEY=<key> bun scripts/canary-extractions.ts --budget-usd 0.02 --per-call-usd 0.005 --yes-spend --only catalog,text
 ```
 
-It refuses in CI and without the key, a budget of at most 0.10 and `--yes-spend`; `--dry-run` prints what it would send.
+It refuses in CI and without the key, a budget of at most 0.10, a per-call worst case and `--yes-spend`. Before each call
+the spend so far plus that worst case must fit the budget; after it, the reported charge counts whatever the HTTP
+status, or the worst case when none is reported. `--dry-run` prints what it would send and skip.
 It prints a report and never edits the fixture: record a passed canary in `src/providers/openrouter/capabilities.ts`
 (the route's `canary`, a new `revision`) in its own reviewed change before enabling a route.
 

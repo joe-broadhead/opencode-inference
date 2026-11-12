@@ -14,13 +14,16 @@ test("refuses without --yes-spend, a budget, a key, within the ceiling, and refu
   const cases: [string[], Record<string, string>, RegExp][] = [
     [[], KEY, /--yes-spend is required/],
     [["--yes-spend"], KEY, /--budget-usd is required/],
-    [["--yes-spend", "--budget-usd", "0.02"], {}, /OPENROUTER_CANARY_KEY is not set/],
+    [["--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0.01"], {}, /OPENROUTER_CANARY_KEY is not set/],
+    [["--yes-spend", "--budget-usd", "0.02"], KEY, /--per-call-usd is required/],
+    [["--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0.03"], KEY, /at most --budget-usd/],
+    [["--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0"], KEY, /above zero/],
     [["--yes-spend", "--budget-usd", "0.5"], KEY, /above the canary's ceiling of 0\.10/],
     [["--yes-spend", "--budget-usd", "0"], KEY, /must be above zero/],
     [["--yes-spend", "--budget-usd", "1e-2"], KEY, /must be an exact decimal/],
-    [["--yes-spend", "--budget-usd", "0.02", "--only", "everything"], KEY, /unknown canary everything/],
+    [["--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0.01", "--only", "everything"], KEY, /unknown canary everything/],
     [["--yes-spend", "--budget-usd", "0.02", "--force"], KEY, /unknown option --force/],
-    [["--yes-spend", "--budget-usd", "0.02"], { ...KEY, CI: "true" }, /CI is set/],
+    [["--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0.01"], { ...KEY, CI: "true" }, /CI is set/],
   ]
   for (const [args, env, message] of cases) {
     const result = run(args, env)
@@ -30,17 +33,37 @@ test("refuses without --yes-spend, a budget, a key, within the ceiling, and refu
   }
 })
 
-test("a dry run prints what would be sent and sends nothing", () => {
-  const result = run(["--yes-spend", "--budget-usd", "0.02", "--dry-run"], KEY)
+test("a dry run prints what would be sent, checks each call's worst case first, and sends nothing", () => {
+  // A budget of 0.02 at 0.01 a call covers two calls: the third and fourth are skipped before they would be sent.
+  const result = run(["--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0.01", "--dry-run"], KEY)
   expect(result.code).toBe(0)
-  const report = JSON.parse(result.out) as { results: { canary: string; would: string }[]; next: string; catalog: { would: string } }
-  expect(report.results.map((item) => [item.canary, item.would])).toEqual([
+  const report = JSON.parse(result.out) as { results: { canary: string; would?: string; skipped?: string }[]; next: string; catalog: { would: string }; spentUsd: string }
+  expect(report.results.map((item) => [item.canary, item.would ?? item.skipped])).toEqual([
     ["text", "POST /api/alpha/extractions"],
     ["image", "POST /api/alpha/extractions"],
-    ["pdf", "POST /api/alpha/extractions"],
-    ["malformed", "POST /api/alpha/extractions"],
+    ["pdf", "the remaining budget cannot cover this call's worst case"],
+    ["malformed", "the remaining budget cannot cover this call's worst case"],
   ])
+  expect(report.spentUsd).toBe("0.02")
   expect(report.catalog.would).toMatch(/no key/)
   expect(report.next).toBe("Dry run: nothing was sent.")
   expect(result.out).not.toContain(KEY.OPENROUTER_CANARY_KEY)
 }, 30_000)
+
+test("the budget counts reported charges on any status, the worst case when none is reported, and never lets a call overshoot", async () => {
+  const { CanaryBudget, reportedCost } = await import("../../scripts/canary-budget.js")
+  const { money } = await import("../../src/domain/money.js")
+  const budget = new CanaryBudget(money("0.03"), money("0.01"))
+  const body = (text: string) => new TextEncoder().encode(text)
+  expect(budget.canAfford()).toBe(true)
+  // A 402 or 500 answer that reports usage is counted by what it reports, read exactly and rounded up.
+  expect(budget.recordAnswer(body('{"error":{"code":402},"usage":{"cost":0.0000000000001}}'))).toBe("0.000000000001")
+  // An error answer without usage, or no answer at all, counts the worst case.
+  expect(budget.recordAnswer(body('{"error":"boom"}'))).toBe("0.01")
+  expect(budget.recordAnswer(undefined)).toBe("0.01")
+  expect(budget.total).toBe("0.020000000001")
+  // 0.020000000001 + 0.01 would pass 0.03: the next call is refused BEFORE it is made.
+  expect(budget.canAfford()).toBe(false)
+  expect(reportedCost(body("not json"))).toBeUndefined()
+  expect(reportedCost(body('{"usage":{"cost":"0.1"}}'))).toBeUndefined()
+})
