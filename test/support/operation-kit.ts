@@ -45,6 +45,8 @@ export const probeRoute = (overrides: Partial<RouteCapability> = {}): RouteCapab
   nullThreshold: { supported: true, unsupportedOn: [] },
   pricing: { revision: "test-1", currency: "USD", perRequest: "0.01", upperBound: true },
   zdr: "unknown",
+  // Test routes stand for verified ones.
+  canary: { status: "passed", on: "2026-11-12" },
   notes: [],
   ...overrides,
 })

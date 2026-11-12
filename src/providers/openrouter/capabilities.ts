@@ -56,6 +56,9 @@ export const RouteCapability = z.strictObject({
     .nullable()
     .describe("null: no price in the reviewed sources."),
   zdr: z.enum(["supported", "unsupported", "unknown"]),
+  canary: z
+    .strictObject({ status: z.enum(["not_run", "passed", "failed"]), on: z.iso.date().nullable() })
+    .describe("The opt-in compatibility canary against the live API (scripts/canary-extractions.ts). A route is enabled only after it passed."),
   notes: z.array(z.string().max(512)).max(8),
 })
 export type RouteCapability = z.infer<typeof RouteCapability>
@@ -69,18 +72,28 @@ export const CapabilityFixture = z.strictObject({
   verified: z.literal(false),
   notice: z.string().max(1024),
   sources: z.array(z.strictObject({ id: z.string().max(8), title: z.string().max(256), url: z.url() })).max(16),
-  routes: z.array(RouteCapability).max(32),
+  catalog: z
+    .strictObject({ checkedOn: z.iso.date().nullable(), status: z.enum(["not_checked", "in_step", "drift"]) })
+    .describe("The last comparison with OpenRouter's model catalog (catalog.ts). Drift is reported, never acted on: a new model is a disabled candidate."),
+  routes: z
+    .array(RouteCapability)
+    .max(32)
+    .superRefine((routes, context) => {
+      for (const route of routes)
+        if (route.enabled && route.canary.status !== "passed") context.addIssue({ code: "custom", message: `${route.model} is enabled without a passed compatibility canary` })
+    }),
 })
 export type CapabilityFixture = z.infer<typeof CapabilityFixture>
 
 const EXTRACTIONS = "POST /api/alpha/extractions"
 const DECISIONS = "POST /api/alpha/decisions"
 const NO_IMAGES = null
+const NOT_RUN = { status: "not_run", on: null } as const
 
 export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.parse({
   schemaVersion: 1,
   provider: "openrouter",
-  revision: "openrouter-2026-11-11.1",
+  revision: "openrouter-2026-11-11.2",
   reviewedOn: "2026-11-11",
   basis: "documentation",
   verified: false,
@@ -92,6 +105,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
     { id: "A4", title: "OpenRouter alpha Extractions API reference", url: "https://openrouter.ai/docs/api/api-reference/alphaextractions/submit-an-extractions-request" },
     { id: "D1", title: "OpenRouter alpha Decisions API reference", url: "https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request" },
   ],
+  catalog: { checkedOn: null, status: "not_checked" },
   routes: [
     {
       id: "openrouter:extract:cloudflare/clairic",
@@ -116,6 +130,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       nullThreshold: { supported: true, unsupportedOn: ["list", "estimate", "forecast"] },
       pricing: null,
       zdr: "unknown",
+      canary: NOT_RUN,
       notes: ["Rich typed fields from text and supported images (A2).", "No direct PDF input: prepare a PDF as text or page images first.", "Image limits: four images, 4 MiB each, 8 MiB decoded in total; 16 MiB request body (A2)."],
     },
     {
@@ -141,6 +156,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       nullThreshold: { supported: false, unsupportedOn: [] },
       pricing: null,
       zdr: "unknown",
+      canary: NOT_RUN,
       notes: ["One PDF, PNG or JPEG, or text (A2).", "Text and lists of text only: numbers and dates need an explicit later conversion.", "Does not combine substantive text state with a document; rejects null_threshold."],
     },
     {
@@ -161,6 +177,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       nullThreshold: { supported: null, unsupportedOn: [] },
       pricing: null,
       zdr: "unknown",
+      canary: NOT_RUN,
       notes: ["Text entities only; no media on the extraction route (A1, A2).", "Enable only after evaluation against a real workload."],
     },
     {
@@ -181,6 +198,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       nullThreshold: { supported: null, unsupportedOn: [] },
       pricing: null,
       zdr: "unknown",
+      canary: NOT_RUN,
       notes: ["Listed in the current guide, but its model page was not found during review. Discovery candidate only."],
     },
     {
@@ -201,6 +219,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       nullThreshold: { supported: null, unsupportedOn: [] },
       pricing: null,
       zdr: "unknown",
+      canary: NOT_RUN,
       notes: [
         "Named questions in the request, answers in the response; per-question refusal (D1).",
         "Box answers and image input are documented but not adopted in this fixture: images are recorded as not reviewed.",

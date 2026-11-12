@@ -25,7 +25,7 @@ const fixture = {
   ...OPENROUTER_CAPABILITIES,
   revision: "host-test-1",
   routes: OPENROUTER_CAPABILITIES.routes.map((route) =>
-    route.model === "cloudflare/clairic" ? { ...route, enabled: true, pricing: { revision: "host-test", currency: "USD" as const, perRequest: "0.004", upperBound: true } } : route,
+    route.model === "cloudflare/clairic" ? { ...route, enabled: true, canary: { status: "passed" as const, on: "2026-11-12" }, pricing: { revision: "host-test", currency: "USD" as const, perRequest: "0.004", upperBound: true } } : route,
   ),
 }
 
