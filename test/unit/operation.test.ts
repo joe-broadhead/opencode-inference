@@ -9,6 +9,7 @@ import { TransportError } from "../../src/providers/openrouter/http.js"
 import { InferenceError } from "../../src/domain/errors.js"
 import { spyNetwork } from "../support/network-spy.js"
 import { pathInput, probeAdapter, probeHarness, probeRoute, textInput } from "../support/operation-kit.js"
+import { tempRoot } from "../support/temp.js"
 
 let network: ReturnType<typeof spyNetwork>
 const logged: unknown[][] = []
@@ -76,6 +77,30 @@ describe("the happy path on both surfaces", () => {
     await harness.model(pathInput(join(harness.root, "outside", "a.txt")))
     expect(harness.fake.asserted.map((item) => item.action)).toEqual(["external_directory", "read"])
     expect(harness.fake.asserted[0]!.resources).toEqual([`${join(harness.root, "outside")}/*`])
+  })
+
+  test("outside the project, a linked folder is asked for, and read from, by its real path, never the link path", async () => {
+    const outside = join(tempRoot("outside"), "x")
+    mkdirSync(join(outside, "realdir"), { recursive: true })
+    writeFileSync(join(outside, "realdir", "secret.txt"), "the real folder's file")
+    symlinkSync(join(outside, "realdir"), join(outside, "extdir"))
+    const harness = await probeHarness()
+    await harness.model(pathInput(join(outside, "extdir", "secret.txt")))
+    expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([
+      ["external_directory", [`${join(outside, "realdir")}/*`]],
+      ["read", [join(outside, "realdir", "secret.txt")]],
+    ])
+    // An agent that allows the link's folder but denies the real one reads nothing.
+    const guarded = await probeHarness({
+      agentRules: [
+        { action: "*", resource: "*", effect: "allow" },
+        { action: "external_directory", resource: `${join(outside, "realdir")}/*`, effect: "deny" },
+        { action: "external_directory", resource: `${join(outside, "extdir")}/*`, effect: "allow" },
+      ],
+    })
+    expect((await failure(guarded.model(pathInput(join(outside, "extdir", "secret.txt"))))).message).toBe("Permission denied: external_directory")
+    expect(guarded.counts.read).toBe(0)
+    expect(guarded.sent).toEqual([])
   })
 
   test("an image is typed by its bytes and sent as a snapshot", async () => {

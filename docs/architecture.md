@@ -190,7 +190,8 @@ release plugs into `ADAPTERS` in `src/host/plugin.ts`.
    read, nothing is sniffed or hashed. `..`, a final symbolic link, a symbolic link anywhere inside the project, a
    non-file, a foreign or expired artifact, and a bundle are refused here.
 4. The host decides: `read` on the file (relative inside the project, absolute outside), after `external_directory`
-   outside the project, in the host read tool's own actions, through the one-argument assert raced against
+   outside the project. Outside the project both name the file's real folder, never a linked one, and the file is read
+   from there, in the host read tool's own actions, through the one-argument assert raced against
    cancellation and fenced after it settles. A denial propagates unchanged; a script's ask is refused by the tools RPC.
 5. The approved file is opened through a descriptor without following a final symbolic link, and must be the same file
    that was approved (device, inode, size, change times) before and after the read; one byte past its size shows it

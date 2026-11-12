@@ -37,6 +37,8 @@ export interface Inspection {
   readonly kind: "file" | "symlink" | "other" | "missing"
   /** True when a component between `root` and the file is a symbolic link (only checked for a path inside `root`). */
   readonly linkedWithinRoot: boolean
+  /** The file's real location: its folder's real path plus its name. Differs from the path when a folder is a link. */
+  readonly real?: string
   readonly identity?: FileIdentity
 }
 
@@ -152,12 +154,17 @@ async function locateFile(path: string, project: Project, files: FileAccess, cla
   if (inspection.kind === "symlink") throw new InferenceError("UNSAFE_PATH", "The source path is a symbolic link.")
   if (inspection.kind === "other" || !inspection.identity) throw new InferenceError("UNSAFE_PATH", "The source path is not a regular file.")
   if (inspection.linkedWithinRoot) throw new InferenceError("UNSAFE_PATH", "The source path passes through a symbolic link inside the project.")
+  if (inspection.real === undefined) throw new InferenceError("UNSAFE_PATH", "The source file's folder could not be resolved.")
+  // Outside the project a folder on the way may be a link. The host is asked about, and the file is read from, the
+  // REAL folder, never the link path: approving `/x/link/*` must not grant the folder it points to.
+  const real = internal ? absolute : inspection.real
+  const realInternal = internal || roots.some((root) => contains(root, real))
   return {
     kind: "file",
-    absolute,
-    internal,
+    absolute: real,
+    internal: realInternal,
     // The host's own read tool names an internal file relative to the location, and an external one absolutely.
-    resource: internal ? slash(relative(project.directory, absolute)) || "." : slash(absolute),
+    resource: realInternal ? slash(relative(project.directory, real)) || "." : slash(real),
     identity: inspection.identity,
     ...(claimed ? { claimed } : {}),
   }

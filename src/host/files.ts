@@ -46,7 +46,7 @@ export const files: FileAccess = {
       const realRoot = await realpath(root).catch(() => undefined)
       if (parent === undefined || realRoot === undefined || join(parent, basename(path)) !== join(realRoot, relative(root, path))) linkedWithinRoot = true
     }
-    return { kind: "file", linkedWithinRoot, identity: identityOf(stats) }
+    return { kind: "file", linkedWithinRoot, identity: identityOf(stats), ...(parent === undefined ? {} : { real: join(parent, basename(path)) }) }
   },
 
   async read(path, expected, maxBytes) {
