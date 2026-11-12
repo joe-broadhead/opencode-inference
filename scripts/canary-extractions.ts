@@ -13,7 +13,8 @@
 //   text       one tiny Clairic text extraction, validated by the adapter's strict response schema
 //   image      one 1x1 PNG Clairic extraction
 //   pdf        one tiny PDF ScaleDown extraction
-//   malformed  a Clairic request that breaks a documented constraint (null_threshold on a list): OpenRouter should refuse it
+//   malformed  a Clairic request that breaks the API reference's own schema (a list field without its required `items`,
+//              canary-malformed.ts): OpenRouter must refuse it with a 4xx
 //
 // At most four POSTs, each through the plugin's own transport and adapter. Before each POST the spend so far plus the
 // call's worst case must fit the budget, so the run cannot overshoot it by its own accounting; after it, the reported
@@ -31,6 +32,7 @@ import { extractionsAdapter } from "../src/providers/openrouter/extractions.js"
 import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
 import { snapshot, type FileAccess, type Snapshot } from "../src/runtime/sources.js"
 import { canaryArgs } from "./canary-cli.js"
+import { BREAKS, malformedRequest } from "./canary-malformed.js"
 import { failureOf, shapeOf } from "./canary-shape.js"
 
 const CANARIES = ["catalog", "text", "image", "pdf", "malformed"] as const
@@ -71,7 +73,6 @@ const cases: Case[] = [
   { canary: "text", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "Total EUR 1.00" }, fields: { total: { type: "number", decimals: 2 } } }, source: () => snapshot({ kind: "text", text: "Total EUR 1.00" }, noFiles, route("cloudflare/clairic"), signal) },
   { canary: "image", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "-" }, fields: { caption: { type: "text" } } }, source: async () => image("image/png", PNG, "image") },
   { canary: "pdf", route: route("scaledown/extract"), input: { model: "scaledown/extract", source: { kind: "text", text: "-" }, fields: { title: { type: "text" } } }, source: async () => image("application/pdf", PDF, "pdf") },
-  // Built by hand: the adapter refuses this request locally, which is the point; the canary checks OpenRouter does too.
   { canary: "malformed", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "a, b" }, fields: { names: { type: "list", items: "text" } } }, source: () => snapshot({ kind: "text", text: "a, b" }, noFiles, route("cloudflare/clairic"), signal), refused: true },
 ]
 
@@ -99,10 +100,9 @@ for (const item of cases) {
   const source = await item.source()
   const input = ExtractInput.parse(item.input)
   let request: { path: string; body: Uint8Array }
-  if (item.refused) {
-    const body = { model: item.route.model, state: source.text(), fields: { names: { type: "list", items: "text", null_threshold: 0.5 } }, provider: { allow_fallbacks: false } }
-    request = { path: "/api/alpha/extractions", body: new TextEncoder().encode(JSON.stringify(body)) }
-  } else request = extractionsAdapter.request(input, source, item.route)
+  // Built by hand: the adapter cannot build a request its own contract and the API reference call invalid.
+  if (item.refused) request = malformedRequest("extractions", item.route.model, source.text())
+  else request = extractionsAdapter.request(input, source, item.route)
   // The worst case must fit BEFORE the call, in a dry run too, so the report shows what a real run would skip.
   if (!spend.canAfford()) {
     results.push({ canary: item.canary, model: item.route.model, skipped: "the remaining budget cannot cover this call's worst case" })
@@ -110,7 +110,7 @@ for (const item of cases) {
   }
   if (dryRun) {
     spend.record(undefined)
-    results.push({ canary: item.canary, model: item.route.model, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall), ...(shape ? { shape: "would record the answer's structure" } : {}) })
+    results.push({ canary: item.canary, model: item.route.model, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall), ...(item.refused ? { breaks: BREAKS.extractions } : {}), ...(shape ? { shape: "would record the answer's structure" } : {}) })
     continue
   }
   const account = await transport.account()
@@ -126,7 +126,7 @@ for (const item of cases) {
     if (item.refused || !ok) {
       // An error answer can still be charged: count what it reports, or the worst case.
       const counted = spend.recordAnswer(answer)
-      results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: item.refused ? response.status >= 400 && response.status < 500 : false, counted, ...(structure ? { shape: structure } : {}) })
+      results.push({ canary: item.canary, model: item.route.model, status: response.status, passed: item.refused ? response.status >= 400 && response.status < 500 : false, counted, ...(item.refused ? { breaks: BREAKS.extractions } : {}), ...(structure ? { shape: structure } : {}) })
       continue
     }
     const parsed = extractionsAdapter.parse(response, { source, route: item.route, input })
