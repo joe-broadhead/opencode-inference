@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { InferenceError } from "../../src/domain/errors.js"
-import { add, compare, format, money, sum } from "../../src/domain/money.js"
+import { add, compare, format, money, roundUp, sum } from "../../src/domain/money.js"
 import { createJournalStore, OWNER } from "../../src/host/journal-store.js"
 import { admit, reservationFor, totals } from "../../src/runtime/budget.js"
 import { Journal, JournalDocument } from "../../src/runtime/journal.js"
@@ -36,6 +36,25 @@ describe("money", () => {
     expect(compare(money("1.000000000001"), money("1"))).toBe(1)
     for (const bad of ["1e-3", "-1", ".5", "1.", "0.1234567890123", "NaN", "01"]) expect(() => money(bad)).toThrow()
     expect(() => add(money("1", "USD"), money("1", "credits"))).toThrow(/cannot combine/)
+    // Too fine for 12 places: a coded error, not a raw RangeError.
+    expect(() => money("0.0000000000001")).toThrow(/^PROVIDER_CONTRACT_CHANGED: An amount is not an exact non-negative decimal/)
+    expect(() => reservationFor({ kind: "upper_bound", amount: "0.0000000000001" }, limits("1"))).toThrow(InferenceError)
+  })
+
+  test("roundUp rounds any precision up, never down, to at most 12 places", () => {
+    expect(format(roundUp("0.0000000000001"))).toBe("0.000000000001")
+    expect(format(roundUp("0.000000000000000000001"))).toBe("0.000000000001")
+    expect(format(roundUp("1.23456", 2))).toBe("1.24")
+    expect(format(roundUp("1.2", 2))).toBe("1.2")
+    expect(format(roundUp("1.2300000000000000000", 2))).toBe("1.23")
+    expect(format(roundUp("0.999", 2))).toBe("1")
+    expect(format(roundUp("7", 0))).toBe("7")
+    expect(format(roundUp("7.0001", 0))).toBe("8")
+    expect(format(roundUp("0.05"))).toBe("0.05")
+    // The result is always an exact Money that money() accepts back.
+    expect(format(money(format(roundUp("3.1415926535897932384626", 12))))).toBe("3.14159265359")
+    for (const bad of ["-1", "1e-3", ".5", "01", "x"]) expect(() => roundUp(bad)).toThrow(/^PROVIDER_CONTRACT_CHANGED:/)
+    expect(() => roundUp("1", 13)).toThrow(RangeError)
   })
 })
 

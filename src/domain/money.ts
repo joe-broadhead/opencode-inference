@@ -5,6 +5,8 @@
 // An amount carries its denomination. Only equal denominations are added or compared: credits are never summed with
 // USD, and a conversion needs a documented rate, which this module does not have.
 
+import { InferenceError } from "./errors.js"
+
 const PLACES = 12
 const SCALE = 10n ** BigInt(PLACES)
 const DECIMAL = /^(?:0|[1-9]\d{0,11})(?:\.\d{1,12})?$/
@@ -15,11 +17,28 @@ export interface Money {
   readonly units: bigint
 }
 
-/** Parses a decimal string. Throws on anything that is not a plain non-negative decimal with at most 12 places. */
+const notExact = () =>
+  new InferenceError("PROVIDER_CONTRACT_CHANGED", "An amount is not an exact non-negative decimal with at most 12 fractional digits.", "Round a finer provider price up with roundUp before it becomes a quote or a charge, and update the adapter.")
+
+/** Parses a decimal string. Throws a coded error on anything but a plain non-negative decimal with at most 12 places. */
 export function money(amount: string, currency = "USD"): Money {
-  if (!DECIMAL.test(amount)) throw new RangeError("not an exact decimal amount")
+  if (!DECIMAL.test(amount)) throw notExact()
   const [whole, fraction = ""] = amount.split(".")
   return { currency, units: BigInt(whole!) * SCALE + BigInt(fraction.padEnd(PLACES, "0")) }
+}
+
+/**
+ * Rounds a non-negative decimal of any precision UP to `places` fractional digits (0 to 12): the conservative direction
+ * for an upper bound or a reservation. "0.0000000000001" becomes "0.000000000001", never "0".
+ */
+export function roundUp(amount: string, places = PLACES, currency = "USD"): Money {
+  if (!Number.isInteger(places) || places < 0 || places > PLACES) throw new RangeError("places must be an integer from 0 to 12")
+  if (!/^(?:0|[1-9]\d{0,11})(?:\.\d+)?$/.test(amount)) throw notExact()
+  const [whole, fraction = ""] = amount.split(".")
+  const kept = fraction.slice(0, places)
+  const dropped = /[1-9]/.test(fraction.slice(places))
+  const units = (BigInt(whole!) * 10n ** BigInt(places) + BigInt(kept.padEnd(places, "0") || "0") + (dropped ? 1n : 0n)) * 10n ** BigInt(PLACES - places)
+  return { currency, units }
 }
 
 export const zero = (currency = "USD"): Money => ({ currency, units: 0n })
