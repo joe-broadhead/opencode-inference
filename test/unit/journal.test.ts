@@ -1,7 +1,7 @@
 // The operation journal, its lock and the budget arithmetic: exact money, admission across REAL child processes,
 // crash recovery that never steals a lock, and a journal that is never silently reset.
 import { describe, expect, test } from "bun:test"
-import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { InferenceError } from "../../src/domain/errors.js"
 import { add, compare, format, money, roundUp, sum } from "../../src/domain/money.js"
@@ -147,13 +147,34 @@ describe("the journal", () => {
     }
   }, 30_000)
 
-  test("a journal that does not parse is refused and left as it is, never reset", async () => {
+  test("a journal that does not parse, or parses but breaks the schema, is refused and never reset", async () => {
     const dir = join(tempRoot("journal"), "j")
     mkdirSync(dir, { recursive: true, mode: 0o700 })
-    for (const content of ["{not json", JSON.stringify({ schemaVersion: 1, accountScope: "openrouter:ffffffffffffffff", records: [] })]) {
-      writeFileSync(join(dir, "journal.json"), content)
-      expect((await failure(new Journal(createJournalStore(dir), SCOPE).list())).code).toBe("JOURNAL_UNREADABLE")
-      expect(readFileSync(join(dir, "journal.json"), "utf8")).toBe(content)
+    const file = join(dir, "journal.json")
+    // A real record, then the same record with its amount as a binary float.
+    const valid = join(tempRoot("journal"), "valid")
+    await new Journal(createJournalStore(valid), SCOPE).reserve(draft("x", "0.1", "s"), () => undefined)
+    const floated = JSON.parse(readFileSync(join(valid, "journal.json"), "utf8")) as { records: { reservation: { amount: unknown } }[] }
+    floated.records[0]!.reservation.amount = 0.1
+    const contents = [
+      "{not json",
+      JSON.stringify({ schemaVersion: 1, accountScope: "openrouter:ffffffffffffffff", records: [] }),
+      // Valid JSON, wrong shape: a record missing every field, a future schema version, an amount as a float.
+      JSON.stringify({ schemaVersion: 1, accountScope: SCOPE, records: [{ bogus: true }] }),
+      JSON.stringify({ schemaVersion: 2, accountScope: SCOPE, records: [] }),
+      JSON.stringify(floated),
+    ]
+    for (const content of contents) {
+      writeFileSync(file, content)
+      const before = statSync(file, { bigint: true })
+      const journal = new Journal(createJournalStore(dir), SCOPE)
+      // Neither a read nor a write attempt may replace it, even with an empty journal.
+      expect((await failure(journal.list())).code).toBe("JOURNAL_UNREADABLE")
+      expect((await failure(journal.reserve(draft("y", "0.1", "s"), () => undefined))).code).toBe("JOURNAL_UNREADABLE")
+      const after = statSync(file, { bigint: true })
+      expect([after.ino, after.size, after.mtimeNs]).toEqual([before.ino, before.size, before.mtimeNs])
+      expect(readFileSync(file, "utf8")).toBe(content)
+      expect(readdirSync(dir)).toEqual(["journal.json"])
     }
   })
 
