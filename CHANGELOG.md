@@ -26,6 +26,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - `scripts/evaluate-decisions.ts`: held-out reports from labelled cases and recorded answers, split by document.
 - `scripts/canary-decisions.ts`: the opt-in Decisions canary (catalog, text, malformed request).
 
+- The `inference-extract` and `inference-decide` skills, shipped in the package and registered per module; a missing or malformed skill is skipped with `SKILLS_INVALID` in status.
+- docs/jobs.md, a Jobs recipe tested through the released Jobs plugin on a real host, and docs/operations.md: uncertainty, cost scope, privacy, refreshing the fixture, alpha compatibility and common errors.
+- A docs drift test: tool names, methods, manifest entries, examples and error codes in the docs and skills must match the registry.
+
 ### Changed
 
 - Status lists an agent as unguarded when its own rules would run any non-read Inference action without asking, registered or planned, not only the planned ones.

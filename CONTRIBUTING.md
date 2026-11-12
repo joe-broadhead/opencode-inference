@@ -46,6 +46,14 @@ option default, a failure code or the fixture, run:
 UPDATE_GENERATED=1 bun test test/unit/registry.test.ts
 ```
 
+## The Jobs recipe test
+
+`test/host/jobs.test.ts` runs the recipe in [docs/jobs.md](docs/jobs.md) through the released Jobs and Utilities
+plugins on the embedded host. It finds each package in `INFERENCE_TEST_JOBS_PACKAGE` / `INFERENCE_TEST_UTILITIES_PACKAGE`
+(a folder holding its `dist/`), else in OpenCode's own package cache, else installs it from GitHub at `v0.0.0` (as CI
+does), and stages a copy whose `@opencode/plugin` resolves to this repository's. The extraction reaches a loopback fake;
+nothing is paid for.
+
 ## The compatibility canary
 
 `scripts/canary-extractions.ts` checks the reviewed Extractions contract against the live API. It spends money, so no

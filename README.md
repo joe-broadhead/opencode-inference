@@ -30,6 +30,8 @@ has verified it against the live API, so in this version both tools refuse with 
   an automatic profile is accepted by the options only with a held-out report for the same model, question set and
   thresholds. An accepted label is never a permission. Box questions are refused, and a request that may not fit the
   route's effective context is refused rather than truncated.
+- Two skills, `inference-extract` and `inference-decide`, teach agents when to use each tool and how to read its result
+  (nulls, evidence, probabilities, review, cost). Each is registered while its module is on.
 - `/inference-status` in a session, and the **Inference: Status** dialog (`/inference`) in the TUI.
 - Scripts call the same tools with no model through the tools RPC `inference.core.tools`
   ([docs/scripting.md](docs/scripting.md)).
@@ -99,6 +101,9 @@ still win.
 
 ## Documentation
 
+- [docs/operations.md](docs/operations.md): uncertainty, cost scope, privacy, refreshing the fixture, alpha
+  compatibility and common errors.
+- [docs/jobs.md](docs/jobs.md): a Jobs recipe (an invoice's due date), tested on a real host.
 - [docs/architecture.md](docs/architecture.md): the layers, the registry, the reserved operations and the fixture.
 - [docs/configuration.md](docs/configuration.md): options, permissions and errors.
 - [docs/scripting.md](docs/scripting.md): the tools RPC.

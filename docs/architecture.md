@@ -58,6 +58,7 @@ src/host/                        everything that touches the host
   tools-rpc.ts                   the family's shared tools RPC (checked copy; plugin-specific block only)
   permissions.ts                 the default block, the exact-block matcher, the one-argument assert
   files.ts                       file metadata before approval, descriptor reads after it
+  skills.ts                      the shipped skills, read from skills/ and registered per module
   journal-store.ts               the journal's private files and the cross-process exclusive lock
   integration.ts                 the plugin-owned OpenRouter key entry and its connected/not-connected state
   status.ts, commands.ts         the status view and /inference-status
