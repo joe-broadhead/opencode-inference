@@ -36,13 +36,16 @@ const RULES = [
   { pattern: /\b(?:config|options)\.policy\b|(?:^|[\s{,])policy\s*\??\s*:/, scope: ["src/", "dist/"], message: "plugin permission policy option" },
   { pattern: /\bexperimental\s*\??\.\s*artifact\b|\bexperimental\s*\??\.?\[\s*["'`]artifact["'`]\s*\]|\{[^}]*\bartifact\b[^}]*\}\s*=\s*[\w$.?]*\bexperimental\b/, message: "ctx.experimental.artifact is experimental (new in 2.2.4); do not use it" },
   { pattern: /^import\s+\{[^}]*\bz\b[^}]*\}\s+from\s+["']zod["']/, scope: ["src/"], message: "import zod as `import * as z from \"zod\"`; a named import bundles every locale" },
-  // No network in this version. The transport boundary a later release adds (src/providers/<provider>/http.ts) is the
-  // one place allowed to fetch; until it exists nothing in src/ may.
-  { pattern: /\bfetch\s*\(|["']node:(?:http|https|net|tls|dgram|http2)["']|\bWebSocket\b|\bXMLHttpRequest\b/, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "network access outside the transport boundary" },
+  // The transport boundary (src/providers/<provider>/http.ts) is the one place allowed to reach the network. Elsewhere
+  // in src/ any reference to fetch counts (a call, globalThis.fetch, a destructured or bracketed fetch), as does any
+  // network module, bare or node:-prefixed, and the other network globals. Comments are not code (`code: true`).
+  { pattern: /\bfetch\b|\bWebSocket\b|\bXMLHttpRequest\b|\bEventSource\b|\bBun\s*\.\s*(?:connect|listen|udpSocket)\b/, code: true, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "network access outside the transport boundary" },
+  { pattern: /(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["'](?:node:)?(?:http|https|http2|net|tls|dns|dgram|undici)(?:\/[\w/]*)?["']/, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "network module import outside the transport boundary" },
   // The domain and the runtime are pure: the filesystem is the host layer's business.
   { pattern: /(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["'](?:node:)?fs(?:\/promises)?["']/, scope: ["src/domain/", "src/runtime/"], message: "filesystem access in the domain or runtime; keep fs in src/host/" },
-  // The key is resolved only at the transport boundary, at dispatch. Status and planning never read it.
-  { pattern: /\bconnection\s*\.\s*resolve\s*\(/, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "the OpenRouter key is resolved only at the transport boundary" },
+  // The key is resolved only at the transport boundary, at dispatch. Status and planning never read it. Any access to
+  // `connection.resolve` counts: a call, a reference, a bracketed or a destructured one.
+  { pattern: /\bconnection\s*\??\.\s*resolve\b|\bconnection\s*\??\.?\s*\[\s*["'`]resolve["'`]\s*\]|\bconnection\s*:\s*\{[^}]*\bresolve\b|\{[^}]*\bresolve\b[^}]*\}\s*=\s*[\w$.?\s]*\bconnection\b/, code: true, scope: ["src/"], except: /^src\/providers\/[^/]+\/http\.ts$/, message: "the OpenRouter key is resolved only at the transport boundary" },
 ]
 // The one exception to the evaluate-hook rule: the tools RPC (src/host/tools-rpc.ts) turns an ask on its own script
 // calls in flight into a deny, because no one is there to answer a script's prompt. It only tightens, and matches only
@@ -57,10 +60,11 @@ for (const file of [...source, ...built]) {
   content.split("\n").forEach((line, index) => {
     if (vendored(file) && /^\/\/ (?:src|node_modules)\//.test(line)) { firstParty = line.startsWith("// src/"); section = line.slice(3) }
     if (!firstParty) return
+    const stripped = codeOf(line)
     for (const rule of RULES) {
       if (rule.scope && !rule.scope.some(prefix => file.startsWith(prefix))) continue
       if (rule.except && rule.except.test(file)) continue
-      if (!rule.pattern.test(line)) continue
+      if (!rule.pattern.test(rule.code ? stripped : line)) continue
       if (rule.evaluate && section === SCRIPT_HOOK && scriptHooks.has(file)) { scriptHooks.set(file, scriptHooks.get(file) + 1); continue }
       report(file, index + 1, rule.message)
     }
@@ -68,6 +72,13 @@ for (const file of [...source, ...built]) {
   for (const call of assertCalls(content)) if (call.args > 1) report(file, call.line, "permission.assert takes one argument; the signal option is fork-only")
 }
 for (const [file, count] of scriptHooks) if (count !== 1) report(file, 0, `the tools RPC's evaluate hook must appear exactly once here, found ${count}`)
+
+/** A line without its comment: a line comment, a JSDoc or block-comment line, or a trailing ` // ` comment. */
+function codeOf(line) {
+  const trimmed = line.trimStart()
+  if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return ""
+  return line.replace(/\s\/\/\s.*$/, "")
+}
 
 /** `.assert(` calls with their top-level argument count, skipping strings and comments. */
 function assertCalls(content) {

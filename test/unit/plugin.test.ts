@@ -1,47 +1,19 @@
 // Setup, cleanup, failure cleanup, reload and the "no network from local surfaces" gate, on a narrow fake context.
 // The real host runs the same in test/host.
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import dns from "node:dns"
-import http from "node:http"
-import https from "node:https"
-import net from "node:net"
-import tls from "node:tls"
 import { fileURLToPath } from "node:url"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { createPlugin } from "../../src/host/plugin.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { PLUGIN_ID } from "../../src/domain/ids.js"
 import { fakeContext } from "../support/fake-context.js"
+import { spyNetwork } from "../support/network-spy.js"
 
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url))
 const NOW = () => new Date("2026-11-12T00:00:00Z")
 const plugin = () => createPlugin({ packageRoot, now: NOW })
 const text = { kind: "text", text: "Invoice AB-72. Total EUR 120.00." }
 const toolCall = (signal = new AbortController().signal) => ({ sessionID: "ses_1", agent: "build", messageID: "msg_1", id: "call_1", signal, progress: async () => undefined })
-
-/** Every way the plugin could reach a network, spied. Any call is recorded and refused. */
-function spyNetwork() {
-  const calls: string[] = []
-  const restore: (() => void)[] = []
-  const patch = <T extends object>(target: T, key: keyof T & string, label: string) => {
-    const original = target[key]
-    ;(target as Record<string, unknown>)[key] = (...args: unknown[]) => {
-      calls.push(`${label} ${String(args[0]).slice(0, 80)}`)
-      throw new Error(`network call blocked in a local test: ${label}`)
-    }
-    restore.push(() => void ((target as Record<string, unknown>)[key] = original))
-  }
-  patch(globalThis, "fetch", "fetch")
-  patch(http, "request", "http.request")
-  patch(http, "get", "http.get")
-  patch(https, "request", "https.request")
-  patch(https, "get", "https.get")
-  patch(net, "connect", "net.connect")
-  patch(net, "createConnection", "net.createConnection")
-  patch(tls, "connect", "tls.connect")
-  patch(dns, "lookup", "dns.lookup")
-  return { calls, restore: () => restore.forEach((undo) => undo()) }
-}
 
 let network: ReturnType<typeof spyNetwork>
 beforeEach(() => (network = spyNetwork()))
