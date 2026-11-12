@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { ACCESS_VALUES, type Access, type Rule } from "../../src/domain/ids.js"
 import { actionOf, PLANNED, TOOLS } from "../../src/domain/registry.js"
-import { createAuthorize, defaultRules, evaluate, hasDefaultRules, insertRules, unguardedAgents } from "../../src/host/permissions.js"
+import { createAuthorize, defaultRules, evaluate, guardedActions, hasDefaultRules, insertRules, unguardedAgents } from "../../src/host/permissions.js"
 
 const BASE: Rule = { action: "*", resource: "*", effect: "allow" }
 const rule = (action: string, effect: Rule["effect"]): Rule => ({ action, resource: "*", effect })
@@ -89,6 +89,17 @@ describe("unguarded agents", () => {
     // build carries the ask-changes block, not the read-only one, but its own rules already ask for a send.
     expect(unguardedAgents(agents, "read-only")).toEqual(["reviewer", "partial"])
     expect(unguardedAgents([{ id: "build", permissions: [BASE, ...defaultRules("all")] }], "read-only")).toEqual(["build"])
+  })
+
+  test("every non-read action is probed, registered or planned, not only the planned ones", () => {
+    const probe = { ...TOOLS[0], name: "probe", class: "send" as const }
+    expect(guardedActions([...TOOLS, probe])).toEqual(["inference_probe", ...PLANNED.map((operation) => operation.tool)])
+    // An agent that allows exactly a registered send (and asks for the namespace and every planned tool) is unguarded.
+    const narrow = [{ id: "narrow", permissions: [BASE, rule("inference_*", "ask"), rule("inference_probe", "allow")] }]
+    expect(unguardedAgents(narrow, "ask-changes", guardedActions([...TOOLS, probe]))).toEqual(["narrow"])
+    expect(unguardedAgents(narrow, "ask-changes")).toEqual([])
+    // Reads never count: allowing every registered read is not unguarded.
+    expect(unguardedAgents([{ id: "reads", permissions: [BASE, rule("inference_*", "ask"), ...TOOLS.map((tool) => rule(actionOf(tool.name), "allow"))] }], "ask-changes")).toEqual([])
   })
 
   test("at all nothing is held back, so none is listed", () => {
