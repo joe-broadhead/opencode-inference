@@ -40,6 +40,7 @@ never run by the checks) has passed against it.
 | `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | `inference.core.capabilities` | read | no | no | no |
 | `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | `inference.core.plan` | read | no | no | no |
 | `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | `inference.core.extract` | send | yes | yes | yes |
+| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | `inference.core.decide` | send | yes | yes | yes |
 
 <!-- /generated:tools -->
 

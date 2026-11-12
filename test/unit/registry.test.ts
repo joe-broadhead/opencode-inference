@@ -81,16 +81,17 @@ describe("registry parity", () => {
     }
   })
 
-  test("the read tools are strictly local; extract is the one send, with every effect and an adapter", () => {
+  test("the read tools are strictly local; extract and decide are the sends, with every effect and an adapter", () => {
     const LOCAL = { network: false, uploadsSource: false, billable: false, readsFiles: false }
     expect(TOOLS.map((tool) => ({ name: tool.name, class: tool.class, effects: tool.effects }))).toEqual([
       { name: "status", class: "read", effects: LOCAL },
       { name: "capabilities", class: "read", effects: LOCAL },
       { name: "plan", class: "read", effects: LOCAL },
       { name: "extract", class: "send", effects: { network: true, uploadsSource: true, billable: true, readsFiles: true } },
+      { name: "decide", class: "send", effects: { network: true, uploadsSource: true, billable: true, readsFiles: true } },
     ])
     for (const tool of TOOLS as readonly ToolSpec[]) if (tool.class !== "read") expect(ADAPTERS[tool.name]?.operation).toBe(tool.operation!)
-    expect(PLANNED.map((operation) => operation.name)).toEqual(["decide", "read"])
+    expect(PLANNED.map((operation) => operation.name)).toEqual(["read"])
   })
 })
 

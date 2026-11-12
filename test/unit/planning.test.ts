@@ -124,7 +124,7 @@ describe("plan", () => {
   test("decisions: box needs an image route; a question set is unknown; text noul/choice/score fit Jev", () => {
     const choice = { type: "choice", prompt: "Which?", options: [{ id: "a", description: "A" }, { id: "b", description: "B" }] }
     const ok = run({ task: "decide", input: { source: text, profile: "decide-text", questions: { kind: choice, true_claim: { type: "noul", prompt: "Is it paid?" } } } })
-    expect(ok.route.selected!.exclusions).toEqual(["ROUTE_DISABLED", "NOT_IMPLEMENTED", "PRICE_UNKNOWN"])
+    expect(ok.route.selected!.exclusions).toEqual(["ROUTE_DISABLED", "PRICE_UNKNOWN"])
     const box = run({ task: "decide", input: { source: text, profile: "decide-text", questions: { where: { type: "box", prompt: "Where is the total?" } } } })
     expect(box.route.selected!.exclusions).toContain("QUESTION_TYPE_UNSUPPORTED")
     const set = run({ task: "decide", input: { source: text, profile: "decide-text", questionSet: "document-kind-v1" } })
@@ -204,15 +204,15 @@ describe("quotes from a priced fixture (synthetic; the committed fixture has no 
 describe("capabilities", () => {
   const context = (config = loadConfig({})) => ({ config, fixture: OPENROUTER_CAPABILITIES, operations: OPERATION_INFO, implemented, now: NOW })
 
-  test("names extract as implemented and decide and read as not, and every route with why it cannot run", () => {
+  test("names extract and decide as implemented and read as not, and every route with why it cannot run", () => {
     const result = capabilities({}, context())
     expect(result.operations.map((operation) => [operation.tool, operation.class, operation.implemented])).toEqual([
       ["inference_extract", "send", true],
-      ["inference_decide", "send", false],
+      ["inference_decide", "send", true],
       ["inference_read", "send", false],
     ])
     expect(result.routes.every((route) => !route.available && route.reasons.includes("ROUTE_DISABLED"))).toBe(true)
-    expect(result.routes.filter((route) => route.reasons.includes("NOT_IMPLEMENTED")).map((route) => route.operation)).toEqual(["decide"])
+    expect(result.routes.filter((route) => route.reasons.includes("NOT_IMPLEMENTED"))).toEqual([])
     expect(result.routes.find((route) => route.model === "cloudflare/clairic")!.profiles).toEqual(["extract-typed"])
     expect(result.fixture).toMatchObject({ revision: OPENROUTER_CAPABILITIES.revision, verified: false, ageDays: 1, stale: false })
     expect(result.routing).toEqual({ mode: "explicit", fallbacks: [] })

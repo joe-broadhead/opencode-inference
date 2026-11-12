@@ -150,6 +150,8 @@ for (const version of STOCK_VERSIONS)
       expect(await rpc(host, TOOLS_RPC_ID, "plan", { sessionID: await session("locked"), input })).toMatchObject({ type: "failed", code: "PERMISSION_DENIED" })
       // The built extract runs as a session and refuses the disabled route before reading the key or sending.
       expect(await rpc(host, TOOLS_RPC_ID, "extract", { sessionID: await session("build"), input: input.input })).toMatchObject({ type: "failed", code: "CAPABILITY_UNSUPPORTED" })
+      const decide = { source: { kind: "text", text: "Paid in full." }, profile: "decide-text", questions: { paid: { type: "noul", prompt: "Paid?" } } }
+      expect(await rpc(host, TOOLS_RPC_ID, "decide", { sessionID: await session("build"), input: decide })).toMatchObject({ type: "failed", code: "CAPABILITY_UNSUPPORTED" })
       await until("the server log is written", async () => host.log !== undefined)
     })
   })

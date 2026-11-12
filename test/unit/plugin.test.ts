@@ -26,10 +26,10 @@ describe("setup", () => {
     expect(fake.live().map((item) => item.kind)).toEqual(["integration", "agent", "tool", `rpc:${PLUGIN_ID}`, `rpc:${TOOLS_RPC_ID}`, "hook:evaluate", "command"])
     expect(fake.integrations.get("inference-openrouter")).toEqual({ id: "inference-openrouter", name: "OpenRouter for Inference" })
     expect(fake.methods).toEqual([{ integrationID: "inference-openrouter", method: { type: "key", label: "OpenRouter API key" } }])
-    expect(fake.tools.map((tool) => tool.name)).toEqual(["status", "capabilities", "plan", "extract"])
+    expect(fake.tools.map((tool) => tool.name)).toEqual(["status", "capabilities", "plan", "extract", "decide"])
     expect(fake.commands.map((command) => command.name)).toEqual(["inference-status"])
     // Every local surface, on both paths.
-    for (const tool of fake.tools.filter((item) => item.name !== "extract")) {
+    for (const tool of fake.tools.filter((item) => ["status", "capabilities", "plan"].includes(item.name))) {
       const input = tool.name === "plan" ? { task: "extract", input: { source: text, profile: "extract-typed", fields: { total: { type: "number" } } } } : {}
       const result = await tool.execute(input, toolCall())
       expect(result.output).toBeDefined()
@@ -41,6 +41,10 @@ describe("setup", () => {
     const refused = await fake.tools.find((tool) => tool.name === "extract")!.execute(extract, toolCall()).then(() => undefined, (error: Error) => error)
     expect(refused?.message).toMatch(/^CAPABILITY_UNSUPPORTED: cloudflare\/clairic is disabled in this version: its route waits for a compatibility canary/)
     expect(((await fake.call(TOOLS_RPC_ID, "extract", { sessionID: "ses_1", input: extract })) as { error: { data: { code: string } } }).error.data.code).toBe("CAPABILITY_UNSUPPORTED")
+    // So is decide.
+    const decide = { source: text, profile: "decide-text", questions: { paid: { type: "noul", prompt: "Has it been paid?" } } }
+    const declined = await fake.tools.find((tool) => tool.name === "decide")!.execute(decide, toolCall()).then(() => undefined, (error: Error) => error)
+    expect(declined?.message).toMatch(/^CAPABILITY_UNSUPPORTED: typesafe\/jev-1.14 is disabled in this version/)
     await fake.call(PLUGIN_ID, "status", {})
     await fake.call(TOOLS_RPC_ID, "describe", {})
     await fake.commands[0]!.execute({ sessionID: "ses_1", delivery: "now" })

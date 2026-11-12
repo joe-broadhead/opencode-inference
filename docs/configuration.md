@@ -96,6 +96,7 @@ own `permissions`, followed by your top-level `inference_*` rules.
 | `inference_capabilities` | `*` | `allow` |
 | `inference_plan` | `*` | `allow` |
 | `inference_extract` | `*` | `allow` |
+| `inference_decide` | `*` | `allow` |
 
 <!-- /generated:rules-all -->
 
@@ -110,6 +111,7 @@ own `permissions`, followed by your top-level `inference_*` rules.
 | `inference_capabilities` | `*` | `allow` |
 | `inference_plan` | `*` | `allow` |
 | `inference_extract` | `*` | `ask` |
+| `inference_decide` | `*` | `ask` |
 
 <!-- /generated:rules-ask-changes -->
 
@@ -124,6 +126,7 @@ own `permissions`, followed by your top-level `inference_*` rules.
 | `inference_capabilities` | `*` | `allow` |
 | `inference_plan` | `*` | `allow` |
 | `inference_extract` | `*` | `deny` |
+| `inference_decide` | `*` | `deny` |
 
 <!-- /generated:rules-read-only -->
 

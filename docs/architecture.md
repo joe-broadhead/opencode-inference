@@ -86,6 +86,7 @@ validates the output against the tool's own schema. So a control added there hol
 | `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | `inference.core.capabilities` | read | no | no | no |
 | `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | `inference.core.plan` | read | no | no | no |
 | `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | `inference.core.extract` | send | yes | yes | yes |
+| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | `inference.core.decide` | send | yes | yes | yes |
 
 <!-- /generated:tools -->
 
@@ -131,7 +132,6 @@ cloud inference transmits supplied content and can spend, even when no business 
 
 | Operation | Reserved tool | Class | Module | Registered |
 | --- | --- | --- | --- | --- |
-| `inference.decide` | `inference_decide` | send | `decisions` | no |
 | `inference.read` | `inference_read` | send | `understanding` | no |
 
 <!-- /generated:planned -->
