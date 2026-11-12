@@ -22,6 +22,8 @@ export const ModelId = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-
 export const ProfileName = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/, "must be lowercase letters, digits and dashes, starting with a letter")
 /** A field or question key: a stable identifier the result keeps. */
 export const Key = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, "must be lowercase letters, digits and underscores, starting with a letter, at most 64 characters")
+/** A versioned name, such as document-kind-v1: the version is part of the name, so a changed set is a new name. */
+export const VersionedName = z.string().regex(/^[a-z][a-z0-9-]{0,58}-v[1-9]\d{0,3}$/, "must be a versioned name such as document-kind-v1")
 /** The longest text a field value, guess or list item may be (UTF-16 units, as zod counts). */
 export const MAX_TEXT = 1_000_000
 
@@ -291,7 +293,7 @@ export const DecideInput = z
     ...executionFields,
     source: SourceInput,
     questions: keyed(QuestionInput, MAX_KEYS, "question").optional(),
-    questionSet: bounded(64).optional().describe("A versioned question set, instead of questions."),
+    questionSet: VersionedName.optional().describe("A versioned question set from the trusted options, instead of questions."),
   })
   .superRefine((value, context) => {
     oneRoute(value, context)
@@ -362,6 +364,72 @@ export const ExtractData = z.strictObject({ fields: z.record(Key, ExtractedField
 
 /** The extract tool's output: the common envelope around ExtractData. */
 export const ExtractResult = InferenceResult(ExtractData)
+
+// --- 5.4 Decision data ----------------------------------------------------------------------------------------------
+
+
+/** Why an answer was not accepted. Information for the caller, not an error. */
+export const ACCEPTANCE_REASONS = [
+  "REFUSED",
+  "CONFIDENCE_MISSING",
+  "LOW_PROBABILITY",
+  "AMBIGUOUS",
+  "INCONSISTENT",
+  "CALIBRATION_UNAVAILABLE",
+  "CALIBRATION_MISMATCH",
+  "PROVIDER_TRUNCATED",
+] as const
+
+export const Acceptance = z
+  .strictObject({
+    disposition: z.enum(["accepted", "review", "refused"]).describe("accepted only under an evaluated automatic profile; refused when the provider declined the question."),
+    outcome: z.union([z.boolean(), Key]).optional().describe("The accepted outcome: true or false for noul, an option or level id otherwise. A label, never a permission."),
+    reasons: z.array(z.enum(ACCEPTANCE_REASONS)).max(ACCEPTANCE_REASONS.length),
+  })
+  .describe("The deterministic acceptance result. It never authorizes an action: a separately permitted tool does that.")
+
+/** A probability exactly as the provider reported it, as a plain decimal string: never a rounded binary float. */
+export const ExactProbability = z
+  .string()
+  .regex(/^(?:0(?:\.\d{1,64})?|1(?:\.0{1,64})?)$/, "must be a plain decimal from 0 to 1")
+  .describe("A probability exactly as reported, as a plain decimal string such as \"0.7\". Compare it as a decimal, not a float.")
+const reportedConfidence = ExactProbability.optional().describe("The provider's reported confidence. Derived from its distribution: never independent corroboration of it.")
+const refusal = z.strictObject({ reason: z.string().max(1000).optional() }).optional().describe("The provider declined this question. Not false, not zero.")
+const distribution = z.record(Key, ExactProbability).describe("Exactly as reported, never renormalised, rounded or completed: a label the provider did not report is absent, not 0.")
+
+export const DecidedAnswer = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("noul"),
+    probability: ExactProbability.optional().describe("The probability that the proposition is true, exactly as reported. Not a Boolean."),
+    confidence: reportedConfidence,
+    refusal,
+    acceptance: Acceptance,
+  }),
+  z.strictObject({ type: z.literal("choice"), choice: Key.optional(), distribution: distribution.optional(), confidence: reportedConfidence, refusal, acceptance: Acceptance }),
+  z.strictObject({
+    type: z.literal("score"),
+    expectedIndex: z
+      .string()
+      .regex(/^(?:0|[1-9]\d?)(?:\.\d{1,64})?$/, "must be a plain decimal")
+      .optional()
+      .describe("The expected zero-based position on the rubric, exactly as reported, possibly fractional. Not a measurement."),
+    levels: z.array(Key).min(2).max(11).describe("The rubric's level ids, low to high."),
+    distribution: distribution.optional().describe("Per level id, exactly as reported: a midpoint expectation can hide mass at both extremes."),
+    confidence: reportedConfidence,
+    refusal,
+    acceptance: Acceptance,
+  }),
+])
+
+export const DecideData = z
+  .strictObject({
+    answers: z.record(Key, DecidedAnswer),
+    questionSet: z.strictObject({ name: VersionedName, digest: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).optional().describe("The versioned question set used, with the digest of its exact questions."),
+    acceptanceProfile: z.strictObject({ name: z.string().max(64), mode: z.enum(["review", "automatic"]) }),
+  })
+  .describe("data of a decide result: one answer per question, by its key.")
+
+export const DecideResult = InferenceResult(DecideData)
 
 // --- Registered tool inputs and outputs (PR 1) ---------------------------------------------------------------------
 
@@ -481,6 +549,7 @@ export const CONTRACTS = {
   Coverage,
   Usage,
   ExtractData,
+  DecideData,
   InferenceResult: InferenceResult(z.unknown().describe("The operation's data: { fields } for extract, { answers } for decide.")),
   ExtractField,
   QuestionInput,

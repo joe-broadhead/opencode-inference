@@ -124,7 +124,7 @@ describe("plan", () => {
   test("decisions: box needs an image route; a question set is unknown; text noul/choice/score fit Jev", () => {
     const choice = { type: "choice", prompt: "Which?", options: [{ id: "a", description: "A" }, { id: "b", description: "B" }] }
     const ok = run({ task: "decide", input: { source: text, profile: "decide-text", questions: { kind: choice, true_claim: { type: "noul", prompt: "Is it paid?" } } } })
-    expect(ok.route.selected!.exclusions).toEqual(["ROUTE_DISABLED", "NOT_IMPLEMENTED", "PRICE_UNKNOWN"])
+    expect(ok.route.selected!.exclusions).toEqual(["ROUTE_DISABLED", "PRICE_UNKNOWN"])
     const box = run({ task: "decide", input: { source: text, profile: "decide-text", questions: { where: { type: "box", prompt: "Where is the total?" } } } })
     expect(box.route.selected!.exclusions).toContain("QUESTION_TYPE_UNSUPPORTED")
     const set = run({ task: "decide", input: { source: text, profile: "decide-text", questionSet: "document-kind-v1" } })
@@ -204,15 +204,15 @@ describe("quotes from a priced fixture (synthetic; the committed fixture has no 
 describe("capabilities", () => {
   const context = (config = loadConfig({})) => ({ config, fixture: OPENROUTER_CAPABILITIES, operations: OPERATION_INFO, implemented, now: NOW })
 
-  test("names extract as implemented and decide and read as not, and every route with why it cannot run", () => {
+  test("names extract and decide as implemented and read as not, and every route with why it cannot run", () => {
     const result = capabilities({}, context())
     expect(result.operations.map((operation) => [operation.tool, operation.class, operation.implemented])).toEqual([
       ["inference_extract", "send", true],
-      ["inference_decide", "send", false],
+      ["inference_decide", "send", true],
       ["inference_read", "send", false],
     ])
     expect(result.routes.every((route) => !route.available && route.reasons.includes("ROUTE_DISABLED"))).toBe(true)
-    expect(result.routes.filter((route) => route.reasons.includes("NOT_IMPLEMENTED")).map((route) => route.operation)).toEqual(["decide"])
+    expect(result.routes.filter((route) => route.reasons.includes("NOT_IMPLEMENTED"))).toEqual([])
     expect(result.routes.find((route) => route.model === "cloudflare/clairic")!.profiles).toEqual(["extract-typed"])
     expect(result.fixture).toMatchObject({ revision: OPENROUTER_CAPABILITIES.revision, verified: false, ageDays: 1, stale: false })
     expect(result.routing).toEqual({ mode: "explicit", fallbacks: [] })
@@ -249,5 +249,25 @@ describe("plan quotes for per-token prices", () => {
     const quote = (pricing: RouteCapability["pricing"]) => run({ task: "extract", input: { source: text, profile: "extract-typed", fields } }, { fixture: priced(pricing) }).quote
     expect(quote({ revision: "t", currency: "USD", perMillionInputTokens: "0.2", upperBound: true }).kind).toBe("estimate")
     expect(quote({ revision: "t", currency: "USD", perMillionInputTokens: "0.2", upperBound: false, ceiling: { amount: "0.02", source: "A4" } })).toMatchObject({ kind: "upper_bound", amount: "0.02" })
+  })
+})
+
+describe("decide plans: question sets from the trusted options, and Box refused locally", () => {
+  const SET = { questions: { kind: { type: "choice", prompt: "Which kind?", options: [{ id: "invoice", description: "invoice" }, { id: "other", description: "other" }] } } }
+  const decide = (input: Record<string, unknown>, config = loadConfig({ questionSets: { "document-kind-v1": SET } })) =>
+    run({ task: "decide", input: { source: text, profile: "decide-text", ...input } }, { config })
+  test("a configured versioned set resolves; an unknown one is QUESTION_SET_UNKNOWN", () => {
+    expect(decide({ questionSet: "document-kind-v1" }).route.selected!.exclusions).not.toContain("QUESTION_SET_UNKNOWN")
+    expect(decide({ questionSet: "document-kind-v2" }).route.selected!.exclusions).toContain("QUESTION_SET_UNKNOWN")
+    expect(() => PlanInput.parse({ task: "decide", input: { source: text, profile: "decide-text", questionSet: "unversioned" } })).toThrow()
+  })
+  test("Box is refused whatever the route documents; noul, choice and score are not", () => {
+    expect(decide({ questions: { region: { type: "box", prompt: "Where is the total?" } } }).route.selected!.exclusions).toContain("QUESTION_TYPE_UNSUPPORTED")
+    expect(decide({ questions: { paid: { type: "noul", prompt: "Paid?" } } }).route.selected!.exclusions).not.toContain("QUESTION_TYPE_UNSUPPORTED")
+  })
+  test("a configured acceptance profile is known; an unknown one is reported", () => {
+    const config = loadConfig({ acceptanceProfiles: { "careful-v1": { mode: "review" } } })
+    expect(decide({ questions: { paid: { type: "noul", prompt: "Paid?" } }, acceptanceProfile: "careful-v1" }, config).review.reasons).toEqual(["CALIBRATION_UNAVAILABLE"])
+    expect(decide({ questions: { paid: { type: "noul", prompt: "Paid?" } }, acceptanceProfile: "missing-v1" }, config).review.reasons).toEqual(["CALIBRATION_UNAVAILABLE", "ACCEPTANCE_PROFILE_UNKNOWN"])
   })
 })

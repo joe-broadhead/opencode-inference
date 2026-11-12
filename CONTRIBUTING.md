@@ -61,6 +61,21 @@ status, or the worst case when none is reported. `--dry-run` prints what it woul
 It prints a report and never edits the fixture: record a passed canary in `src/providers/openrouter/capabilities.ts`
 (the route's `canary`, a new `revision`) in its own reviewed change before enabling a route.
 
+The Decisions canary works the same way: `bun scripts/canary-decisions.ts --budget-usd 0.02 --per-call-usd 0.005
+--yes-spend --only catalog,text`.
+
+## Evaluating an acceptance profile
+
+An automatic acceptance profile loads only with a held-out report. Record answers for a labelled dataset (a key and
+spend are needed for that), then, offline:
+
+```sh
+bun scripts/evaluate-decisions.ts --options options.json --profile <name> --dataset dataset.json --answers answers.json
+```
+
+Choose thresholds on the tuning split; the report measures them on the held-out split, split by document. Put the
+report in the profile (`mode: "automatic"`, `model`, `maxFalseAcceptRate`) in its own reviewed change.
+
 ## Commits
 
 `npm run check` passes before every commit. Use `type(scope): summary`. Check `git config user.email` first; see

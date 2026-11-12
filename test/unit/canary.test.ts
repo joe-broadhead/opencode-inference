@@ -67,3 +67,32 @@ test("the budget counts reported charges on any status, the worst case when none
   expect(reportedCost(body("not json"))).toBeUndefined()
   expect(reportedCost(body('{"usage":{"cost":"0.1"}}'))).toBeUndefined()
 })
+
+test("the Decisions canary refuses the same way, and its dry run sends nothing", () => {
+  const SCRIPT_DECISIONS = new URL("../../scripts/canary-decisions.ts", import.meta.url).pathname
+  const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== "CI" && name !== "OPENROUTER_CANARY_KEY"))
+  const go = (args: string[], env: Record<string, string> = {}) => {
+    const child = Bun.spawnSync([process.execPath, SCRIPT_DECISIONS, ...args], { env: { ...base, ...env } as Record<string, string>, stdout: "pipe", stderr: "pipe" })
+    return { code: child.exitCode, out: child.stdout.toString(), err: child.stderr.toString() }
+  }
+  for (const [args, env, message] of [
+    [[], KEY, /--yes-spend is required/],
+    [["--yes-spend", "--budget-usd", "0.02"], KEY, /--per-call-usd is required/],
+    [["--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0.01"], {}, /OPENROUTER_CANARY_KEY is not set/],
+    [["--yes-spend", "--budget-usd", "0.2", "--per-call-usd", "0.01"], KEY, /ceiling of 0\.10/],
+    [["--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0.01"], { ...KEY, CI: "1" }, /CI is set/],
+  ] as [string[], Record<string, string>, RegExp][]) {
+    const result = go(args, env)
+    expect({ args, code: result.code }).toEqual({ args, code: 2 })
+    expect(result.err).toMatch(message)
+  }
+  const dry = go(["--yes-spend", "--budget-usd", "0.01", "--per-call-usd", "0.01", "--dry-run"], KEY)
+  expect(dry.code).toBe(0)
+  const report = JSON.parse(dry.out) as { results: { canary: string; would?: string; skipped?: string }[]; next: string }
+  expect(report.results.map((item) => [item.canary, item.would ?? item.skipped])).toEqual([
+    ["text", "POST /api/alpha/decisions"],
+    ["malformed", "the remaining budget cannot cover this call's worst case"],
+  ])
+  expect(report.next).toBe("Dry run: nothing was sent.")
+  expect(dry.out).not.toContain(KEY.OPENROUTER_CANARY_KEY)
+}, 30_000)

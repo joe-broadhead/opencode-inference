@@ -9,9 +9,9 @@ is a clean SVG of drawing elements.
 
 ## Tools and permissions
 
-4 tools are declared (3 read-only): `inference.status`, `inference.capabilities` and `inference.plan`, which are local,
-and `inference.extract`, which sends the source to OpenRouter and can be charged (class `send`; it runs only on a
-verified, enabled route, and no route is enabled in this version). Jelly's agents have no base "allow everything" rule,
+5 tools are declared (3 read-only): `inference.status`, `inference.capabilities` and `inference.plan`, which are local,
+and `inference.extract` and `inference.decide`, which send the source to OpenRouter and can be charged (class `send`;
+they run only on a verified, enabled route, and no route is enabled in this version). Jelly's agents have no base "allow everything" rule,
 so this plugin's own default rules never reach them; every declared tool's effect is the one the default rules give at
 `access: "all"`.
 
@@ -19,7 +19,7 @@ so this plugin's own default rules never reach them; every declared tool's effec
 - Off: none.
 
 The declaration is generated from the registry (`src/domain/registry.ts`) and checked by `test/unit/registry.test.ts`.
-`inference.decide` and `inference.read` are not declared until they exist.
+`inference.read` is not declared until it exists.
 
 ## Skills
 

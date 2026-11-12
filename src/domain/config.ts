@@ -1,5 +1,6 @@
 import * as z from "zod"
-import { Decimal, ModelId, ProfileName } from "./contracts.js"
+import { AcceptanceProfile, automaticProblem, QuestionSet } from "./acceptance.js"
+import { Decimal, MAX_KEYS, ModelId, ProfileName, VersionedName } from "./contracts.js"
 import { InferenceError } from "./errors.js"
 import { ACCESS_VALUES, MODULES, type Access, type Module } from "./ids.js"
 
@@ -22,6 +23,8 @@ export const DEFAULTS = {
   data: { requireZdr: false },
   cache: { enabled: false },
   allowUntestedHost: false,
+  questionSets: {} as Record<string, never>,
+  acceptanceProfiles: {} as Record<string, never>,
 } as const
 
 /** Option names that look like a secret are refused with a pointer to /connect, never echoed. */
@@ -60,6 +63,16 @@ const Options = z.strictObject({
   data: z.strictObject({ requireZdr: z.boolean().optional() }).optional(),
   cache: z.strictObject({ enabled: z.literal(false, "must be false: the result cache is not implemented yet").optional() }).optional(),
   allowUntestedHost: z.boolean().optional(),
+  questionSets: z
+    .record(VersionedName, QuestionSet)
+    .refine((value) => Object.keys(value).length <= 32, "at most 32 question sets")
+    .refine((value) => Object.values(value).every((set) => Object.keys(set.questions).length >= 1 && Object.keys(set.questions).length <= MAX_KEYS), `each question set has 1 to ${MAX_KEYS} questions`)
+    .optional(),
+  acceptanceProfiles: z
+    .record(VersionedName, AcceptanceProfile)
+    .refine((value) => Object.keys(value).length <= 32, "at most 32 acceptance profiles")
+    .refine((value) => !Object.keys(value).includes("review-first-v1"), "review-first-v1 is built in and cannot be redefined")
+    .optional(),
 })
 
 export type Options = z.input<typeof Options>
@@ -80,7 +93,16 @@ export interface Config {
   readonly data: { readonly requireZdr: boolean }
   readonly cache: { readonly enabled: boolean }
   readonly allowUntestedHost: boolean
+  /** Versioned question sets, by name. */
+  readonly questionSets: Readonly<Record<string, QuestionSet>>
+  /** Versioned acceptance profiles, by name; review-first-v1 is built in. */
+  readonly acceptanceProfiles: Readonly<Record<string, AcceptanceProfile>>
 }
+
+/** A configured question set by name, or undefined. */
+export const questionSetOf = (config: Pick<Config, "questionSets">, name: string) => new Map(Object.entries(config.questionSets)).get(name)
+/** A configured acceptance profile by name, or undefined. */
+export const acceptanceProfileOf = (config: Pick<Config, "acceptanceProfiles">, name: string) => new Map(Object.entries(config.acceptanceProfiles)).get(name)
 
 /** The model a configured profile names, or undefined. Looked up without reaching a prototype. */
 export const profileModel = (config: Pick<Config, "profiles">, name: string) => new Map(Object.entries(config.profiles)).get(name)?.model
@@ -111,6 +133,13 @@ export function loadConfig(options: unknown): Config {
     throw new InferenceError("OPTIONS_INVALID", `The plugin options are invalid: ${problems.join("; ")}.`)
   }
   const value = parsed.data
+  const questionSets = value.questionSets ?? {}
+  const acceptanceProfiles = value.acceptanceProfiles ?? {}
+  const untrusted = Object.entries(acceptanceProfiles).flatMap(([name, profile]) => {
+    const problem = automaticProblem(name, profile, questionSets)
+    return problem ? [`options.acceptanceProfiles.${name}: ${problem}`] : []
+  })
+  if (untrusted.length) throw new InferenceError("OPTIONS_INVALID", `The plugin options are invalid: ${untrusted.join("; ")}.`, "Evaluate the profile with scripts/evaluate-decisions.ts on held-out data and put its report in the profile, or set its mode to review.")
   return {
     access: value.access ?? DEFAULTS.access,
     modules: Object.fromEntries(MODULES.map((name) => [name, value.modules?.[name] ?? DEFAULTS.modules[name]])) as Config["modules"],
@@ -121,6 +150,8 @@ export function loadConfig(options: unknown): Config {
     data: { ...DEFAULTS.data, ...value.data },
     cache: { enabled: false },
     allowUntestedHost: value.allowUntestedHost ?? DEFAULTS.allowUntestedHost,
+    questionSets,
+    acceptanceProfiles,
   }
 }
 

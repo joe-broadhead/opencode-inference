@@ -12,6 +12,7 @@ import { createDispatcher } from "../runtime/dispatch.js"
 import { createHandlers } from "../runtime/handlers.js"
 import { Journal } from "../runtime/journal.js"
 import type { Adapter, OperationRuntime } from "../runtime/operation.js"
+import { decisionsAdapter } from "../providers/openrouter/decisions.js"
 import { extractionsAdapter } from "../providers/openrouter/extractions.js"
 import { createTransport } from "../providers/openrouter/http.js"
 import { commandTransform } from "./commands.js"
@@ -43,7 +44,7 @@ export interface PluginSources {
  * The provider adapters, by tool name: every non-read tool in the registry has one here. A route still runs only when
  * the fixture enables it, which waits for its compatibility canary.
  */
-export const ADAPTERS: Readonly<Record<string, Adapter>> = { extract: extractionsAdapter }
+export const ADAPTERS: Readonly<Record<string, Adapter>> = { extract: extractionsAdapter, decide: decisionsAdapter }
 
 type Disposable = { readonly dispose: () => Promise<void> | void }
 

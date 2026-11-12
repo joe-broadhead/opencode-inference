@@ -14,6 +14,8 @@ describe("the plugin options", () => {
       data: { requireZdr: false },
       cache: { enabled: false },
       allowUntestedHost: false,
+      questionSets: {},
+      acceptanceProfiles: {},
     })
     expect(JSON.stringify(config)).not.toMatch(/key|token|secret/i)
   })

@@ -34,10 +34,15 @@ src/domain/                      zod contracts and pure logic, no host
   errors.ts                      CODE: what happened. Next step: …
   money.ts                       exact decimal money (10^-12 units, never floats)
   json.ts                        a strict JSON reader that keeps provider numbers as written
+  acceptance.ts                  acceptance profiles, question sets, the held-out report, deterministic acceptance
+  evaluation.ts                  held-out evaluation of a profile's thresholds
+  canonical.ts                   canonical JSON for digests
 src/providers/openrouter/
   capabilities.ts                the dated, documentation-derived capability fixture (data only)
   http.ts                        the transport boundary: the only fetch and the only key read
   extractions.ts                 the alpha Extractions adapter: wire request, constraints, strict answer, quote
+  decisions.ts                   the alpha Decisions adapter: questions, exact distributions, refusal, effective context
+  wire.ts                        shared readers: probabilities, amounts, usage, the quote
   catalog.ts                     catalog drift, reported as a compatibility status
 src/runtime/
   dispatch.ts                    the one dispatcher both host surfaces call
@@ -86,6 +91,7 @@ validates the output against the tool's own schema. So a control added there hol
 | `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | `inference.core.capabilities` | read | no | no | no |
 | `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | `inference.core.plan` | read | no | no | no |
 | `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | `inference.core.extract` | send | yes | yes | yes |
+| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | `inference.core.decide` | send | yes | yes | yes |
 
 <!-- /generated:tools -->
 
@@ -122,6 +128,57 @@ wire contract (`WIRE_REVISION`, part of every request fingerprint):
   canary. `catalog.ts` compares OpenRouter's catalog with the fixture and reports drift (new candidates, missing
   models) without enabling anything. `scripts/canary-extractions.ts` is the opt-in live check (see CONTRIBUTING.md).
 
+## Decisions
+
+`src/providers/openrouter/decisions.ts` is the alpha Decisions adapter, with a documentation-derived and unverified wire
+contract (`WIRE_REVISION`):
+
+- **Request.** `model`, the text as `state`, named `questions` (noul with a prompt; choice with ordered `options`; score
+  with `levels` low to high) and `provider.allow_fallbacks: false`. A versioned `questionSet` comes only from the
+  trusted options, and its digest (labels, prompts and option order) travels with the result. Refused locally: Box
+  (no reviewed region representation), images, an unknown set or profile, and a request that may not fit the route's
+  effective context: the state and questions must fit its reviewed token limit, net of a documented template allowance
+  (`contextAllowance`, with its source: a server-side prompt template adds tokens the request does not contain), counted
+  as UTF-8 bytes (no tokenizer emits more tokens than bytes). An unreviewed limit or an undocumented allowance refuses,
+  so the end of a long source is never cut off silently.
+- **Answer.** `{ probability }` for noul, `{ choice, distribution? }` for choice, `{ score, distribution? }` for score
+  (the expected zero-based index), each with an optional `confidence`, or `{ refusal }`. Probabilities must lie in 0..1;
+  a distribution must name only asked labels and total at most 1; a complete score distribution must agree with its
+  expected index. All are stored exactly as reported: never renormalised, rounded or completed, and an unreported label
+  is absent, not 0. A refusal is its own outcome; a refusal that also answers is `PROVIDER_CONTRACT_CHANGED`.
+
+### Acceptance and evaluation
+
+`src/domain/acceptance.ts` decides acceptance in ordinary deterministic code. `review-first-v1` (built in) and any
+`mode: "review"` profile accept nothing. A `mode: "automatic"` profile accepts an answer only when its thresholds are
+met (noul: probability at least `accept`, or at most `1 - accept`; choice: top reported probability and margin; score:
+the most probable level), in exact decimal arithmetic. The mass a distribution leaves unreported counts as a possible
+runner-up (an unreported label is never zero), and a tie is never accepted. It uses the reported probability or
+distribution only: the reported confidence is derived from
+the distribution and is never counted again, and a missing probability cannot pass a threshold. It accepts only on the
+model and question set (by digest) its report measured; anything else is `CALIBRATION_MISMATCH`, and a truncated state
+is never accepted. The options are refused when an automatic profile has no held-out report for the same profile,
+model, question set and thresholds, with at least 30 held-out cases and a false-accept rate within its
+`maxFalseAcceptRate` (exact integer arithmetic). Accepted outcomes are labels: nothing in the plugin treats one as a
+permission.
+
+`src/domain/evaluation.ts` and `scripts/evaluate-decisions.ts` produce that report offline from labelled cases and
+recorded answers: thresholds are chosen on the tuning split, measured on the held-out split, and the splits are by
+document, so chunks of one document cannot leak from tuning into held-out. It reports accepts, false accepts, reviews,
+refusals and the noul Brier score. Recording the answers needs a key and spends; it is a separate, deliberate step.
+
+What a report does NOT establish, by design:
+
+- **It is not authenticated.** It is plain JSON in the trusted plugin options, so anyone who can edit `opencode.json`
+  can write one. The plugin checks that it is consistent with the profile; it cannot check that it is genuine. Treat a
+  change to `acceptanceProfiles` like a code change: review it.
+- **The dataset is not re-checked.** The report records the dataset's revision and SHA-256, but the plugin never has
+  the dataset, so it cannot verify the counts against it. Keep the dataset and recompute the report in review.
+- **What it matches:** the profile name, model, question set (by digest), the adapter's wire revision and the
+  thresholds. A change to any of them turns acceptance back into review (`CALIBRATION_MISMATCH`) or refuses the options.
+  It does not cover changes on the provider's side under the same model id and wire revision; the canary and a fresh
+  evaluation are how those are caught.
+
 ## Reserved operations
 
 Named for capabilities, plan and these docs; not tools, methods or permission rules in this version. Each is `send`:
@@ -131,7 +188,6 @@ cloud inference transmits supplied content and can spend, even when no business 
 
 | Operation | Reserved tool | Class | Module | Registered |
 | --- | --- | --- | --- | --- |
-| `inference.decide` | `inference_decide` | send | `decisions` | no |
 | `inference.read` | `inference_read` | send | `understanding` | no |
 
 <!-- /generated:planned -->
@@ -149,6 +205,7 @@ not provider wire schemas: an adapter maps them inside the adapter. Exported as 
 - `Coverage`
 - `Usage`
 - `ExtractData`
+- `DecideData`
 - `InferenceResult`
 - `ExtractField`
 - `QuestionInput`
@@ -169,7 +226,7 @@ entry never enables a route by itself.
 
 <!-- generated:routes -->
 
-Fixture `openrouter-2026-11-11.2`, reviewed 2026-11-11, documentation-derived, verified: false.
+Fixture `openrouter-2026-11-11.3`, reviewed 2026-11-11, documentation-derived, verified: false.
 
 | Model | Operation | Route | Status | Enabled | Text | Images | PDF | Field or question types | Price |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

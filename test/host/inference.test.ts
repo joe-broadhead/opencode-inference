@@ -118,7 +118,8 @@ describe(`defaults on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
     const bad = await script(host, "plan", { sessionID: sessions.build, input: { task: "extract", input: { source: text, fields: {} } } })
     expect(bad).toMatchObject({ type: "failed", code: "INPUT_INVALID" })
     expect(await script(host, "extract", { sessionID: sessions.build, input: {} })).toMatchObject({ type: "failed", code: "INPUT_INVALID" })
-    expect(await script(host, "decide", { sessionID: sessions.build, input: {} })).not.toMatchObject({ value: expect.anything() })
+    expect(await script(host, "decide", { sessionID: sessions.build, input: {} })).toMatchObject({ type: "failed", code: "INPUT_INVALID" })
+    expect(await script(host, "read", { sessionID: sessions.build, input: {} })).not.toMatchObject({ value: expect.anything() })
   })
 
   test("Code Mode calls the tools and keeps the structured output, review and coverage included", async () => {
@@ -135,7 +136,7 @@ seen.state = status.state`,
     const refused = await codemode(host, sessions.build!, `try { await tools.inference.extract(${JSON.stringify(planInput.input)}) } catch (error) { seen.error = String(error.message ?? error) }`)
     expect(refused.error).toMatch(/CAPABILITY_UNSUPPORTED: cloudflare\/clairic is disabled in this version/)
     // A reserved operation is no Code Mode tool at all: the host refuses the program before it runs.
-    await expect(codemode(host, sessions.build!, "seen.x = await tools.inference.decide({})")).rejects.toThrow(/Unknown Code Mode tool: inference\.decide/)
+    await expect(codemode(host, sessions.build!, "seen.x = await tools.inference.read({})")).rejects.toThrow(/Unknown Code Mode tool: inference\.read/)
   })
 
   test("/connect lists OpenRouter for Inference; a connected key shows as connected and never appears anywhere", async () => {

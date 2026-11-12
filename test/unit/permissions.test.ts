@@ -8,9 +8,9 @@ const rule = (action: string, effect: Rule["effect"]): Rule => ({ action, resour
 
 describe("the default block", () => {
   test("is generated from the registry's classes: the namespace pattern first, then each registered tool", () => {
-    const reads = (effect: Rule["effect"]) => [rule("inference_status", "allow"), rule("inference_capabilities", "allow"), rule("inference_plan", "allow"), rule("inference_extract", effect)]
+    const reads = (effect: Rule["effect"]) => [rule("inference_status", "allow"), rule("inference_capabilities", "allow"), rule("inference_plan", "allow"), rule("inference_extract", effect), rule("inference_decide", effect)]
     expect(defaultRules("all")).toEqual([rule("inference_*", "allow"), ...reads("allow")])
-    // extract is a send: it follows access like the namespace rule.
+    // extract and decide are sends: they follow access like the namespace rule.
     expect(defaultRules("ask-changes")).toEqual([rule("inference_*", "ask"), ...reads("ask")])
     expect(defaultRules("read-only")).toEqual([rule("inference_*", "deny"), ...reads("deny")])
     expect(defaultRules().map((item) => item.action).slice(1)).toEqual(TOOLS.map((tool) => actionOf(tool.name)))
@@ -96,7 +96,7 @@ describe("unguarded agents", () => {
 
   test("every non-read action is probed, registered or planned, not only the planned ones", () => {
     const probe = { ...TOOLS[0], name: "probe", class: "send" as const }
-    expect(guardedActions([...TOOLS, probe])).toEqual(["inference_extract", "inference_probe", ...PLANNED.map((operation) => operation.tool)])
+    expect(guardedActions([...TOOLS, probe])).toEqual(["inference_extract", "inference_decide", "inference_probe", ...PLANNED.map((operation) => operation.tool)])
     // An agent that allows exactly a registered send (and asks for the namespace and every planned tool) is unguarded.
     const narrow = [{ id: "narrow", permissions: [BASE, rule("inference_*", "ask"), rule("inference_probe", "allow")] }]
     expect(unguardedAgents(narrow, "ask-changes", guardedActions([...TOOLS, probe]))).toEqual(["narrow"])
