@@ -38,6 +38,12 @@ has verified it against the live API**; a disabled route refuses with that reaso
   an automatic profile is accepted by the options only with a held-out report for the same model, question set and
   thresholds. An accepted label is never a permission. Box questions are refused, and a request that may not fit the
   route's effective context is refused rather than truncated.
+  - **Enabled on `typesafe/jev-1.14`, for noul, choice and score over text**, after its compatibility canary passed on
+    2026-11-12. Price (OpenRouter's catalog): USD 0.000000042 per input token, output free; a per-token price is never a
+    ceiling, so each call reserves the whole per-request budget. Known limits: a request whose state and questions
+    exceed about 32 KB (32000 bytes, TypeSafe's default per-question limit read at its lower value) is refused before
+    anything is sent; under `review-first-v1` every answer goes to review, and no automatic acceptance profile ships;
+    box questions and images are not enabled.
 - Two skills, `inference-extract` and `inference-decide`, teach agents when to use each tool and how to read its result
   (nulls, evidence, probabilities, review, cost). Each is registered while its module is on.
 - `/inference-status` in a session, and the **Inference: Status** dialog (`/inference`) in the TUI.

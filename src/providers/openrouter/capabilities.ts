@@ -131,7 +131,7 @@ export const CLAIRIC_DOCUMENTED_IMAGES = { maxCount: 4, maxBytesEach: 4 * MiB, m
 export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.parse({
   schemaVersion: 1,
   provider: "openrouter",
-  revision: "openrouter-2026-11-12.3",
+  revision: "openrouter-2026-11-12.4",
   reviewedOn: "2026-11-11",
   basis: "documentation",
   verified: false,
@@ -143,6 +143,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
     { id: "A4", title: "OpenRouter alpha Extractions API reference", url: "https://openrouter.ai/docs/api/api-reference/alphaextractions/submit-an-extractions-request" },
     { id: "D1", title: "OpenRouter alpha Decisions API reference", url: "https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request" },
     { id: "C1", title: "OpenRouter model catalog (canonical slugs), read 2026-11-12", url: "https://openrouter.ai/api/v1/models" },
+    { id: "T1", title: "TypeSafe models page: Jev's context length, measured over the state and questions, read 2026-11-12", url: "https://docs.typesafe.ai/models.md" },
   ],
   catalog: { checkedOn: null, status: "not_checked" },
   routes: [
@@ -276,22 +277,36 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       apiRoute: DECISIONS,
       endpointProfile: "openrouter-alpha-decisions",
       status: "documented",
-      enabled: false,
+      // Enabled for noul, choice and score questions over text after the canary of 2026-11-12 (see canary).
+      enabled: true,
       inputs: { text: true, images: NO_IMAGES, pdf: null, textWithDocument: null },
       maxRequestBytes: null,
-      effectiveContextTokens: null,
-      contextAllowance: null,
+      // TypeSafe's default limits (T1): 64k tokens for the state plus all questions, 32k for the state plus any one
+      // question; 262k only with a long-context header, which OpenRouter's guide says only image requests get. 32000 reads
+      // "32k" at its lower value and bounds both limits at once. TypeSafe measures them over the state and questions,
+      // exactly what the adapter counts (in UTF-8 bytes, never fewer than tokens), so the documented allowance is 0.
+      effectiveContextTokens: 32000,
+      contextAllowance: { tokens: 0, source: "T1" },
       fieldTypes: [],
       listItemTypes: [],
-      questionTypes: ["noul", "choice", "score", "box"],
+      // The question types the canary observed; box is documented (D1) but not adopted in this version.
+      questionTypes: ["noul", "choice", "score"],
       nullThreshold: { supported: null, unsupportedOn: [] },
-      pricing: null,
+      // The catalog's per-token prices (C1, 2026-11-12): prompt 0.000000042 USD per token, completion 0 (TypeSafe's own
+      // page: USD 0.042 per million input tokens, output free). They reproduce the canary's reported cost exactly (399
+      // input tokens: 0.000016758). No ceiling is documented, so a call reserves the whole per-request budget.
+      pricing: { revision: "openrouter-catalog-2026-11-12", currency: "USD", perMillionInputTokens: "0.042", perMillionOutputTokens: "0", upperBound: false },
       zdr: "unknown",
-      canary: NOT_RUN,
+      canary: {
+        status: "passed",
+        on: "2026-11-12",
+        reports: ["decisions-20261112T215015Z.json", "decisions-20261112T225714Z.json"],
+        wireRevision: "openrouter-alpha-decisions-2026-11-12.2",
+      },
       notes: [
         "Named questions in the request, answers in the response; per-question refusal (D1).",
-        "Box answers and image input are documented but not adopted in this fixture: images are recorded as not reviewed.",
-        "TypeSafe documents default direct limits of 64k tokens per request and 32k per question; the OpenRouter endpoint's effective limit is not reviewed.",
+        "Enabled for noul, choice and score over text. Box answers and image input are documented but not adopted in this version.",
+        "Requests are refused above 32000 bytes of state and questions: TypeSafe's default per-question limit (T1), read at its lower value.",
       ],
     },
   ],

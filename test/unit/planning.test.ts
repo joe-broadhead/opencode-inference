@@ -54,7 +54,7 @@ describe("the committed capability fixture", () => {
     expect(route("scaledown/extract")).toMatchObject({ fieldTypes: ["text", "list"], nullThreshold: { supported: false }, inputs: { pdf: { maxCount: 1 }, textWithDocument: false } })
     expect(route("inception/mercury-decide").inputs).toMatchObject({ images: null, pdf: null })
     expect(route("levanto/sage-2").status).toBe("unconfirmed")
-    expect(route("typesafe/jev-1.14")).toMatchObject({ operation: "decide", apiRoute: "POST /api/alpha/decisions", questionTypes: ["noul", "choice", "score", "box"] })
+    expect(route("typesafe/jev-1.14")).toMatchObject({ operation: "decide", apiRoute: "POST /api/alpha/decisions", questionTypes: ["noul", "choice", "score"] })
   })
 })
 
@@ -139,7 +139,8 @@ describe("plan", () => {
   test("decisions: box needs an image route; a question set is unknown; text noul/choice/score fit Jev", () => {
     const choice = { type: "choice", prompt: "Which?", options: [{ id: "a", description: "A" }, { id: "b", description: "B" }] }
     const ok = run({ task: "decide", input: { source: text, profile: "decide-text", questions: { kind: choice, true_claim: { type: "noul", prompt: "Is it paid?" } } } })
-    expect(ok.route.selected!.exclusions).toEqual(["ROUTE_DISABLED", "PRICE_UNKNOWN"])
+    // Jev is enabled and priced: text noul and choice fit it.
+    expect(ok.route.selected!.exclusions).toEqual([])
     const box = run({ task: "decide", input: { source: text, profile: "decide-text", questions: { where: { type: "box", prompt: "Where is the total?" } } } })
     expect(box.route.selected!.exclusions).toContain("QUESTION_TYPE_UNSUPPORTED")
     const set = run({ task: "decide", input: { source: text, profile: "decide-text", questionSet: "document-kind-v1" } })
