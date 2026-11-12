@@ -2,12 +2,11 @@
 
 Unofficial OpenCode plugin. Not affiliated with OpenCode or OpenRouter.
 
-**Not released yet.** This is the first stage of `@joe-broadhead/opencode-inference`: the plugin shell, its registry,
-status and a local planner. It extracts nothing and decides nothing yet, and it calls no network service.
-
-The plugin will offer typed extraction (`inference.extract`) and bounded decisions (`inference.decide`) over supplied
-content, through OpenRouter's alpha Extractions and Decisions APIs first, keeping nulls, evidence, coverage, uncertainty
-and cost in every result. Those tools are reserved names in this version, not tools.
+**Not released yet.** This stage of `@joe-broadhead/opencode-inference` adds typed extraction (`inference.extract`)
+through OpenRouter's alpha Extractions API, keeping nulls, evidence, coverage, uncertainty and cost in every result.
+**Every route is disabled** until a compatibility canary has verified it against the live API, so in this version
+`inference_extract` refuses with that reason and nothing is sent. Bounded decisions (`inference.decide`) are a reserved
+name, not a tool.
 
 ## What works in this version
 
@@ -18,13 +17,20 @@ and cost in every result. Those tools are reserved names in this version, not to
 - **`inference_plan`**: given `{ task, input }` for an extract, decide or read call, the route and its exclusion reasons,
   the local preparation it would need, what would be sent and where, a quote, expected coverage, likely review and the
   unknowns. It never opens a file, uploads, calls a provider or spends. A plan is not a permission.
+- **`inference_extract`** (`send`): named typed fields (text, number, date, time, datetime, duration, list of text) from
+  supplied text, a local file or an artifact, on an enabled route. Each field keeps its nullable value (a guess never
+  fills it), the provider's confidence and null probability when reported, evidence as Unicode code-point spans of the
+  exact source, review reasons, and the number exactly as written. It asks the host before reading a file, reserves
+  budget before sending, and refuses provider constraints locally (no null threshold on a Clairic list or on ScaleDown,
+  Clairic's image limits). With every route disabled, it refuses before reading or sending anything.
 - `/inference-status` in a session, and the **Inference: Status** dialog (`/inference`) in the TUI.
-- Scripts call the same three tools with no model through the tools RPC `inference.core.tools`
+- Scripts call the same tools with no model through the tools RPC `inference.core.tools`
   ([docs/scripting.md](docs/scripting.md)).
 
-All three tools are `read`. Every route in the capability fixture is disabled: the fixture is transcribed from public
-documentation (dated 2026-11-11), not verified against the live API, and records no prices, so every quote is
-`unavailable`.
+Every route in the capability fixture is disabled: the fixture is transcribed from public documentation (dated
+2026-11-11), not verified against the live API, and records no prices, so every quote is `unavailable`. A route is
+enabled only after the opt-in canary (`scripts/canary-extractions.ts`, which needs an explicit key and budget and is
+never run by the checks) has passed against it.
 
 <!-- generated:tools -->
 
@@ -54,8 +60,9 @@ Not published. To try a checkout, run `npm ci --ignore-scripts && npm run build`
 
 Run `/connect` and choose **OpenRouter for Inference**, then enter an OpenRouter API key, or run
 `opencode auth login inference-openrouter`. This entry belongs to the plugin and is separate from OpenCode's own
-OpenRouter model provider. This version stores nothing itself and never reads the key; status shows only connected or
-not connected. No key is needed for the three local tools.
+OpenRouter model provider. The plugin stores no key itself: the transport reads it at dispatch, only for an enabled
+route, and sends it only to OpenRouter in the `Authorization` header. Status shows only connected or not connected. No
+key is needed for the three local tools.
 
 ## Configure
 
@@ -76,9 +83,10 @@ rules for each `access` value, and the error codes.
 
 ## Permissions
 
-The plugin inserts a default block after each agent's base allow: the three local reads always run, and the
-`inference_*` pattern covers the send tools a later release adds (`all` allows them, `ask-changes` asks, `read-only`
-denies). Your own rules still win.
+The plugin inserts a default block after each agent's base allow: the three local reads always run, and
+`inference_extract` and the `inference_*` pattern follow `access` (`all` allows them, `ask-changes` asks, `read-only`
+denies). Reading a file also asks the host's own `read` (and `external_directory` outside the project). Your own rules
+still win.
 
 ## Documentation
 

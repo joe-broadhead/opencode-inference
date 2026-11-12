@@ -46,6 +46,19 @@ option default, a failure code or the fixture, run:
 UPDATE_GENERATED=1 bun test test/unit/registry.test.ts
 ```
 
+## The compatibility canary
+
+`scripts/canary-extractions.ts` checks the reviewed Extractions contract against the live API. It spends money, so no
+check runs it. To run it, use a dedicated OpenRouter key with its own credit limit:
+
+```sh
+OPENROUTER_CANARY_KEY=<key> bun scripts/canary-extractions.ts --budget-usd 0.02 --yes-spend --only catalog,text
+```
+
+It refuses in CI and without the key, a budget of at most 0.10 and `--yes-spend`; `--dry-run` prints what it would send.
+It prints a report and never edits the fixture: record a passed canary in `src/providers/openrouter/capabilities.ts`
+(the route's `canary`, a new `revision`) in its own reviewed change before enabling a route.
+
 ## Commits
 
 `npm run check` passes before every commit. Use `type(scope): summary`. Check `git config user.email` first; see

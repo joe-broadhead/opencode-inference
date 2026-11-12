@@ -33,9 +33,12 @@ src/domain/                      zod contracts and pure logic, no host
   status-schema.ts               the status view's zod schema (server only)
   errors.ts                      CODE: what happened. Next step: …
   money.ts                       exact decimal money (10^-12 units, never floats)
+  json.ts                        a strict JSON reader that keeps provider numbers as written
 src/providers/openrouter/
   capabilities.ts                the dated, documentation-derived capability fixture (data only)
   http.ts                        the transport boundary: the only fetch and the only key read
+  extractions.ts                 the alpha Extractions adapter: wire request, constraints, strict answer, quote
+  catalog.ts                     catalog drift, reported as a compatibility status
 src/runtime/
   dispatch.ts                    the one dispatcher both host surfaces call
   handlers.ts                    status, capabilities and plan
@@ -85,6 +88,38 @@ validates the output against the tool's own schema. So a control added there hol
 | `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | `inference.core.extract` | send | yes | yes | yes |
 
 <!-- /generated:tools -->
+
+## Extraction
+
+`src/providers/openrouter/extractions.ts` is the alpha Extractions adapter, with a documentation-derived and unverified
+wire contract (`WIRE_REVISION`, part of every request fingerprint):
+
+- **Request.** `model`, the text as `state` (or one image or PDF as an ordered `assets` entry, base64), `fields` in the
+  provider's snake_case vocabulary (`null_threshold`, `decimals`, `integer`, `unit`, `items`, `max_items`) and
+  `provider.allow_fallbacks: false`. Plugin-only options (`required`) are never sent. The route's constraints are
+  refused locally with coded errors: a null threshold where the route or the field kind does not take it (Clairic lists,
+  ScaleDown, unknown support), an image over Clairic's per-image or decoded-total limit or of a type it does not take,
+  a PDF on a route without PDF input, a body over the route's request limit.
+- **Answer.** Read with a strict JSON reader (`src/domain/json.ts`) that keeps each number's literal and refuses
+  duplicate keys. `answers` must have exactly the requested keys; each value must have its field's JSON type;
+  probabilities must lie in 0..1; spans must be code-point ranges of the exact text sent, or name asset 0 for the one
+  asset sent; the model must be the requested one. Any of these failing is `PROVIDER_CONTRACT_CHANGED`. Unknown
+  metadata is ignored, bounded and counted in coverage warnings.
+- **Result.** Per field: the nullable value (a number also as `exact`, its literal), `derivation`, the reported
+  confidence, null probability and spelling confidence when present (absent otherwise, never 0), the diagnostic guess
+  apart from the value, evidence (`exact-text` spans with the span's own hash; `unavailable` for an image), list items
+  with their own evidence (an item without a span keeps an empty list), and review reasons: `FIELD_ABSENT`,
+  `REQUIRED_FIELD_ABSENT`, `CONFIDENCE_MISSING`, `EVIDENCE_UNAVAILABLE`, `EVIDENCE_MISMATCH`, `VALIDATION_FAILED`
+  (integer, decimals, calendar dates and times, list size) and `PROVIDER_TRUNCATED`. Checks never repair a value.
+  Coverage is complete for text unless the provider truncated, unknown for a file read natively. Every result is
+  reviewed under the uncalibrated `review-first-v1`.
+- **Money.** `usage.cost` is read from its literal and rounded UP to 12 places; its upstream breakdown is never added to
+  it, and only under BYOK is a reported upstream amount a separate charge. A per-request price is an exact upper bound;
+  a per-token input price is bounded by the body's UTF-8 bytes and rounded up; an output price or an image input makes
+  the quote an estimate.
+- **Routes.** Every route stays `enabled: false`; the fixture's schema refuses an enabled route without a passed
+  canary. `catalog.ts` compares OpenRouter's catalog with the fixture and reports drift (new candidates, missing
+  models) without enabling anything. `scripts/canary-extractions.ts` is the opt-in live check (see CONTRIBUTING.md).
 
 ## Reserved operations
 
@@ -179,9 +214,9 @@ subscriptions; the TUI dialog subscribes to events only while open.
 
 `runTool` runs a read-class tool's local handler. Every other tool is an operation and runs one ordered pipeline
 (`src/runtime/operation.ts`, handoff §7), the same on the model path and the tools RPC. A non-read tool without a
-provider adapter cannot run. This version registers no such tool: the pipeline is exercised by a test-only operation
-with a fake adapter and a fake transport (`test/support/operation-kit.ts`), and the extraction adapter of the next
-release plugs into `ADAPTERS` in `src/host/plugin.ts`.
+provider adapter cannot run. `inference_extract` is the one such tool, with the Extractions adapter in `ADAPTERS`
+(`src/host/plugin.ts`); the pipeline's own controls are also exercised by a test-only operation with a fake adapter and
+a fake transport (`test/support/operation-kit.ts`).
 
 1. The input is parsed strictly. The tool and its module are re-checked at the moment of the call.
 2. The route comes from the trusted options and the reviewed fixture: the requested profile or model, eligible now

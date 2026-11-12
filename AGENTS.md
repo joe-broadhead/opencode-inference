@@ -7,12 +7,19 @@ is the contract for options, permissions and errors. [docs/architecture.md](docs
 
 ## Scope of this version
 
-The shell, the registry, status and the local planner (handoff PR 1), plus the operation runtime (handoff PR 2):
-sources and snapshots, the transport boundary, the operation journal, reservations and settlement, wired into the one
-dispatcher. Registered tools: `status`, `capabilities`, `plan`, all class `read`, all strictly local. Do not register
-`extract`, `decide` or `read` until they work: a reserved name lives in `PLANNED` (src/domain/registry.ts), never as a
-callable stub, a method or a permission rule. The pipeline is tested with a test-only operation and a fake transport;
-the first provider adapter goes into `ADAPTERS` (src/host/plugin.ts) with its registry entry.
+The shell, registry, status and local planner (handoff PR 1); the operation runtime (PR 2); and the extraction
+vertical slice (PR 3): `inference_extract` (class `send`) with the OpenRouter alpha Extractions adapter
+(`src/providers/openrouter/extractions.ts`). Every route stays `enabled: false` until its compatibility canary has
+passed; the fixture's schema refuses an enabled route without a passed canary, and catalog drift is only reported. Do
+not register `decide` or `read` until they work: a reserved name lives in `PLANNED` (src/domain/registry.ts), never as
+a callable stub, a method or a permission rule.
+
+- **The wire contract** in `extractions.ts` is documentation-derived and unverified; its revision is part of every
+  request fingerprint. Validate every consumed key strictly (a changed required field or type is
+  `PROVIDER_CONTRACT_CHANGED`), tolerate bounded unknown metadata, read money from the literal (src/domain/json.ts)
+  and round it UP (`roundUp`), never through a float. Evidence offsets are Unicode code points of the exact source.
+- **The canary** (`scripts/canary-extractions.ts`) spends money: never run it from a check, CI or a test except its
+  refusals and `--dry-run`. It never edits the fixture.
 
 ## Design
 

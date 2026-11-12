@@ -37,8 +37,9 @@ by value: the OpenRouter key goes in `/connect`.
 <!-- /generated:options -->
 
 - `access`: `all`, `ask-changes` or `read-only`. Decides the default rules below.
-- `modules`: switches for the reserved operations. In this version they change what capabilities and plan report
-  (`MODULE_DISABLED`) and status's `state`; no module has a tool yet.
+- `modules`: switches for the operations. `extractions` turns `inference_extract` on or off (it is refused with
+  `MODULE_DISABLED` at execution when off); `decisions` and `understanding` change only what capabilities and plan report
+  and status's `state`, as their tools do not exist yet.
 - `profiles`: named routes, `{ "<name>": { "model": "<provider>/<model>" } }`. Setting it replaces the three defaults.
   A profile names a model; it never overrides a permission.
 - `routing.mode` is `explicit` and `routing.fallbacks` must be empty: automatic fallback stays off until evaluated.
@@ -48,7 +49,8 @@ by value: the OpenRouter key goes in `/connect`.
   provider request.
 - `spend`: exact decimal USD strings, never floats. `requirePricedRoute` makes a route with no known price ineligible;
   `requireUpperBound` requires a genuine ceiling. The three budgets are the handoff's proposed defaults, not measured
-  prices, and are still under review. See [Spend](#spend). No tool in this version spends.
+  prices, and are still under review. See [Spend](#spend). Only `inference_extract` can spend, and only on an enabled
+  route; none is enabled in this version.
 - `data.requireZdr`: `true` makes a route without documented zero data retention ineligible. `false` means you have not
   asked for that restriction; it does not claim a provider retains nothing.
 - `cache.enabled` must be `false`: the result cache is not implemented.
@@ -56,7 +58,7 @@ by value: the OpenRouter key goes in `/connect`.
 
 ## Spend
 
-The operation runtime (in place, but reached by no registered tool in this version) reserves before it sends:
+`inference_extract` reserves before it sends (on an enabled route; none is enabled in this version):
 
 - **Request.** The reservation is the route's upper bound when one is known. An estimate is not a cap, so with only an
   estimate, or with no price when `requirePricedRoute` is off, the call reserves the whole per-request budget
@@ -123,7 +125,9 @@ own `permissions`, followed by your top-level `inference_*` rules.
 
 <!-- /generated:rules-read-only -->
 
-The namespace rule covers the send tools a later release adds; the three local reads are always allowed.
+`inference_extract` gets the send effect of `access`; the namespace rule covers the send tools a later release adds; the
+three local reads are always allowed. Reading a file for `inference_extract` also asks the host's own `read` (and
+`external_directory` outside the project).
 
 ## Errors
 
