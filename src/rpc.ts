@@ -53,9 +53,12 @@ export const Inference = Rpc.define({
 /** JSON Schema outputs reach clients unchecked, so the TUI confirms the fields it reads. */
 export function isStatus(value: unknown): value is StatusView {
   if (typeof value !== "object" || value === null) return false
-  const v = value as Record<string, unknown>
+  const fields = new Map(Object.entries(value))
   const strings = new Set(["version", "state", "nextStep", "access"])
-  return STATUS_JSON_SCHEMA.required.every((key) => (strings.has(key) ? typeof v[key] === "string" : typeof v[key] === "object" && v[key] !== null))
+  return STATUS_JSON_SCHEMA.required.every((key) => {
+    const field = fields.get(key)
+    return strings.has(key) ? typeof field === "string" : typeof field === "object" && field !== null
+  })
 }
 
 export const STATUS_TITLE = "Inference status"

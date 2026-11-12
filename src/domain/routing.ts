@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import type * as z from "zod"
-import type { Config } from "./config.js"
+import { profileModel, type Config } from "./config.js"
 import { FIELD_TYPES, type DecideInput, type Exclusion, type ExtractInput, type Operation, type PlanInput, type PlanResult, type ReadInput, type SourceInput } from "./contracts.js"
 import { INTEGRATION_ID, type Module } from "./ids.js"
 import { fixtureAgeDays, STALE_AFTER_DAYS, type CapabilityFixture, type RouteCapability } from "../providers/openrouter/capabilities.js"
@@ -27,8 +27,9 @@ type PlanRequest = z.infer<typeof PlanInput>
 type Input = z.infer<typeof ExtractInput> | z.infer<typeof DecideInput> | z.infer<typeof ReadInput>
 type Source = z.infer<typeof SourceInput>
 
-const EXTENSIONS: Readonly<Record<string, Modality>> = { txt: "text", md: "text", csv: "text", json: "text", pdf: "pdf", png: "image", jpg: "image", jpeg: "image", webp: "image" }
-const IMAGE_MIME: Readonly<Record<string, string>> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" }
+// Maps, not records: a key from a file name is looked up without reaching a prototype.
+const EXTENSIONS: ReadonlyMap<string, Modality> = new Map(Object.entries({ txt: "text", md: "text", csv: "text", json: "text", pdf: "pdf", png: "image", jpg: "image", jpeg: "image", webp: "image" } as const))
+const IMAGE_MIME: ReadonlyMap<string, string> = new Map(Object.entries({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" }))
 
 /** The source's modality, from supplied facts only: the kind, an artifact's declaration, or a file name's extension. */
 export function modalityOf(source: Source): { modality: Modality; mimeType?: string; fromName: boolean } {
@@ -37,8 +38,9 @@ export function modalityOf(source: Source): { modality: Modality; mimeType?: str
       return { modality: "text", mimeType: "text/plain", fromName: false }
     case "path": {
       const extension = /\.([A-Za-z0-9]+)$/.exec(source.path)?.[1]?.toLowerCase() ?? ""
-      const modality = EXTENSIONS[extension] ?? "unknown"
-      return { modality, fromName: true, ...(modality === "pdf" ? { mimeType: "application/pdf" } : IMAGE_MIME[extension] ? { mimeType: IMAGE_MIME[extension] } : {}) }
+      const modality = EXTENSIONS.get(extension) ?? "unknown"
+      const image = IMAGE_MIME.get(extension)
+      return { modality, fromName: true, ...(modality === "pdf" ? { mimeType: "application/pdf" } : image ? { mimeType: image } : {}) }
     }
     case "artifact": {
       const { kind, mimeType } = source.artifact
@@ -54,10 +56,10 @@ export function modalityOf(source: Source): { modality: Modality; mimeType?: str
 export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`
   if (value && typeof value === "object")
-    return `{${Object.keys(value)
-      .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`)
+    return `{${Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
       .join(",")}}`
   return JSON.stringify(value)
 }
@@ -207,7 +209,7 @@ export function plan(request: PlanRequest, context: PlanContext): PlanResult {
   const reasons: Exclusion[] = []
   let model = input.model
   if (input.profile !== undefined) {
-    model = config.profiles[input.profile]?.model
+    model = profileModel(config, input.profile)
     if (model === undefined) reasons.push("PROFILE_UNKNOWN")
   }
   const candidates = fixture.routes.filter((route) => route.operation === request.task)

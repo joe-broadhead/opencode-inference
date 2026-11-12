@@ -204,6 +204,32 @@ describe("the transport boundary", () => {
     expect(api.seen).toEqual([])
   })
 
+  test("the path and origin checks do not depend on built-ins a later module could change", async () => {
+    const api = await serve((_request, response) => response.end("{}"))
+    const elsewhere = await serve((_request, response) => response.end("{}"))
+    const transport = createTransport(integration().integration, api.origin)
+    const account = (await transport.account()) as Account
+    const includes = Array.prototype.includes
+    const has = Set.prototype.has
+    const origin = Object.getOwnPropertyDescriptor(URL.prototype, "origin")!
+    const results: unknown[] = []
+    try {
+      // Everything looks reviewed and same-origin to code that asks these built-ins.
+      Array.prototype.includes = () => true
+      Set.prototype.has = () => true
+      Object.defineProperty(URL.prototype, "origin", { get: () => api.origin, configurable: true })
+      for (const path of ["/api/v1/chat/completions", `//${new URL(elsewhere.origin).host}/api/alpha/extractions`, `${elsewhere.origin}/api/alpha/extractions`])
+        results.push(await failureOf(transport.post(request(account, { path }))))
+    } finally {
+      Array.prototype.includes = includes
+      Set.prototype.has = has
+      Object.defineProperty(URL.prototype, "origin", origin)
+    }
+    expect(results).toEqual(results.map(() => expect.objectContaining({ kind: "path_refused", sent: false })))
+    expect(api.seen).toEqual([])
+    expect(elsewhere.seen).toEqual([])
+  })
+
   test("only the trusted origin and the reviewed paths: anything else is refused before a request exists", async () => {
     for (const origin of ["https://evil.example", "http://openrouter.ai", "https://openrouter.ai.evil.example", "https://openrouter.ai/api", "file:///etc"])
       expect(() => createTransport(integration().integration, origin)).toThrow()

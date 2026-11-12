@@ -82,6 +82,9 @@ export interface Config {
   readonly allowUntestedHost: boolean
 }
 
+/** The model a configured profile names, or undefined. Looked up without reaching a prototype. */
+export const profileModel = (config: Pick<Config, "profiles">, name: string) => new Map(Object.entries(config.profiles)).get(name)?.model
+
 /** The keys of a value, at any depth, that look like secrets. Only key paths are reported, never values. */
 function secretPaths(value: unknown, path: string[] = []): string[] {
   if (typeof value !== "object" || value === null) return []

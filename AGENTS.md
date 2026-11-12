@@ -40,19 +40,20 @@ the first provider adapter goes into `ADAPTERS` (src/host/plugin.ts) with its re
   it settles (`createAuthorize`). Host permission errors propagate unchanged.
 - **Cloud inference is `send`.** It transmits content and can spend. A model's answer never grants a permission.
 - **The transport boundary.** `src/providers/openrouter/http.ts` is the only file that may reach the network or read
-  the key. `npm run lint` checks the syntax tree (`scripts/check-network.mjs`, the TypeScript compiler API). Everywhere
-  else in `src/`, modules are an ALLOW-LIST: a literal specifier naming a relative path, a listed builtin written with
-  `node:` (`node:crypto`, `node:fs`, `node:fs/promises`, `node:os`, `node:path`, `node:url`) or a listed package
-  (`zod`, `@opencode/plugin` and its used subpaths, `solid-js`); anything else, `bun`, `node:vm` and non-literal
-  specifiers included, is refused. Also refused: `eval`, `Function`, `.constructor` reads, `fetch`, `WebSocket`,
-  `XMLHttpRequest`, `EventSource`, `Bun`, `Reflect`, `getBuiltinModule` and the loader escapes; `globalThis`, `window`,
-  `self` and `global` other than a plain read of an allowed name; `process` other than `process.<name>`; `require`
-  other than a literal call, and any `.require`; a computed key on anything that is, or aliases, the integration, a
-  connection, `process`, a global or `Reflect`; the host connection API other than `….connection.<method>(…)` with a
-  method that is not `resolve`. Known false positives (any `x.connection` kept as a value, the string `"resolve"`,
-  `Reflect.*`, a variable named `self`): read members directly, rename, or use the plain operation; a new builtin or
-  package is added to the allow-list in its own reviewed change. Trusted origin only, the key in one header, no
-  redirects, deadline, byte caps, cancellation.
+  the key. It builds each request URL from its validated origin string and an exact reviewed path, so no change to a
+  built-in can widen either. `npm run lint` enforces the boundary with the TypeScript compiler API
+  (`scripts/check-network.mjs`, whose header lists every rule): modules are an allow-list (relative paths inside `src/`,
+  `node:crypto`, `node:fs`, `node:fs/promises`, `node:os`, `node:path`, `node:url`, `zod`, `@opencode/plugin` and its
+  used subpaths, `solid-js`); `eval`, `Function`, prototype and property-definition routes, network globals, loader
+  escapes, `process` beyond `env`/`pid`/`platform`/`cwd`/`kill`, and computed keys the type checker cannot prove safe
+  are refused; the host connection API may only be called as `….connection.<method>(…)` with a method that is not
+  `resolve`. `dist/` may hold only sections from `src/` and inlined zod. What the lint guarantees: no accidental or
+  casual network or key access outside `http.ts`. What it does not: deliberate obfuscation (the integration object
+  passed through function arguments, `Object.entries`, a name hidden in data) can get past any static check; code
+  review and the runtime network spy are the backstop. Known false positives (any `x.connection` kept as a value, the
+  strings `"resolve"`/`"constructor"`, `Reflect.*`, a lookup by a wide `string` key, a variable named `self`): read
+  members directly, use a Map, rename, or use the plain operation; a new builtin or package is added to the allow-list
+  in its own reviewed change.
   Tests spy every network path (`test/support/network-spy.ts`) and assert zero calls from setup, status, capabilities,
   plan and every refused operation; transport tests use loopback servers only.
 - **Operations.** A non-read tool runs the ordered pipeline in `src/runtime/operation.ts` (handoff §7): trusted route,

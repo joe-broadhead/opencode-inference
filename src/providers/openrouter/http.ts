@@ -16,6 +16,11 @@ import { INTEGRATION_ID } from "../../domain/ids.js"
 export const OPENROUTER_ORIGIN = "https://openrouter.ai"
 /** The API paths this transport may call. A path is matched exactly. */
 export const API_PATHS = ["/api/alpha/extractions", "/api/alpha/decisions"] as const
+// Captured at module load: the request URL is the trusted origin string plus one of these exact path strings, compared
+// with ===, so no later change to a built-in (URL, Array.prototype.includes, Set.prototype.has) can widen either.
+const PATH_EXTRACTIONS = API_PATHS[0]
+const PATH_DECISIONS = API_PATHS[1]
+const reviewedPath = (path: unknown) => path === PATH_EXTRACTIONS || path === PATH_DECISIONS
 
 type Integration = Pick<Plugin.Context["integration"], "connection">
 type Connection = NonNullable<Awaited<ReturnType<Integration["connection"]["active"]>>>
@@ -98,7 +103,9 @@ const codeOf = (error: unknown): string => {
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,256}$/
 
 export function createTransport(integration: Integration, origin: string = OPENROUTER_ORIGIN): Transport {
-  const base = trustedOrigin(origin)
+  // The origin is validated once, here, and kept as a string; requests never parse a URL again.
+  trustedOrigin(origin)
+  const base = origin
 
   const account = async (): Promise<Account | "needs_auth" | undefined> => {
     const connection = await integration.connection.active(INTEGRATION_ID)
@@ -118,9 +125,8 @@ export function createTransport(integration: Integration, origin: string = OPENR
   }
 
   const post = async (request: TransportRequest): Promise<TransportResponse> => {
-    if (!(API_PATHS as readonly string[]).includes(request.path)) throw new TransportError("path_refused", false)
-    const url = new URL(request.path, base)
-    if (url.origin !== base.origin) throw new TransportError("path_refused", false)
+    if (!reviewedPath(request.path)) throw new TransportError("path_refused", false)
+    const url = base + request.path
     if (request.body.byteLength > request.maxRequestBytes) throw new TransportError("request_too_large", false)
     if (request.signal.aborted) throw new TransportError("cancelled", false)
 

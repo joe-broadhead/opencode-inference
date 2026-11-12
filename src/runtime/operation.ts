@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import type * as z from "zod"
-import type { Config } from "../domain/config.js"
+import { profileModel, type Config } from "../domain/config.js"
 import { Usage, type Coverage, type Exclusion, type Operation, type Review, type SourceInput } from "../domain/contracts.js"
 import { fence, InferenceError } from "../domain/errors.js"
 import { canonical, exclusions, OPERATION_MODULE } from "../domain/routing.js"
@@ -111,7 +111,7 @@ const UNSUPPORTED: readonly Exclusion[] = [
 /** Step 3: the explicitly requested route, eligible now, from trusted options and the reviewed fixture only. */
 export function resolveRoute(operation: Operation, input: OperationInput, config: Config, fixture: CapabilityFixture): RouteCapability {
   if (!config.modules[OPERATION_MODULE[operation]]) throw new InferenceError("MODULE_DISABLED")
-  const model = input.profile !== undefined ? config.profiles[input.profile]?.model : input.model
+  const model = input.profile !== undefined ? profileModel(config, input.profile) : input.model
   if (model === undefined) throw new InferenceError("CAPABILITY_UNSUPPORTED", `There is no profile named ${JSON.stringify(input.profile)} in the trusted options.`, "Pass a configured profile or an explicit model; inference_capabilities lists them.")
   const route = fixture.routes.find((item) => item.model === model && item.operation === operation)
   if (!route) throw new InferenceError("CAPABILITY_UNSUPPORTED", `There is no reviewed ${operation} route for ${model}.`)

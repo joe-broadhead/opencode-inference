@@ -56,12 +56,15 @@ export type RunTool = (name: string, input: unknown, invocation: Invocation) => 
 export function createDispatcher(options: DispatcherOptions): RunTool {
   const byName = new Map(options.tools.map((tool) => [tool.name, tool]))
   const slots = new Slots(options.operations?.config.limits.concurrency ?? 1)
+  // Maps, not records: a tool name from a caller is looked up without reaching a prototype.
+  const handlers = new Map(Object.entries(options.handlers))
+  const adapters = new Map(Object.entries(options.operations?.adapters ?? {}))
   return async (name, raw, invocation) => {
     const tool = byName.get(name)
     const missing = () => new InferenceError("TOOL_UNAVAILABLE", `There is no Inference tool named ${JSON.stringify(name)} in this version.`)
     if (!tool) throw missing()
-    const handler = tool.class === "read" ? options.handlers[name] : undefined
-    const adapter = tool.class === "read" ? undefined : options.operations?.adapters[name]
+    const handler = tool.class === "read" ? handlers.get(name) : undefined
+    const adapter = tool.class === "read" ? undefined : adapters.get(name)
     if (tool.class === "read" ? !handler : !adapter || adapter.operation !== tool.operation) throw missing()
     fence(invocation.signal)
     const blocked = options.unavailable(tool)
