@@ -18,8 +18,8 @@ describe("catalog drift is a compatibility status, never an enablement", () => {
       drift: true,
       enables: false,
     })
-    // The fixture is untouched: nothing was enabled or added.
-    expect(OPENROUTER_CAPABILITIES.routes.some((route) => route.enabled || route.model === "acme/new-extractor")).toBe(false)
+    // The fixture is untouched: nothing was added, and drift enabled nothing.
+    expect(OPENROUTER_CAPABILITIES.routes.some((route) => route.model === "acme/new-extractor")).toBe(false)
     expect(catalogDrift(OPENROUTER_CAPABILITIES, "decide", catalogModels({ data: [{ id: "typesafe/jev-1.14" }] })).drift).toBe(false)
   })
 
@@ -98,11 +98,18 @@ describe("catalog drift is a compatibility status, never an enablement", () => {
 
   test("the fixture refuses an enabled route whose canary has not passed, and records the catalog as not checked", () => {
     expect(OPENROUTER_CAPABILITIES.catalog).toEqual({ checkedOn: null, status: "not_checked" })
-    expect(OPENROUTER_CAPABILITIES.routes.every((route) => route.canary.status === "not_run")).toBe(true)
-    const enable = (canary: { status: "not_run" | "passed" | "failed"; on: string | null }) =>
-      CapabilityFixture.safeParse({ ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route, index) => (index === 0 ? { ...route, enabled: true, canary } : route)) }).success
-    expect(enable({ status: "not_run", on: null })).toBe(false)
-    expect(enable({ status: "failed", on: "2026-11-12" })).toBe(false)
-    expect(enable({ status: "passed", on: "2026-11-12" })).toBe(true)
+    // Every route without a passed canary is disabled.
+    expect(OPENROUTER_CAPABILITIES.routes.filter((route) => route.canary.status !== "passed" && route.enabled)).toEqual([])
+    const enable = (canary: { status: "not_run" | "passed" | "failed"; on: string | null; reports?: string[]; wireRevision?: string }) =>
+      CapabilityFixture.safeParse({ ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route) => (route.model === "levanto/sage-2" ? { ...route, enabled: true, canary } : route)) }).success
+    const evidence = { reports: ["extractions-20261112T215014Z.json", "extractions-20261112T225713Z.json"], wireRevision: "openrouter-alpha-extractions-2026-11-12.2" }
+    expect(enable({ status: "not_run", on: null, ...evidence })).toBe(false)
+    expect(enable({ status: "failed", on: "2026-11-12", ...evidence })).toBe(false)
+    // A pass without its evidence is refused: both reports (request and malformed request) and the wire revision.
+    expect(enable({ status: "passed", on: "2026-11-12" })).toBe(false)
+    expect(enable({ status: "passed", on: "2026-11-12", reports: [evidence.reports[0]!], wireRevision: evidence.wireRevision })).toBe(false)
+    expect(enable({ status: "passed", on: "2026-11-12", reports: evidence.reports })).toBe(false)
+    expect(enable({ status: "passed", on: "2026-11-12", reports: ["notes.txt", "x.json"], wireRevision: evidence.wireRevision })).toBe(false)
+    expect(enable({ status: "passed", on: "2026-11-12", ...evidence })).toBe(true)
   })
 })

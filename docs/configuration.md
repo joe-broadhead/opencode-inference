@@ -52,7 +52,7 @@ by value: the OpenRouter key goes in `/connect`.
 - `spend`: exact decimal USD strings, never floats. `requirePricedRoute` makes a route with no known price ineligible;
   `requireUpperBound` requires a genuine ceiling. The three budgets' defaults (USD 0.05 per request, 1.00 per session,
   5.00 per rolling 24 hours) are confirmed by the owner; they are budgets, not prices. See [Spend](#spend). Only
-  `inference_extract` and `inference_decide` can spend, and only on an enabled route; none is enabled in this version.
+  `inference_extract` and `inference_decide` can spend, and only on an enabled route (see `inference_capabilities`).
 - `data.requireZdr`: `true` makes a route without documented zero data retention ineligible. `false` means you have not
   asked for that restriction; it does not claim a provider retains nothing.
 - `cache.enabled` must be `false`: the result cache is not implemented.
@@ -70,7 +70,7 @@ by value: the OpenRouter key goes in `/connect`.
 
 ## Spend
 
-`inference_extract` reserves before it sends (on an enabled route; none is enabled in this version):
+`inference_extract` reserves before it sends (on an enabled route):
 
 - **Request.** The reservation is the route's upper bound when one is known. An estimate is not a cap, so with only an
   estimate, or with no price when `requirePricedRoute` is off, the call reserves the whole per-request budget

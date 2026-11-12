@@ -142,7 +142,7 @@ export function createPlugin(sources: PluginSources): Plugin.Plugin {
         try {
           stack.push(await registerIntegration(ctx.integration))
         } catch {
-          // /connect is optional in this version: status names the problem and setup carries on.
+          // /connect is optional for setup: status names the problem and setup carries on.
           integrationProblem = new InferenceError("INTEGRATION_NOT_REGISTERED").message
         }
         stack.push(await registerDefaultRules(ctx.agent, config.access, (problem) => (rulesProblem = problem)))

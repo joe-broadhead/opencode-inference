@@ -6,13 +6,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- `cloudflare/clairic` extractions are enabled, for text only, after the compatibility canary passed on 2026-11-12 (request and malformed-request reports, wire revision `openrouter-alpha-extractions-2026-11-12.2`). Price from OpenRouter's catalog: USD 0.0000001 per input token, output free, with no documented ceiling, so a call reserves the whole per-request budget. Clairic's images stay disabled until an image canary passes; every result goes to review under `review-first-v1`.
 - The plugin shell: the plugin `inference.core`, its TUI `inference.core.tui`, the `inference` namespace, the status RPC `inference.core`, the tools RPC `inference.core.tools` and `/inference-status`.
 - Three local tools, all `read` and none calling a network service: `inference_status`, `inference_capabilities` and `inference_plan`.
 - One registry that drives the model tools, the tools RPC methods and classes, the default permission block, the Jelly declaration and the generated docs.
 - Strict plugin-domain contracts, exported as JSON Schema: `SourceInput`, `ArtifactRef`, `EvidenceRef`, `Coverage`, `Usage`, `InferenceResult` and the extract, decide, read and plan inputs.
 - Strict options (`access`, `modules`, `profiles`, `routing`, `limits`, `spend`, `data`, `cache`, `allowUntestedHost`); a key-like option is refused.
 - The plugin-owned `/connect` entry "OpenRouter for Inference" (`inference-openrouter`). Status reports only whether it is connected; this version never reads the key.
-- A dated, documentation-derived capability fixture for `cloudflare/clairic`, `scaledown/extract`, `inception/mercury-decide`, `levanto/sage-2` and `typesafe/jev-1.14`, with every route disabled and no prices.
+- A dated, documentation-derived capability fixture for `cloudflare/clairic`, `scaledown/extract`, `inception/mercury-decide`, `levanto/sage-2` and `typesafe/jev-1.14`, in which a route is enabled only with a passed compatibility canary, its reports and wire revision, and a catalog price.
 - The operation runtime, wired into the one dispatcher for both host surfaces but reached by no registered tool yet: the ordered pipeline of handoff §7, approved local file reads through a descriptor into immutable snapshots, the OpenRouter transport boundary, a private operation journal with a process mutex and a cross-process lock that is never taken over, operation-keyed reservations at the request, session and rolling 24-hour scopes, and settlement that keeps the reservation when the cost is unknown.
 - Failure codes for operations: `CAPABILITY_UNSUPPORTED`, `UNSAFE_PATH`, `SOURCE_CHANGED`, `SOURCE_TYPE`, `SOURCE_LIMIT`, `CONTEXT_LIMIT`, `AUTH_REQUIRED`, `AUTH_REJECTED`, `PRICE_UNKNOWN`, `BUDGET_EXCEEDED`, `JOURNAL_LOCKED`, `JOURNAL_UNREADABLE`, `PROVIDER_ERROR`, `PROVIDER_CONTRACT_CHANGED`, `SUBMISSION_UNKNOWN` and `DEADLINE_EXCEEDED`.
 

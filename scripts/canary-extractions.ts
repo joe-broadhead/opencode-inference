@@ -27,7 +27,7 @@ import { ExtractInput } from "../src/domain/contracts.js"
 import { InferenceError } from "../src/domain/errors.js"
 import { format } from "../src/domain/money.js"
 import { catalogDrift, catalogModels } from "../src/providers/openrouter/catalog.js"
-import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../src/providers/openrouter/capabilities.js"
+import { CLAIRIC_DOCUMENTED_IMAGES, OPENROUTER_CAPABILITIES, type RouteCapability } from "../src/providers/openrouter/capabilities.js"
 import { extractionsAdapter } from "../src/providers/openrouter/extractions.js"
 import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
 import { snapshot, type FileAccess, type Snapshot } from "../src/runtime/sources.js"
@@ -71,7 +71,8 @@ interface Case {
 }
 const cases: Case[] = [
   { canary: "text", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "Total EUR 1.00" }, fields: { total: { type: "number", decimals: 2 } } }, source: () => snapshot({ kind: "text", text: "Total EUR 1.00" }, noFiles, route("cloudflare/clairic"), signal) },
-  { canary: "image", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "-" }, fields: { caption: { type: "text" } } }, source: async () => image("image/png", PNG, "image") },
+  // The image canary checks Clairic's documented image input, which the fixture enables only after this canary passes.
+  { canary: "image", route: { ...route("cloudflare/clairic"), inputs: { ...route("cloudflare/clairic").inputs, images: CLAIRIC_DOCUMENTED_IMAGES } }, input: { model: "cloudflare/clairic", source: { kind: "text", text: "-" }, fields: { caption: { type: "text" } } }, source: async () => image("image/png", PNG, "image") },
   { canary: "pdf", route: route("scaledown/extract"), input: { model: "scaledown/extract", source: { kind: "text", text: "-" }, fields: { title: { type: "text" } } }, source: async () => image("application/pdf", PDF, "pdf") },
   { canary: "malformed", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "a, b" }, fields: { names: { type: "list", items: "text" } } }, source: () => snapshot({ kind: "text", text: "a, b" }, noFiles, route("cloudflare/clairic"), signal), refused: true },
 ]

@@ -58,7 +58,7 @@ export interface StatusView {
   readonly connection: {
     readonly integration: typeof INTEGRATION_ID
     readonly state: ConnectionState
-    /** True when an enabled route would need the key. False in this version: no route sends yet. */
+    /** True when an enabled route of a module that is on would need the key. */
     readonly required: boolean
     readonly next?: string
   }

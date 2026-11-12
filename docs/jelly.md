@@ -11,7 +11,7 @@ is a clean SVG of drawing elements.
 
 5 tools are declared (3 read-only): `inference.status`, `inference.capabilities` and `inference.plan`, which are local,
 and `inference.extract` and `inference.decide`, which send the source to OpenRouter and can be charged (class `send`;
-they run only on a verified, enabled route, and no route is enabled in this version). Jelly's agents have no base "allow everything" rule,
+they run only on a verified, enabled route). Jelly's agents have no base "allow everything" rule,
 so this plugin's own default rules never reach them; every declared tool's effect is the one the default rules give at
 `access: "all"`.
 

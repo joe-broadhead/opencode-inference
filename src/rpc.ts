@@ -124,7 +124,7 @@ export function statusLines(view: StatusView, { paste, agents }: { readonly past
   return [
     line(
       "Connection",
-      `${CONNECTION_TEXT[view.connection.state]}${view.connection.required ? "" : `; not needed yet: no route sends in this version (${INTEGRATION_NAME} in /connect)`}`,
+      `${CONNECTION_TEXT[view.connection.state]}${view.connection.required ? "" : `; not needed yet: no enabled route sends (${INTEGRATION_NAME} in /connect)`}`,
       !view.connection.required || view.connection.state === "connected",
     ),
     line("Account", "the key's own OpenRouter account; Inference never reads it in this version", true),

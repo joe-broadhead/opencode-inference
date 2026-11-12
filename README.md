@@ -4,8 +4,9 @@ Unofficial OpenCode plugin. Not affiliated with OpenCode or OpenRouter.
 
 **Not released yet.** `@joe-broadhead/opencode-inference` offers typed extraction (`inference.extract`) and bounded
 decisions (`inference.decide`) through OpenRouter's alpha Extractions and Decisions APIs, keeping nulls, evidence,
-probabilities, refusals, coverage and cost in every result. **Every route is disabled** until a compatibility canary
-has verified it against the live API, so in this version both tools refuse with that reason and nothing is sent.
+probabilities, refusals, coverage and cost in every result. **A route is enabled only after a compatibility canary
+has verified it against the live API**; a disabled route refuses with that reason and nothing is sent.
+`inference_capabilities` lists the enabled routes and what each takes.
 
 ## What works in this version
 
@@ -22,7 +23,13 @@ has verified it against the live API, so in this version both tools refuse with 
   fills it), the provider's confidence and null probability when reported, evidence as Unicode code-point spans of the
   exact source, review reasons, and the number exactly as written. It asks the host before reading a file, reserves
   budget before sending, and refuses provider constraints locally (no null threshold on a Clairic list or on ScaleDown,
-  Clairic's image limits). With every route disabled, it refuses before reading or sending anything.
+  Clairic's image limits). On a disabled route it refuses before reading or sending anything.
+  - **Enabled on `cloudflare/clairic`, for text only**, after its compatibility canary passed on 2026-11-12. Price
+    (OpenRouter's catalog): USD 0.0000001 per input token, output free; a per-token price is never a ceiling, so each
+    call reserves the whole per-request budget. Known limits: Clairic's images are documented but not enabled (the
+    canary observed text only), and Clairic takes no PDF; only a `number` field was observed live, the other field
+    types follow the API reference; under `review-first-v1` every result goes to review. ScaleDown, Mercury Decide and
+    Sage stay disabled.
 - **`inference_decide`** (`send`): noul (the probability a proposition is true), choice and score (the expected,
   possibly fractional, position on an ordered rubric) questions about supplied text, given inline or as a versioned
   question set from the trusted options. Probabilities and distributions come back exactly as reported (never
@@ -37,11 +44,11 @@ has verified it against the live API, so in this version both tools refuse with 
 - Scripts call the same tools with no model through the tools RPC `inference.core.tools`
   ([docs/scripting.md](docs/scripting.md)).
 
-Every route in the capability fixture is disabled: the fixture is transcribed from public documentation (dated
-2026-11-11), not verified against the live API, and records no prices, so every quote is `unavailable`. A route is
-enabled only after its opt-in canary (`scripts/canary-extractions.ts`, `scripts/canary-decisions.ts`, which need an
-explicit key and budget and are
-never run by the checks) has passed against it.
+The capability fixture is transcribed from public documentation (dated 2026-11-11), with canonical slugs and prices
+from OpenRouter's public catalog. A route is enabled only after its opt-in canary (`scripts/canary-extractions.ts`,
+`scripts/canary-decisions.ts`, which need an explicit key and budget and are never run by the checks) has passed
+against it; `inference_capabilities` lists the enabled routes. A disabled route has no price, so its quote is
+`unavailable`.
 
 <!-- generated:tools -->
 
@@ -68,13 +75,13 @@ OpenCode `>=2.2.3 <2.3.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6.
 Not published. To try a checkout, run `npm ci --ignore-scripts && npm run build`, then point a `plugins` entry in
 `opencode.json` at the repository directory.
 
-## Connect OpenRouter (optional in this version)
+## Connect OpenRouter
 
 Run `/connect` and choose **OpenRouter for Inference**, then enter an OpenRouter API key, or run
 `opencode auth login inference-openrouter`. This entry belongs to the plugin and is separate from OpenCode's own
 OpenRouter model provider. The plugin stores no key itself: the transport reads it at dispatch, only for an enabled
-route, and sends it only to OpenRouter in the `Authorization` header. Status shows only connected or not connected. No
-key is needed for the three local tools.
+route, and sends it only to OpenRouter in the `Authorization` header. Status shows only connected or not connected. The
+key is needed only for an enabled route; the three local tools never need it.
 
 ## Configure
 

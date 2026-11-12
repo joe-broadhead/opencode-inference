@@ -75,8 +75,17 @@ export const RouteCapability = z.strictObject({
     .describe("null: no price in the reviewed sources."),
   zdr: z.enum(["supported", "unsupported", "unknown"]),
   canary: z
-    .strictObject({ status: z.enum(["not_run", "passed", "failed"]), on: z.iso.date().nullable() })
-    .describe("The opt-in compatibility canary against the live API (scripts/canary-extractions.ts). A route is enabled only after it passed."),
+    .strictObject({
+      status: z.enum(["not_run", "passed", "failed"]),
+      on: z.iso.date().nullable(),
+      reports: z
+        .array(z.string().regex(/^(?:extractions|decisions)-\d{8}T\d{6}Z\.json$/))
+        .max(8)
+        .optional()
+        .describe("The redacted canary reports that show the pass, by file name: the request canary and the malformed-request canary."),
+      wireRevision: z.string().max(64).optional().describe("The adapter's WIRE_REVISION the canary passed against. Another revision needs the canary again."),
+    })
+    .describe("The opt-in compatibility canary against the live API (scripts/canary-*.ts). A route is enabled only after it passed."),
   notes: z.array(z.string().max(512)).max(8),
 })
 export type RouteCapability = z.infer<typeof RouteCapability>
@@ -97,8 +106,12 @@ export const CapabilityFixture = z.strictObject({
     .array(RouteCapability)
     .max(32)
     .superRefine((routes, context) => {
-      for (const route of routes)
+      for (const route of routes) {
         if (route.enabled && route.canary.status !== "passed") context.addIssue({ code: "custom", message: `${route.model} is enabled without a passed compatibility canary` })
+        // A pass names its evidence: the request and malformed-request reports, and the wire revision they ran against.
+        if (route.enabled && ((route.canary.reports?.length ?? 0) < 2 || route.canary.wireRevision === undefined))
+          context.addIssue({ code: "custom", message: `${route.model} is enabled without its canary reports and wire revision` })
+      }
     }),
 })
 export type CapabilityFixture = z.infer<typeof CapabilityFixture>
@@ -108,15 +121,22 @@ const DECISIONS = "POST /api/alpha/decisions"
 const NO_IMAGES = null
 const NOT_RUN = { status: "not_run", on: null } as const
 
+/**
+ * Clairic's documented image input (A2): four PNG, JPEG or WebP images, 4 MiB each, 8 MiB decoded in total, read in
+ * order. A route takes images only while its `inputs.images` holds this, which needs an image canary; the image canary
+ * and the adapter's tests use it directly.
+ */
+export const CLAIRIC_DOCUMENTED_IMAGES = { maxCount: 4, maxBytesEach: 4 * MiB, maxBytesTotal: 8 * MiB, mimeTypes: ["image/png", "image/jpeg", "image/webp"], ordered: true }
+
 export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.parse({
   schemaVersion: 1,
   provider: "openrouter",
-  revision: "openrouter-2026-11-12.2",
+  revision: "openrouter-2026-11-12.3",
   reviewedOn: "2026-11-11",
   basis: "documentation",
   verified: false,
   notice:
-    "Transcribed from OpenRouter's public documentation on 2026-11-11, with canonical slugs from its catalog on 2026-11-12. Not verified against the live API. No price is recorded, so no quote is available. Every route is disabled until its compatibility canary has passed.",
+    "Transcribed from OpenRouter's public documentation on 2026-11-11, with canonical slugs from its catalog on 2026-11-12. A route is enabled only after its compatibility canary has passed against the live API: its canary names the reports and the wire revision. A route without a passed canary or a price stays disabled.",
   sources: [
     { id: "A1", title: "OpenRouter Extractions announcement, 10 November 2026", url: "https://openrouter.ai/blog/announcements/extractions-api/" },
     { id: "A2", title: "OpenRouter Extractions guide and provider matrix", url: "https://openrouter.ai/docs/guides/community/extractions" },
@@ -135,15 +155,20 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       apiRoute: EXTRACTIONS,
       endpointProfile: "openrouter-alpha-extractions",
       status: "documented",
-      enabled: false,
+      // Enabled for text after the canary of 2026-11-12 (see canary). Images are documented (CLAIRIC_DOCUMENTED_IMAGES)
+      // but the canary observed text only, so they stay unreviewed (null) until an image canary passes; PDF is not a
+      // Clairic input.
+      enabled: true,
       inputs: {
         text: true,
-        images: { maxCount: 4, maxBytesEach: 4 * MiB, maxBytesTotal: 8 * MiB, mimeTypes: ["image/png", "image/jpeg", "image/webp"], ordered: true },
+        images: null,
         pdf: null,
         textWithDocument: null,
       },
       maxRequestBytes: 16 * MiB,
-      effectiveContextTokens: null,
+      // The endpoint's context_length in the catalog (C1), informational: extraction never gates on it. A prefix-only read
+      // is reported by the provider as truncated, which is partial coverage and a review reason. No allowance is published.
+      effectiveContextTokens: 65536,
       contextAllowance: null,
       // duration is documented (A2) but not adopted: its answer is a number in a unit the result cannot carry yet, so
       // plan reports it FIELD_TYPE_UNSUPPORTED before anything is read.
@@ -151,10 +176,22 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       listItemTypes: ["text"],
       questionTypes: [],
       nullThreshold: { supported: true, unsupportedOn: ["list", "estimate", "forecast"] },
-      pricing: null,
+      // The catalog's per-token prices (C1, 2026-11-12): prompt 0.0000001 USD per token, completion 0. They reproduce the
+      // canary's reported cost exactly (125 input tokens: 0.0000125). No ceiling is documented, so a call reserves the
+      // whole per-request budget.
+      pricing: { revision: "openrouter-catalog-2026-11-12", currency: "USD", perMillionInputTokens: "0.1", perMillionOutputTokens: "0", upperBound: false },
       zdr: "unknown",
-      canary: NOT_RUN,
-      notes: ["Rich typed fields from text and supported images (A2). duration is documented but not adopted in this version.", "No direct PDF input: prepare a PDF as text or page images first.", "Image limits: four images, 4 MiB each, 8 MiB decoded in total; 16 MiB request body (A2)."],
+      canary: {
+        status: "passed",
+        on: "2026-11-12",
+        reports: ["extractions-20261112T215014Z.json", "extractions-20261112T225713Z.json"],
+        wireRevision: "openrouter-alpha-extractions-2026-11-12.2",
+      },
+      notes: [
+        "Rich typed fields from text (A2). duration is documented but not adopted in this version.",
+        "Enabled for text only: the canary observed text. Images (four, 4 MiB each, 8 MiB decoded in total; A2) stay disabled until an image canary passes.",
+        "No direct PDF input: prepare a PDF as text first.",
+      ],
     },
     {
       id: "openrouter:extract:scaledown/extract",

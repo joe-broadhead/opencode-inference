@@ -7,9 +7,9 @@ payment terms with `inference.core.extract`, then computes the due date with Uti
 deterministic and separately attributable. It returns a reviewable draft, never a write: send the draft on with the
 destination's own permitted tool.
 
-**Every Inference route is disabled until its compatibility canary has passed**, so in this version the extract call
-is refused with `CAPABILITY_UNSUPPORTED` and the script fails before sending anything. The recipe is ready for the day a
-route is enabled; `test/host/jobs.test.ts` runs this exact script and manifest through Jobs on a real OpenCode host,
+**Every Inference route is disabled until its compatibility canary has passed**: on a disabled route the extract call
+is refused with `CAPABILITY_UNSUPPORTED` and the script fails before sending anything (`inference_capabilities` lists
+the enabled routes). `test/host/jobs.test.ts` runs this exact script and manifest through Jobs on a real OpenCode host,
 against a loopback fake OpenRouter, so it cannot drift from the real bindings.
 
 ## The manifest and the script

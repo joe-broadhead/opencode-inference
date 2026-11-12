@@ -4,7 +4,7 @@ import { loadConfig, type Config } from "../../src/domain/config.js"
 import { PlanInput, PlanResult } from "../../src/domain/contracts.js"
 import { implemented, OPERATION_INFO } from "../../src/domain/registry.js"
 import { canonical, fromMicros, plan, taskDigest, toMicros } from "../../src/domain/routing.js"
-import { CapabilityFixture, OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
+import { CapabilityFixture, CLAIRIC_DOCUMENTED_IMAGES, OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
 
 const NOW = new Date("2026-11-12T12:00:00Z")
 const text = { kind: "text", text: "Invoice AB-72. Issued 2026-11-01. Total EUR 120.00. Terms net 30 days." } as const
@@ -23,18 +23,33 @@ const run = (request: unknown, options: { config?: Config; fixture?: CapabilityF
 }
 
 describe("the committed capability fixture", () => {
-  test("is dated, documentation-derived, unverified, and enables no route", () => {
+  test("is dated and documentation-derived; a route is enabled only with a passed canary, its reports, its wire revision and a price", async () => {
     expect(CapabilityFixture.safeParse(OPENROUTER_CAPABILITIES).success).toBe(true)
     expect(OPENROUTER_CAPABILITIES).toMatchObject({ reviewedOn: "2026-11-11", basis: "documentation", verified: false })
-    expect(OPENROUTER_CAPABILITIES.routes.filter((route) => route.enabled)).toEqual([])
     expect(OPENROUTER_CAPABILITIES.routes.map((route) => route.model).sort()).toEqual(["cloudflare/clairic", "inception/mercury-decide", "levanto/sage-2", "scaledown/extract", "typesafe/jev-1.14"])
-    // No price was stated by the reviewed sources, so none is invented.
-    expect(OPENROUTER_CAPABILITIES.routes.filter((route) => route.pricing !== null)).toEqual([])
+    const { WIRE_REVISION: EXTRACTIONS } = await import("../../src/providers/openrouter/extractions.js")
+    const { WIRE_REVISION: DECISIONS } = await import("../../src/providers/openrouter/decisions.js")
+    const adapterRevision = { extract: EXTRACTIONS, decide: DECISIONS, read: undefined } as const
+    for (const route of OPENROUTER_CAPABILITIES.routes) {
+      // A pass is evidence for one wire revision: when the adapter's revision changes, the canary must run again.
+      if (route.enabled)
+        expect({ model: route.model, canary: route.canary.status, reports: route.canary.reports?.length, revision: route.canary.wireRevision, priced: route.pricing !== null }).toEqual({
+          model: route.model,
+          canary: "passed",
+          reports: 2,
+          revision: adapterRevision[route.operation],
+          priced: true,
+        })
+      // A price is recorded only for a route whose canary passed: none is invented for the others.
+      else if (route.canary.status !== "passed") expect({ model: route.model, pricing: route.pricing }).toEqual({ model: route.model, pricing: null })
+    }
   })
 
   test("records the provider constraints the adapters must enforce", () => {
     const route = (model: string) => OPENROUTER_CAPABILITIES.routes.find((item) => item.model === model)!
-    expect(route("cloudflare/clairic").inputs).toMatchObject({ pdf: null, images: { maxCount: 4, maxBytesEach: 4 * 1024 * 1024, maxBytesTotal: 8 * 1024 * 1024, ordered: true } })
+    // Clairic's documented images (A2); the route takes them only once an image canary has passed.
+    expect(CLAIRIC_DOCUMENTED_IMAGES).toMatchObject({ maxCount: 4, maxBytesEach: 4 * 1024 * 1024, maxBytesTotal: 8 * 1024 * 1024, ordered: true })
+    expect(route("cloudflare/clairic").inputs.pdf).toBeNull()
     expect(route("cloudflare/clairic").nullThreshold.unsupportedOn).toEqual(["list", "estimate", "forecast"])
     expect(route("scaledown/extract")).toMatchObject({ fieldTypes: ["text", "list"], nullThreshold: { supported: false }, inputs: { pdf: { maxCount: 1 }, textWithDocument: false } })
     expect(route("inception/mercury-decide").inputs).toMatchObject({ images: null, pdf: null })
@@ -44,13 +59,13 @@ describe("the committed capability fixture", () => {
 })
 
 describe("plan", () => {
-  test("text extraction on the default profile: the route, every reason it cannot run, and nothing sent", () => {
+  test("text extraction on the default profile: Clairic, enabled and priced, with an estimate, and nothing sent", () => {
     const result = run({ task: "extract", input: { source: text, profile: "extract-typed", fields } })
-    expect(result.route).toMatchObject({ status: "ineligible", requested: { profile: "extract-typed" }, reasons: [] })
-    expect(result.route.selected).toMatchObject({ route: { model: "cloudflare/clairic", capabilityRevision: OPENROUTER_CAPABILITIES.revision }, eligible: false, exclusions: ["ROUTE_DISABLED", "PRICE_UNKNOWN"] })
-    expect(result.execution).toMatchObject({ available: false, tool: "inference_extract" })
-    expect(result.execution.reasons).toEqual(["The selected route is not eligible: ROUTE_DISABLED, PRICE_UNKNOWN."])
-    expect(result.quote).toMatchObject({ kind: "unavailable", basis: "none", freshness: { reviewedOn: "2026-11-11", ageDays: 1, stale: false } })
+    expect(result.route).toMatchObject({ status: "eligible", requested: { profile: "extract-typed" }, reasons: [] })
+    expect(result.route.selected).toMatchObject({ route: { model: "cloudflare/clairic", capabilityRevision: OPENROUTER_CAPABILITIES.revision }, eligible: true, exclusions: [] })
+    expect(result.execution).toEqual({ available: true, tool: "inference_extract", reasons: [] })
+    // A per-token price is an estimate, never a ceiling.
+    expect(result.quote).toMatchObject({ kind: "estimate", basis: "fixture", priceRevision: "openrouter-catalog-2026-11-12", freshness: { reviewedOn: "2026-11-11", ageDays: 1, stale: false } })
     expect(result.transmission).toEqual({ provider: "openrouter", apiRoute: "POST /api/alpha/extractions", representation: "text", credentialScope: "inference-openrouter" })
     expect(result.coverage).toMatchObject({ expected: "complete", basis: "provided-text" })
     expect(result.review).toEqual({ likely: true, reasons: ["CALIBRATION_UNAVAILABLE"], profileVersion: "review-first-v1" })
@@ -211,7 +226,12 @@ describe("capabilities", () => {
       ["inference_decide", "send", true],
       ["inference_read", "send", false],
     ])
-    expect(result.routes.every((route) => !route.available && route.reasons.includes("ROUTE_DISABLED"))).toBe(true)
+    // A route is available exactly when it is enabled (and priced, which an enabled route always is); every other route
+    // says ROUTE_DISABLED.
+    for (const route of result.routes) {
+      const enabled = OPENROUTER_CAPABILITIES.routes.find((item) => item.model === route.model && item.operation === route.operation)!.enabled
+      expect({ model: route.model, available: route.available, disabled: route.reasons.includes("ROUTE_DISABLED") }).toEqual({ model: route.model, available: enabled, disabled: !enabled })
+    }
     expect(result.routes.filter((route) => route.reasons.includes("NOT_IMPLEMENTED"))).toEqual([])
     expect(result.routes.find((route) => route.model === "cloudflare/clairic")!.profiles).toEqual(["extract-typed"])
     expect(result.fixture).toMatchObject({ revision: OPENROUTER_CAPABILITIES.revision, verified: false, ageDays: 1, stale: false })
