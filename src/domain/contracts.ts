@@ -388,14 +388,19 @@ export const Acceptance = z
   })
   .describe("The deterministic acceptance result. It never authorizes an action: a separately permitted tool does that.")
 
-const reportedConfidence = probability.optional().describe("The provider's reported confidence. Derived from its distribution: never independent corroboration of it.")
+/** A probability exactly as the provider reported it, as a plain decimal string: never a rounded binary float. */
+export const ExactProbability = z
+  .string()
+  .regex(/^(?:0(?:\.\d{1,64})?|1(?:\.0{1,64})?)$/, "must be a plain decimal from 0 to 1")
+  .describe("A probability exactly as reported, as a plain decimal string such as \"0.7\". Compare it as a decimal, not a float.")
+const reportedConfidence = ExactProbability.optional().describe("The provider's reported confidence. Derived from its distribution: never independent corroboration of it.")
 const refusal = z.strictObject({ reason: z.string().max(1000).optional() }).optional().describe("The provider declined this question. Not false, not zero.")
-const distribution = z.record(Key, probability).describe("Exactly as reported, never renormalised, rounded or completed: a label the provider did not report is absent, not 0.")
+const distribution = z.record(Key, ExactProbability).describe("Exactly as reported, never renormalised, rounded or completed: a label the provider did not report is absent, not 0.")
 
 export const DecidedAnswer = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("noul"),
-    probability: probability.optional().describe("The probability that the proposition is true. Not a Boolean."),
+    probability: ExactProbability.optional().describe("The probability that the proposition is true, exactly as reported. Not a Boolean."),
     confidence: reportedConfidence,
     refusal,
     acceptance: Acceptance,
@@ -403,7 +408,11 @@ export const DecidedAnswer = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("choice"), choice: Key.optional(), distribution: distribution.optional(), confidence: reportedConfidence, refusal, acceptance: Acceptance }),
   z.strictObject({
     type: z.literal("score"),
-    expectedIndex: z.number().finite().nonnegative().optional().describe("The expected zero-based position on the rubric, possibly fractional. Not a measurement."),
+    expectedIndex: z
+      .string()
+      .regex(/^(?:0|[1-9]\d?)(?:\.\d{1,64})?$/, "must be a plain decimal")
+      .optional()
+      .describe("The expected zero-based position on the rubric, exactly as reported, possibly fractional. Not a measurement."),
     levels: z.array(Key).min(2).max(11).describe("The rubric's level ids, low to high."),
     distribution: distribution.optional().describe("Per level id, exactly as reported: a midpoint expectation can hide mass at both extremes."),
     confidence: reportedConfidence,

@@ -9,7 +9,9 @@ import type { Adapter, AdapterResult } from "../../runtime/operation.js"
 import type { Snapshot } from "../../runtime/sources.js"
 import type { RouteCapability } from "./capabilities.js"
 import type { TransportResponse } from "./http.js"
-import { entries, isObject, probabilityOf, quoteOf, REQUEST_ID, usageOf } from "./wire.js"
+import { decimal, isPlain, ONE, units } from "../../domain/decimal.js"
+import { decimalOf } from "../../domain/json.js"
+import { entries, exactProbabilityOf, isObject, quoteOf, REQUEST_ID, usageOf } from "./wire.js"
 
 // The OpenRouter alpha Decisions adapter (POST /api/alpha/decisions, handoff §5, §8, §15.1, §16.3).
 //
@@ -42,10 +44,11 @@ export interface PreparedDecision extends Input {
 
 const changed = (what: string) => new InferenceError("PROVIDER_CONTRACT_CHANGED", `OpenRouter's decision answer does not match the reviewed contract (${WIRE_REVISION}): ${what}.`)
 const unsupported = (what: string) => new InferenceError("CAPABILITY_UNSUPPORTED", what)
-/** A distribution's total may exceed 1 by float error only; anything more is not a distribution. */
-const SUM_TOLERANCE = 1e-9
-/** How far a reported expected index may sit from its own complete distribution's mean. */
-const MEAN_TOLERANCE = 1e-6
+/** A distribution's total may exceed 1 by a provider's float serialisation only (10^-9); anything more is refused. */
+const SUM_TOLERANCE = ONE / 1_000_000_000n
+/** How far a reported expected index may sit from its own complete distribution's mean (10^-6), in exact arithmetic. */
+const MEAN_TOLERANCE = ONE / 1_000_000n
+const probabilityOf = (value: Json | undefined, what: string) => exactProbabilityOf(value, what, changed)
 
 function prepare(raw: unknown, config: Config): PreparedDecision {
   const input = raw as Input
@@ -103,19 +106,19 @@ const quote = (route: RouteCapability, source: Snapshot, input: unknown) => quot
 // --- Answers ------------------------------------------------------------------------------------------------------------
 
 /** A reported distribution over known labels, exactly as reported. Its total may not exceed 1; it need not reach 1. */
-function distributionOf(value: Json | undefined, labels: readonly string[], what: string): Record<string, number> | undefined {
+function distributionOf(value: Json | undefined, labels: readonly string[], what: string): Record<string, string> | undefined {
   if (value === undefined || value === null) return undefined
   if (!isObject(value)) throw changed(`${what}.distribution is not an object`)
-  const out = new Map<string, number>()
-  let total = 0
+  const out = new Map<string, string>()
+  let total = 0n
   for (const [label, probability] of entries(value)) {
     if (!labels.includes(label)) throw changed(`${what}.distribution names a label that was not asked`)
-    const p = probabilityOf(probability, `${what}.distribution`, changed)
+    const p = probabilityOf(probability, `${what}.distribution`)
     if (p === undefined) throw changed(`${what}.distribution has an entry with no probability`)
     out.set(label, p)
-    total += p
+    total += units(p)
   }
-  if (total > 1 + SUM_TOLERANCE) throw changed(`${what}.distribution totals more than 1`)
+  if (total > ONE + SUM_TOLERANCE) throw changed(`${what}.distribution totals more than 1`)
   return Object.fromEntries(out)
 }
 
@@ -131,7 +134,7 @@ function answerOf(key: string, question: Question, raw: Json | undefined, warnin
   const truncatedRaw = answer.get("truncated")
   if (truncatedRaw !== undefined && truncatedRaw !== null && typeof truncatedRaw !== "boolean") throw changed(`${what}.truncated is not a boolean`)
   const truncated = truncatedRaw === true
-  const confidence = probabilityOf(answer.get("confidence"), `${what}.confidence`, changed)
+  const confidence = probabilityOf(answer.get("confidence"), `${what}.confidence`)
   const refusalRaw = answer.get("refusal")
   if (refusalRaw !== undefined && refusalRaw !== null) {
     if (typeof refusalRaw !== "string" || refusalRaw.length > 1000) throw changed(`${what}.refusal is not a short reason`)
@@ -146,7 +149,7 @@ function answerOf(key: string, question: Question, raw: Json | undefined, warnin
   }
   switch (question.type) {
     case "noul": {
-      const probability = probabilityOf(answer.get("probability"), `${what}.probability`, changed)
+      const probability = probabilityOf(answer.get("probability"), `${what}.probability`)
       if (probability === undefined) throw changed(`${what} has no probability`)
       return { truncated, answer: { type: "noul", probability, ...(confidence !== undefined ? { confidence } : {}) } }
     }
@@ -160,15 +163,18 @@ function answerOf(key: string, question: Question, raw: Json | undefined, warnin
     case "score": {
       const levels = question.levels.map((level) => level.id)
       const score = answer.get("score")
-      if (!(score instanceof JsonNumber) || !Number.isFinite(score.value) || score.value < 0 || score.value > levels.length - 1) throw changed(`${what}.score is not a position on the rubric`)
+      const expected = score instanceof JsonNumber ? decimalOf(score) : undefined
+      if (expected === undefined || !isPlain(expected) || units(expected) > BigInt(levels.length - 1) * ONE) throw changed(`${what}.score is not a position on the rubric`)
       const distribution = distributionOf(answer.get("distribution"), levels, what)
-      // A complete distribution must agree with its own expected index; it is checked, never adjusted.
+      // A complete distribution must agree with its own expected index; it is checked, never adjusted, in exact arithmetic.
       if (distribution && Object.keys(distribution).length === levels.length) {
-        const total = Object.values(distribution).reduce((sum, p) => sum + p, 0)
-        const mean = levels.reduce((sum, level, index) => sum + index * (new Map(Object.entries(distribution)).get(level) ?? 0), 0)
-        if (Math.abs(total - 1) <= MEAN_TOLERANCE && Math.abs(mean - score.value) > MEAN_TOLERANCE) throw changed(`${what}.score disagrees with its distribution`)
+        const reported = new Map(Object.entries(distribution))
+        const total = levels.reduce((sum, level) => sum + units(reported.get(level) ?? "0"), 0n)
+        const mean = levels.reduce((sum, level, index) => sum + BigInt(index) * units(reported.get(level) ?? "0"), 0n)
+        const gap = (a: bigint, b: bigint) => (a > b ? a - b : b - a)
+        if (gap(total, ONE) <= MEAN_TOLERANCE && gap(mean, units(expected)) > MEAN_TOLERANCE) throw changed(`${what}.score disagrees with its distribution`)
       }
-      return { truncated, answer: { type: "score", expectedIndex: score.value, levels, ...(distribution ? { distribution } : {}), ...(confidence !== undefined ? { confidence } : {}) } }
+      return { truncated, answer: { type: "score", expectedIndex: decimal(units(expected)), levels, ...(distribution ? { distribution } : {}), ...(confidence !== undefined ? { confidence } : {}) } }
     }
     case "box":
       throw unsupported("Box questions are not supported in this version.")

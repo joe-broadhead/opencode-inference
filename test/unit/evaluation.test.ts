@@ -23,7 +23,7 @@ function fixture() {
     cases.push({ id, document: `doc-${index}`, split, expected: { paid } })
     const held = index - 10
     const probability = split === "tuning" ? (paid ? 0.95 : 0.05) : held < 30 ? (paid ? 0.97 : 0.03) : held < 32 ? (paid ? 0.02 : 0.98) : 0.5
-    answers[id] = { paid: held >= 38 ? { type: "noul", refusal: { reason: "unclear" } } : { type: "noul", probability } }
+    answers[id] = { paid: held >= 38 ? { type: "noul", refusal: { reason: "unclear" } } : { type: "noul", probability: String(probability) } }
   }
   const dataset: Dataset = { revision: "paid-2026-11", cases }
   const recorded: RecordedAnswers = { model: "typesafe/jev-1.14", questionSet: "paid-v1", questionSetDigest: questionSetDigest(SET), answers }
@@ -50,7 +50,7 @@ describe("the held-out report", () => {
     expect(automaticProblem("paid-auto-v1", { ...profile, maxFalseAcceptRate: "0.06" }, { "paid-v1": SET })).toMatch(/false-accept rate/)
     const config = loadConfig({ questionSets: { "paid-v1": SET }, acceptanceProfiles: { "paid-auto-v1": profile } })
     const resolved = { name: "paid-auto-v1", profile: config.acceptanceProfiles["paid-auto-v1"]! }
-    expect(accept({ type: "noul", probability: 0.95 }, SET.questions.paid!, resolved, { model: "typesafe/jev-1.14", questionSet: { name: "paid-v1", digest: questionSetDigest(SET) }, truncated: false })).toEqual({ disposition: "accepted", outcome: true, reasons: [] })
+    expect(accept({ type: "noul", probability: "0.95" }, SET.questions.paid!, resolved, { model: "typesafe/jev-1.14", questionSet: { name: "paid-v1", digest: questionSetDigest(SET) }, truncated: false })).toEqual({ disposition: "accepted", outcome: true, reasons: [] })
   })
 
   test("refuses a document split across tuning and held-out, another question set's answers, and a missing answer", () => {
@@ -63,7 +63,7 @@ describe("the held-out report", () => {
     const { "case-12": _gone, ...rest } = recorded.answers
     expect(run({ recorded: { ...recorded, answers: rest } })).toThrow(/case-12 has no recorded answer/)
     // A recorded acceptance is ignored: thresholds are applied afresh.
-    const claimed = { ...recorded, answers: { ...recorded.answers, "case-45": { paid: { type: "noul", probability: 0.5, acceptance: { disposition: "accepted", outcome: true, reasons: [] } } } } }
+    const claimed = { ...recorded, answers: { ...recorded.answers, "case-45": { paid: { type: "noul", probability: "0.5", acceptance: { disposition: "accepted", outcome: true, reasons: [] } } } } }
     expect(evaluate({ profile: "paid-auto-v1", rules: RULES, questionSetName: "paid-v1", questionSet: SET, dataset, recorded: claimed, now: NOW }).report.heldOut.accepted).toBe(32)
   })
 

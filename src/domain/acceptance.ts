@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import * as z from "zod"
 import { ACCEPTANCE_REASONS, Decimal, Key, ModelId, QuestionInput, VersionedName, type Acceptance, type DecidedAnswer } from "./contracts.js"
+import { ofNumber, ONE, units } from "./decimal.js"
 import { money } from "./money.js"
 import { canonical } from "./canonical.js"
 
@@ -109,10 +110,12 @@ type Question = z.infer<typeof QuestionInput>
 type Result = z.infer<typeof Acceptance>
 type Reason = (typeof ACCEPTANCE_REASONS)[number]
 
-/** The top two reported probabilities of a distribution, as reported. */
-function top(distribution: Readonly<Record<string, number>>) {
-  const ranked = Object.entries(distribution).sort(([, a], [, b]) => b - a)
-  return { label: ranked[0]?.[0], first: ranked[0]?.[1], second: ranked[1]?.[1] ?? 0 }
+/** The top two reported probabilities of a distribution, in exact 10^-64 units. */
+function top(distribution: Readonly<Record<string, string>>) {
+  const ranked = Object.entries(distribution)
+    .map(([label, p]) => [label, units(p)] as const)
+    .sort(([, a], [, b]) => (a > b ? -1 : a < b ? 1 : 0))
+  return { label: ranked[0]?.[0], first: ranked[0]?.[1], second: ranked[1]?.[1] ?? 0n }
 }
 
 /**
@@ -127,9 +130,10 @@ export function applyRules(answer: Unaccepted, question: Question, rules: z.infe
     case "noul": {
       if (answer.probability === undefined) reasons.add("CONFIDENCE_MISSING")
       else if (rules.noul) {
-        const { accept: threshold } = rules.noul
-        if (answer.probability >= threshold) outcome = true
-        else if (answer.probability <= 1 - threshold) outcome = false
+        const threshold = ofNumber(rules.noul.accept)
+        const p = units(answer.probability)
+        if (p >= threshold) outcome = true
+        else if (p <= ONE - threshold) outcome = false
         else reasons.add("LOW_PROBABILITY")
       }
       break
@@ -139,8 +143,8 @@ export function applyRules(answer: Unaccepted, question: Question, rules: z.infe
       else if (rules.choice) {
         const best = top(answer.distribution)
         if (best.label !== answer.choice) reasons.add("INCONSISTENT")
-        else if (best.first === undefined || best.first < rules.choice.minProbability) reasons.add("LOW_PROBABILITY")
-        else if (rules.choice.minMargin !== undefined && best.first - best.second < rules.choice.minMargin) reasons.add("AMBIGUOUS")
+        else if (best.first === undefined || best.first < ofNumber(rules.choice.minProbability)) reasons.add("LOW_PROBABILITY")
+        else if (rules.choice.minMargin !== undefined && best.first - best.second < ofNumber(rules.choice.minMargin)) reasons.add("AMBIGUOUS")
         else outcome = best.label
       }
       break
@@ -149,7 +153,7 @@ export function applyRules(answer: Unaccepted, question: Question, rules: z.infe
       if (answer.distribution === undefined) reasons.add("CONFIDENCE_MISSING")
       else if (rules.score) {
         const best = top(answer.distribution)
-        if (best.first === undefined || best.first < rules.score.minProbability) reasons.add("LOW_PROBABILITY")
+        if (best.first === undefined || best.first < ofNumber(rules.score.minProbability)) reasons.add("LOW_PROBABILITY")
         else outcome = best.label
       }
       break

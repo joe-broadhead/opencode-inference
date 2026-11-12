@@ -97,7 +97,8 @@ export function evaluate(input: {
         continue
       }
       if (item.split === "held-out" && answer.type === "noul" && answer.probability !== undefined && typeof expected === "boolean") {
-        brierSum += (answer.probability - (expected ? 1 : 0)) ** 2
+        // A metric, not a decision: the float of the exact probability is fine here.
+        brierSum += (Number(answer.probability) - (expected ? 1 : 0)) ** 2
         brierN++
       }
       const applied = applyRules(answer, question, input.rules)

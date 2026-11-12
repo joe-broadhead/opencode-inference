@@ -106,8 +106,8 @@ describe(`inference_decide on OpenCode ${HOST_VERSION} (embedded SDK), against a
     for (const result of [viaScript, viaModel]) {
       expect(result.data.questionSet).toEqual({ name: "document-kind-v1", digest: questionSetDigest(SET) })
       expect(result.data.acceptanceProfile).toEqual({ name: "document-kind-auto-v1", mode: "automatic" })
-      expect(result.data.answers.paid).toMatchObject({ probability: 0.12, acceptance: { disposition: "accepted", outcome: false } })
-      expect(result.data.answers.kind).toMatchObject({ distribution: { invoice: 0.7, receipt: 0.2 }, acceptance: { disposition: "review" } })
+      expect(result.data.answers.paid).toMatchObject({ probability: "0.12", acceptance: { disposition: "accepted", outcome: false } })
+      expect(result.data.answers.kind).toMatchObject({ distribution: { invoice: "0.7", receipt: "0.2" }, acceptance: { disposition: "review" } })
       expect(result.data.answers.language.acceptance).toEqual({ disposition: "refused", reasons: ["REFUSED"] })
       expect(result.usage.charges).toEqual([{ party: "platform", currency: "USD", amount: "0.000042000001", basis: "reported" }])
     }

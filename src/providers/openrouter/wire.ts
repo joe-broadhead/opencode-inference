@@ -1,4 +1,5 @@
 import { InferenceError } from "../../domain/errors.js"
+import { isPlain, ONE, units } from "../../domain/decimal.js"
 import { decimalOf, JsonNumber, type Json } from "../../domain/json.js"
 import { format, money, roundUp } from "../../domain/money.js"
 import type { Adapter, AdapterResult } from "../../runtime/operation.js"
@@ -20,6 +21,17 @@ export function probabilityOf(value: Json | undefined, what: string, fail: Fail)
   if (value === undefined || value === null) return undefined
   if (!(value instanceof JsonNumber) || !Number.isFinite(value.value) || value.value < 0 || value.value > 1) throw fail(`${what} is not a probability`)
   return value.value
+}
+
+/**
+ * A probability in 0..1 exactly as reported, as a plain decimal string ("1.5e-7" becomes "0.00000015"), or undefined
+ * when absent. Never converted to a binary float, clamped or rounded; more than 64 fractional digits is refused.
+ */
+export function exactProbabilityOf(value: Json | undefined, what: string, fail: Fail) {
+  if (value === undefined || value === null) return undefined
+  const text = value instanceof JsonNumber ? decimalOf(value) : undefined
+  if (text === undefined || !isPlain(text) || units(text) > ONE) throw fail(`${what} is not a probability`)
+  return text
 }
 
 export function countOf(value: Json | undefined, what: string, fail: Fail) {

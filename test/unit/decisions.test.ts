@@ -66,12 +66,12 @@ describe("the answer", () => {
     expect(DecideData.safeParse(result.data).success).toBe(true)
     const answers = (result.data as { answers: Record<string, any> }).answers
     // 0.7 + 0.2: "other" was not reported, so it is absent, not 0, and nothing is renormalised to total 1.
-    expect(answers.kind).toMatchObject({ type: "choice", choice: "invoice", distribution: { invoice: 0.7, receipt: 0.2 }, confidence: 0.81 })
+    expect(answers.kind).toMatchObject({ type: "choice", choice: "invoice", distribution: { invoice: "0.7", receipt: "0.2" }, confidence: "0.81" })
     expect(Object.keys(answers.kind.distribution)).toEqual(["invoice", "receipt"])
-    expect(answers.paid).toMatchObject({ type: "noul", probability: 0.12 })
+    expect(answers.paid).toMatchObject({ type: "noul", probability: "0.12" })
     expect(answers.paid.confidence).toBeUndefined()
     // A midpoint expectation with all its mass at the extremes keeps its distribution.
-    expect(answers.urgency).toMatchObject({ type: "score", expectedIndex: 1, levels: ["low", "mid", "high"], distribution: { low: 0.5, mid: 0, high: 0.5 } })
+    expect(answers.urgency).toMatchObject({ type: "score", expectedIndex: "1", levels: ["low", "mid", "high"], distribution: { low: "0.5", mid: "0", high: "0.5" } })
     expect(answers.language).toEqual({ type: "choice", refusal: { reason: "The text does not show its language reliably." }, acceptance: { disposition: "refused", reasons: ["REFUSED"] } })
     // review-first-v1 accepts nothing.
     for (const key of ["kind", "paid", "urgency"]) expect(answers[key].acceptance).toEqual({ disposition: "review", reasons: ["CALIBRATION_UNAVAILABLE"] })
@@ -129,7 +129,21 @@ describe("the answer", () => {
     for (const [name, body] of bad) expect({ name, message: (await failure(parse(body))).slice(0, 26) }).toEqual({ name, message: "PROVIDER_CONTRACT_CHANGED:" })
     // An incomplete score distribution is kept, not completed.
     const partial = (await parse(withAnswers({ ...answers, urgency: { score: 0.4, distribution: { low: 0.6 } } }))).data as { answers: Record<string, any> }
-    expect(partial.answers.urgency.distribution).toEqual({ low: 0.6 })
+    expect(partial.answers.urgency.distribution).toEqual({ low: "0.6" })
+  })
+
+  test("probabilities are the provider's exact decimals, never binary floats", async () => {
+    const answers = JSON.parse(FIXTURE).answers
+    const body = withAnswers({ ...answers, paid: { probability: "__P__" }, kind: { choice: "invoice", distribution: { invoice: "__D__" } } })
+      .replace('"__P__"', "0.1000000000000000055511151231257827")
+      .replace('"__D__"', "1.5e-7")
+    const exact = (await parse(body)).data as { answers: Record<string, any> }
+    // A double would read the first as 0.1 and print the second as 1.5e-7.
+    expect(exact.answers.paid.probability).toBe("0.1000000000000000055511151231257827")
+    expect(exact.answers.kind.distribution).toEqual({ invoice: "0.00000015" })
+    expect(String(0.1000000000000000055511151231257827)).toBe("0.1")
+    // Past 64 fractional digits is refused, never rounded.
+    expect((await failure(parse(withAnswers({ ...answers, paid: { probability: "__P__" } }).replace('"__P__"', `0.${"1".repeat(65)}`)))).slice(0, 26)).toBe("PROVIDER_CONTRACT_CHANGED:")
   })
 })
 

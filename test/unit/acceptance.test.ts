@@ -57,39 +57,39 @@ describe("an automatic profile must be backed by a matching held-out report", ()
 
 describe("acceptance uses reported probabilities exactly", () => {
   test("review-first-v1 and review profiles accept nothing; a refusal is refused, not false", () => {
-    expect(accept({ type: "noul", probability: 0.999 }, q.paid!, { name: "review-first-v1", profile: REVIEW_FIRST }, CONTEXT)).toEqual({ disposition: "review", reasons: ["CALIBRATION_UNAVAILABLE"] })
+    expect(accept({ type: "noul", probability: "0.999" }, q.paid!, { name: "review-first-v1", profile: REVIEW_FIRST }, CONTEXT)).toEqual({ disposition: "review", reasons: ["CALIBRATION_UNAVAILABLE"] })
     expect(accept({ type: "noul", refusal: {} }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "refused", reasons: ["REFUSED"] })
   })
 
   test("noul: true above the threshold, false below its complement, review between or without a probability", () => {
-    expect(accept({ type: "noul", probability: 0.95 }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "accepted", outcome: true, reasons: [] })
-    expect(accept({ type: "noul", probability: 0.05 }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "accepted", outcome: false, reasons: [] })
-    expect(accept({ type: "noul", probability: 0.5 }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "review", reasons: ["LOW_PROBABILITY"] })
+    expect(accept({ type: "noul", probability: "0.95" }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "accepted", outcome: true, reasons: [] })
+    expect(accept({ type: "noul", probability: "0.05" }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "accepted", outcome: false, reasons: [] })
+    expect(accept({ type: "noul", probability: "0.5" }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "review", reasons: ["LOW_PROBABILITY"] })
     // A reported confidence is never a probability: it cannot pass the threshold.
-    expect(accept({ type: "noul", confidence: 0.99 }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "review", reasons: ["CONFIDENCE_MISSING"] })
+    expect(accept({ type: "noul", confidence: "0.99" }, q.paid!, AUTO, CONTEXT)).toEqual({ disposition: "review", reasons: ["CONFIDENCE_MISSING"] })
   })
 
   test("choice: a distribution is required, never renormalised, and confidence is not counted again", () => {
-    expect(accept({ type: "choice", choice: "invoice", distribution: { invoice: 0.9, receipt: 0.05, other: 0.05 } }, q.kind!, AUTO, CONTEXT)).toMatchObject({ disposition: "accepted", outcome: "invoice" })
-    expect(accept({ type: "choice", choice: "invoice", confidence: 0.99 }, q.kind!, AUTO, CONTEXT).reasons).toEqual(["CONFIDENCE_MISSING"])
+    expect(accept({ type: "choice", choice: "invoice", distribution: { invoice: "0.9", receipt: "0.05", other: "0.05" } }, q.kind!, AUTO, CONTEXT)).toMatchObject({ disposition: "accepted", outcome: "invoice" })
+    expect(accept({ type: "choice", choice: "invoice", confidence: "0.99" }, q.kind!, AUTO, CONTEXT).reasons).toEqual(["CONFIDENCE_MISSING"])
     // 0.75 reported for the only label given: renormalising would make it 1.0 and accept it. It is reviewed.
-    expect(accept({ type: "choice", choice: "invoice", distribution: { invoice: 0.75 } }, q.kind!, AUTO, CONTEXT).reasons).toEqual(["LOW_PROBABILITY"])
-    expect(accept({ type: "choice", choice: "invoice", distribution: { invoice: 0.82, receipt: 0.18 } }, q.kind!, AUTO, CONTEXT)).toMatchObject({ disposition: "accepted" })
-    expect(accept({ type: "choice", choice: "invoice", distribution: { invoice: 0.81, receipt: 0.6 } }, q.kind!, AUTO, CONTEXT).reasons).toEqual(["AMBIGUOUS"])
-    expect(accept({ type: "choice", choice: "receipt", distribution: { invoice: 0.9, receipt: 0.1 } }, q.kind!, AUTO, CONTEXT).reasons).toEqual(["INCONSISTENT"])
+    expect(accept({ type: "choice", choice: "invoice", distribution: { invoice: "0.75" } }, q.kind!, AUTO, CONTEXT).reasons).toEqual(["LOW_PROBABILITY"])
+    expect(accept({ type: "choice", choice: "invoice", distribution: { invoice: "0.82", receipt: "0.18" } }, q.kind!, AUTO, CONTEXT)).toMatchObject({ disposition: "accepted" })
+    expect(accept({ type: "choice", choice: "invoice", distribution: { invoice: "0.81", receipt: "0.6" } }, q.kind!, AUTO, CONTEXT).reasons).toEqual(["AMBIGUOUS"])
+    expect(accept({ type: "choice", choice: "receipt", distribution: { invoice: "0.9", receipt: "0.1" } }, q.kind!, AUTO, CONTEXT).reasons).toEqual(["INCONSISTENT"])
     // High or low confidence changes nothing: it is derived from the same distribution.
-    const base = { type: "choice" as const, choice: "invoice", distribution: { invoice: 0.9, receipt: 0.1 } }
-    expect(accept({ ...base, confidence: 0.01 }, q.kind!, AUTO, CONTEXT)).toEqual(accept({ ...base, confidence: 0.99 }, q.kind!, AUTO, CONTEXT))
+    const base = { type: "choice" as const, choice: "invoice", distribution: { invoice: "0.9", receipt: "0.1" } }
+    expect(accept({ ...base, confidence: "0.01" }, q.kind!, AUTO, CONTEXT)).toEqual(accept({ ...base, confidence: "0.99" }, q.kind!, AUTO, CONTEXT))
   })
 
   test("score: a midpoint expectation over opposite extremes is not certainty", () => {
-    expect(accept({ type: "score", expectedIndex: 1, levels: ["low", "mid", "high"], distribution: { low: 0.5, high: 0.5 } }, q.urgency!, AUTO, CONTEXT).reasons).toEqual(["LOW_PROBABILITY"])
-    expect(accept({ type: "score", expectedIndex: 1, levels: ["low", "mid", "high"], distribution: { low: 0.1, mid: 0.85, high: 0.05 } }, q.urgency!, AUTO, CONTEXT)).toEqual({ disposition: "accepted", outcome: "mid", reasons: [] })
-    expect(accept({ type: "score", expectedIndex: 1, levels: ["low", "mid", "high"] }, q.urgency!, AUTO, CONTEXT).reasons).toEqual(["CONFIDENCE_MISSING"])
+    expect(accept({ type: "score", expectedIndex: "1", levels: ["low", "mid", "high"], distribution: { low: "0.5", high: "0.5" } }, q.urgency!, AUTO, CONTEXT).reasons).toEqual(["LOW_PROBABILITY"])
+    expect(accept({ type: "score", expectedIndex: "1", levels: ["low", "mid", "high"], distribution: { low: "0.1", mid: "0.85", high: "0.05" } }, q.urgency!, AUTO, CONTEXT)).toEqual({ disposition: "accepted", outcome: "mid", reasons: [] })
+    expect(accept({ type: "score", expectedIndex: "1", levels: ["low", "mid", "high"] }, q.urgency!, AUTO, CONTEXT).reasons).toEqual(["CONFIDENCE_MISSING"])
   })
 
   test("a different model, question set or truncated state turns acceptance back into review", () => {
-    const answer = { type: "noul" as const, probability: 0.99 }
+    const answer = { type: "noul" as const, probability: "0.99" }
     expect(accept(answer, q.paid!, AUTO, { ...CONTEXT, model: "typesafe/jev-2" }).reasons).toEqual(["CALIBRATION_MISMATCH"])
     expect(accept(answer, q.paid!, AUTO, { ...CONTEXT, questionSet: { name: "document-kind-v1", digest: `sha256:${"1".repeat(64)}` } }).reasons).toEqual(["CALIBRATION_MISMATCH"])
     expect(accept(answer, q.paid!, AUTO, { model: CONTEXT.model, truncated: false }).reasons).toEqual(["CALIBRATION_MISMATCH"])
@@ -98,7 +98,7 @@ describe("acceptance uses reported probabilities exactly", () => {
 
   test("labels carry no authority: renaming the options changes nothing but the label", () => {
     const named = (ids: [string, string]) =>
-      accept({ type: "choice", choice: ids[0], distribution: { [ids[0]]: 0.9, [ids[1]]: 0.1 } }, { type: "choice", prompt: "p", options: ids.map((id) => ({ id, description: id })) }, AUTO, CONTEXT)
+      accept({ type: "choice", choice: ids[0], distribution: { [ids[0]]: "0.9", [ids[1]]: "0.1" } }, { type: "choice", prompt: "p", options: ids.map((id) => ({ id, description: id })) }, AUTO, CONTEXT)
     expect(named(["approve_payment", "deny"])).toEqual({ disposition: "accepted", outcome: "approve_payment", reasons: [] })
     expect(named(["blue", "green"])).toEqual({ disposition: "accepted", outcome: "blue", reasons: [] })
   })
