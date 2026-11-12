@@ -62,8 +62,9 @@ opencode api post /api/rpc/inference.core.tools/plan -H "x-opencode-directory:$P
 ```
 
 <!-- outcome: plan -->
-The plan says the route is ineligible (`ROUTE_DISABLED`, `PRICE_UNKNOWN`): every route is disabled until its
-compatibility canary passes, and no price is known. Nothing is read, sent or charged.
+The plan selects `cloudflare/clairic`, which is eligible: its compatibility canary passed and its price is known. The
+quote is an estimate, because a per-token price is never a ceiling, so the call itself reserves the whole per-request
+budget. Nothing is read, sent or charged by the plan.
 
 The same input without `task` is what `extract` takes:
 

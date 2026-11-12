@@ -59,13 +59,13 @@ describe("the committed capability fixture", () => {
 })
 
 describe("plan", () => {
-  test("text extraction on the default profile: the route, every reason it cannot run, and nothing sent", () => {
+  test("text extraction on the default profile: Clairic, enabled and priced, with an estimate, and nothing sent", () => {
     const result = run({ task: "extract", input: { source: text, profile: "extract-typed", fields } })
-    expect(result.route).toMatchObject({ status: "ineligible", requested: { profile: "extract-typed" }, reasons: [] })
-    expect(result.route.selected).toMatchObject({ route: { model: "cloudflare/clairic", capabilityRevision: OPENROUTER_CAPABILITIES.revision }, eligible: false, exclusions: ["ROUTE_DISABLED", "PRICE_UNKNOWN"] })
-    expect(result.execution).toMatchObject({ available: false, tool: "inference_extract" })
-    expect(result.execution.reasons).toEqual(["The selected route is not eligible: ROUTE_DISABLED, PRICE_UNKNOWN."])
-    expect(result.quote).toMatchObject({ kind: "unavailable", basis: "none", freshness: { reviewedOn: "2026-11-11", ageDays: 1, stale: false } })
+    expect(result.route).toMatchObject({ status: "eligible", requested: { profile: "extract-typed" }, reasons: [] })
+    expect(result.route.selected).toMatchObject({ route: { model: "cloudflare/clairic", capabilityRevision: OPENROUTER_CAPABILITIES.revision }, eligible: true, exclusions: [] })
+    expect(result.execution).toEqual({ available: true, tool: "inference_extract", reasons: [] })
+    // A per-token price is an estimate, never a ceiling.
+    expect(result.quote).toMatchObject({ kind: "estimate", basis: "fixture", priceRevision: "openrouter-catalog-2026-11-12", freshness: { reviewedOn: "2026-11-11", ageDays: 1, stale: false } })
     expect(result.transmission).toEqual({ provider: "openrouter", apiRoute: "POST /api/alpha/extractions", representation: "text", credentialScope: "inference-openrouter" })
     expect(result.coverage).toMatchObject({ expected: "complete", basis: "provided-text" })
     expect(result.review).toEqual({ likely: true, reasons: ["CALIBRATION_UNAVAILABLE"], profileVersion: "review-first-v1" })

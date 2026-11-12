@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- `cloudflare/clairic` extractions are enabled, for text only, after the compatibility canary passed on 2026-11-12 (request and malformed-request reports, wire revision `openrouter-alpha-extractions-2026-11-12.2`). Price from OpenRouter's catalog: USD 0.0000001 per input token, output free, with no documented ceiling, so a call reserves the whole per-request budget. Clairic's images stay disabled until an image canary passes; every result goes to review under `review-first-v1`.
 - The plugin shell: the plugin `inference.core`, its TUI `inference.core.tui`, the `inference` namespace, the status RPC `inference.core`, the tools RPC `inference.core.tools` and `/inference-status`.
 - Three local tools, all `read` and none calling a network service: `inference_status`, `inference_capabilities` and `inference_plan`.
 - One registry that drives the model tools, the tools RPC methods and classes, the default permission block, the Jelly declaration and the generated docs.

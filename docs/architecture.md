@@ -242,11 +242,11 @@ a route by itself.
 
 <!-- generated:routes -->
 
-Fixture `openrouter-2026-11-12.2`, reviewed 2026-11-11, documentation-derived, verified: false.
+Fixture `openrouter-2026-11-12.3`, reviewed 2026-11-11, documentation-derived, verified: false.
 
 | Model | Operation | Route | Status | Enabled | Text | Images | PDF | Field or question types | Price |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cloudflare/clairic` | extract | `POST /api/alpha/extractions` | documented | no | yes | 4 (image/png, image/jpeg, image/webp) | no | text, number, date, time, datetime, list, estimate, forecast | unknown |
+| `cloudflare/clairic` | extract | `POST /api/alpha/extractions` | documented | yes | yes | no | no | text, number, date, time, datetime, list, estimate, forecast | openrouter-catalog-2026-11-12 |
 | `scaledown/extract` | extract | `POST /api/alpha/extractions` | documented | no | yes | 1 (image/png, image/jpeg) | 1 file | text, list | unknown |
 | `inception/mercury-decide` | extract | `POST /api/alpha/extractions` | documented | no | yes | no | no | text, list | unknown |
 | `levanto/sage-2` | extract | `POST /api/alpha/extractions` | unconfirmed | no | unknown | no | no | unknown | unknown |

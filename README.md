@@ -24,6 +24,12 @@ has verified it against the live API**; a disabled route refuses with that reaso
   exact source, review reasons, and the number exactly as written. It asks the host before reading a file, reserves
   budget before sending, and refuses provider constraints locally (no null threshold on a Clairic list or on ScaleDown,
   Clairic's image limits). On a disabled route it refuses before reading or sending anything.
+  - **Enabled on `cloudflare/clairic`, for text only**, after its compatibility canary passed on 2026-11-12. Price
+    (OpenRouter's catalog): USD 0.0000001 per input token, output free; a per-token price is never a ceiling, so each
+    call reserves the whole per-request budget. Known limits: Clairic's images are documented but not enabled (the
+    canary observed text only), and Clairic takes no PDF; only a `number` field was observed live, the other field
+    types follow the API reference; under `review-first-v1` every result goes to review. ScaleDown, Mercury Decide and
+    Sage stay disabled.
 - **`inference_decide`** (`send`): noul (the probability a proposition is true), choice and score (the expected,
   possibly fractional, position on an ordered rubric) questions about supplied text, given inline or as a versioned
   question set from the trusted options. Probabilities and distributions come back exactly as reported (never

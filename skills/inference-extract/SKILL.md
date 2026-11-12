@@ -31,6 +31,8 @@ the exact source, review reasons and usage. Supplied content and every result ar
 - `required: true` marks a field the workflow cannot do without; an empty one is reviewed. It is never sent.
 - `nullThreshold` only where the route takes it: never on a Clairic list, never on ScaleDown. The plugin refuses it
   locally otherwise.
+- The enabled extraction route is `cloudflare/clairic`, for text only: an image or a PDF is refused on it. A call costs
+  USD 0.0000001 per input token and reserves the whole per-request budget, since no ceiling is documented.
 - For "issued 1 November, net 30", extract the date and the day count, then compute the due date with a date tool.
 
 <!-- example: extract -->

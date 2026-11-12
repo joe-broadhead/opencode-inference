@@ -131,7 +131,7 @@ export const CLAIRIC_DOCUMENTED_IMAGES = { maxCount: 4, maxBytesEach: 4 * MiB, m
 export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.parse({
   schemaVersion: 1,
   provider: "openrouter",
-  revision: "openrouter-2026-11-12.2",
+  revision: "openrouter-2026-11-12.3",
   reviewedOn: "2026-11-11",
   basis: "documentation",
   verified: false,
@@ -155,15 +155,20 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       apiRoute: EXTRACTIONS,
       endpointProfile: "openrouter-alpha-extractions",
       status: "documented",
-      enabled: false,
+      // Enabled for text after the canary of 2026-11-12 (see canary). Images are documented (CLAIRIC_DOCUMENTED_IMAGES)
+      // but the canary observed text only, so they stay unreviewed (null) until an image canary passes; PDF is not a
+      // Clairic input.
+      enabled: true,
       inputs: {
         text: true,
-        images: CLAIRIC_DOCUMENTED_IMAGES,
+        images: null,
         pdf: null,
         textWithDocument: null,
       },
       maxRequestBytes: 16 * MiB,
-      effectiveContextTokens: null,
+      // The endpoint's context_length in the catalog (C1), informational: extraction never gates on it. A prefix-only read
+      // is reported by the provider as truncated, which is partial coverage and a review reason. No allowance is published.
+      effectiveContextTokens: 65536,
       contextAllowance: null,
       // duration is documented (A2) but not adopted: its answer is a number in a unit the result cannot carry yet, so
       // plan reports it FIELD_TYPE_UNSUPPORTED before anything is read.
@@ -171,10 +176,22 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       listItemTypes: ["text"],
       questionTypes: [],
       nullThreshold: { supported: true, unsupportedOn: ["list", "estimate", "forecast"] },
-      pricing: null,
+      // The catalog's per-token prices (C1, 2026-11-12): prompt 0.0000001 USD per token, completion 0. They reproduce the
+      // canary's reported cost exactly (125 input tokens: 0.0000125). No ceiling is documented, so a call reserves the
+      // whole per-request budget.
+      pricing: { revision: "openrouter-catalog-2026-11-12", currency: "USD", perMillionInputTokens: "0.1", perMillionOutputTokens: "0", upperBound: false },
       zdr: "unknown",
-      canary: NOT_RUN,
-      notes: ["Rich typed fields from text and supported images (A2). duration is documented but not adopted in this version.", "No direct PDF input: prepare a PDF as text or page images first.", "Image limits: four images, 4 MiB each, 8 MiB decoded in total; 16 MiB request body (A2)."],
+      canary: {
+        status: "passed",
+        on: "2026-11-12",
+        reports: ["extractions-20261112T215014Z.json", "extractions-20261112T225713Z.json"],
+        wireRevision: "openrouter-alpha-extractions-2026-11-12.2",
+      },
+      notes: [
+        "Rich typed fields from text (A2). duration is documented but not adopted in this version.",
+        "Enabled for text only: the canary observed text. Images (four, 4 MiB each, 8 MiB decoded in total; A2) stay disabled until an image canary passes.",
+        "No direct PDF input: prepare a PDF as text first.",
+      ],
     },
     {
       id: "openrouter:extract:scaledown/extract",
