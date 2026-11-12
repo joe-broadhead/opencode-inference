@@ -117,7 +117,14 @@ transport boundary.
   packages bundled into `dist/`; the build checks it.
 - The icons follow the family icon contract: `scripts/check-icons.mjs` is the kit's file, verbatim. The package declares
   `opencode.vendor` OpenRouter because the kit requires a vendor for packages outside its own-products list.
-- The release kit scripts come from the family kit; `release.yml` is not here yet.
+- Releases come only from `.github/workflows/release.yml` ("Releasing" in [CONTRIBUTING.md](CONTRIBUTING.md)). A
+  release-prep PR sets `version` in `package.json` and the install specs and runs `node scripts/changelog.mjs release`;
+  once it is on `master` and CI passed, start the release with
+  `gh workflow run release.yml --ref master -f sha=<its full sha>`. The workflow builds `dist/`, makes the release
+  commit on a temporary `release/v<version>` branch, checks and stages everything, and waits for the owner to approve
+  the `release` environment; only then does it create the tag `v<version>` and the GitHub Release. Never push a tag or a
+  `release/*` branch, and never commit, tag or publish a release by hand. Agents never approve a release, never call the
+  deployment-approval API, and never bypass a ruleset or the environment.
 
 ## Checks
 
@@ -134,6 +141,6 @@ transport boundary.
 
 - Never commit keys, tokens, personal data, hostnames or absolute local paths.
 - Commit messages use `type(scope): summary`.
-- Every commit is authored and committed as `joe-broadhead <91376460+joe-broadhead@users.noreply.github.com>`. Check
-  `git config user.email` before committing.
+- Every commit is authored and committed as `joe-broadhead <91376460+joe-broadhead@users.noreply.github.com>`, except the release commit and tag, which the release
+  workflow makes as `github-actions[bot]`. Check `git config user.email` before committing.
 - Keep the README, `docs/`, `SECURITY.md`, `CONTRIBUTING.md` and `CHANGELOG.md` in step with the code.
