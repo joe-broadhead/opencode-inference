@@ -64,7 +64,7 @@ for (const canary of ["text", "malformed"] as const) {
   const request =
     canary === "text"
       ? decisionsAdapter.request(input, source, route)
-      : { path: "/api/alpha/decisions", body: new TextEncoder().encode(JSON.stringify({ model: route.model, state: STATE, questions: { only: { type: "choice", prompt: "Which?", options: [{ id: "one", description: "the only option" }] } }, provider: { allow_fallbacks: false } })) }
+      : { path: "/api/alpha/decisions", body: new TextEncoder().encode(JSON.stringify({ model: route.model, state: STATE, questions: { only: { type: "choice", instructions: "Which?", criteria: { one: "the only option" } } }, provider: { allow_fallbacks: false } })) }
   if (!spend.canAfford()) {
     results.push({ canary, skipped: "the remaining budget cannot cover this call's worst case" })
     continue

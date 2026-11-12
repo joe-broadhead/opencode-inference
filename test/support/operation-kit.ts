@@ -32,6 +32,7 @@ export const probeRoute = (overrides: Partial<RouteCapability> = {}): RouteCapab
   provider: "openrouter",
   operation: "extract",
   model: PROBE_MODEL,
+  canonicalSlug: null,
   apiRoute: "POST /api/alpha/extractions",
   endpointProfile: "test-probe",
   status: "documented",

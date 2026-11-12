@@ -16,6 +16,14 @@ export const isObject = (value: Json | undefined): value is JsonObject => typeof
 export const entries = (object: JsonObject) => new Map(Object.entries(object))
 export const REQUEST_ID = /^[A-Za-z0-9._:-]{1,256}$/
 
+/**
+ * Whether an answer's `model` is this route's: exactly the model id or its reviewed canonical slug (the dated model the
+ * catalog names), never a prefix, a pattern or a newer slug. No fallback was allowed, so any other model's answer is not
+ * this route's. Both API references require `model` (A4, D1): an answer without one is not shown to be this route's.
+ */
+export const answeredBy = (model: Json | undefined, route: Pick<RouteCapability, "model" | "canonicalSlug">) =>
+  typeof model === "string" && (model === route.model || (route.canonicalSlug !== null && model === route.canonicalSlug))
+
 /** A probability in 0..1 exactly as reported, or undefined when absent. Never invented, never clamped. */
 export function probabilityOf(value: Json | undefined, what: string, fail: Fail) {
   if (value === undefined || value === null) return undefined
@@ -49,7 +57,8 @@ export function amountOf(value: Json | undefined, what: string, fail: Fail) {
 }
 
 /**
- * The usage block. usage.cost is OpenRouter's whole charge; its upstream component is a breakdown, never added to it.
+ * The usage block, as both alpha endpoints document it (A4 ExtractionsUsage, D1 DecisionsResponse.usage): `cost`,
+ * `input_tokens`, `output_tokens`, and on BYOK `is_byok` and `cost_details`. usage.cost is OpenRouter's whole charge; its upstream component is a breakdown, never added to it.
  * Only under BYOK is the upstream amount billed separately, by the upstream provider, and recorded as its own charge.
  */
 export function usageOf(raw: Json | undefined, fail: Fail): AdapterResult["usage"] {
@@ -57,8 +66,10 @@ export function usageOf(raw: Json | undefined, fail: Fail): AdapterResult["usage
   if (!isObject(raw)) throw fail("usage is not an object")
   const usage = entries(raw)
   const cost = amountOf(usage.get("cost"), "usage.cost", fail)
-  const inputTokens = countOf(usage.get("prompt_tokens"), "usage.prompt_tokens", fail)
-  const outputTokens = countOf(usage.get("completion_tokens"), "usage.completion_tokens", fail)
+  const inputTokens = countOf(usage.get("input_tokens"), "usage.input_tokens", fail)
+  const outputTokens = countOf(usage.get("output_tokens"), "usage.output_tokens", fail)
+  // The Extractions breakdown (A4): counts when present, never added to the totals.
+  for (const name of ["state_tokens", "image_tokens", "schema_tokens", "passes"]) countOf(usage.get(name), `usage.${name}`, fail)
   const byok = usage.get("is_byok")
   if (byok !== undefined && byok !== null && typeof byok !== "boolean") throw fail("usage.is_byok is not a boolean")
   const details = usage.get("cost_details")

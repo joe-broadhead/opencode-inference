@@ -5,7 +5,7 @@ import { ExtractInput, DecideInput } from "../../src/domain/contracts.js"
 import { loadConfig } from "../../src/domain/config.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
 import { decisionsAdapter } from "../../src/providers/openrouter/decisions.js"
-import { extractionsAdapter } from "../../src/providers/openrouter/extractions.js"
+import { extractionsAdapter, WIRE_REVISION } from "../../src/providers/openrouter/extractions.js"
 import { snapshot, type FileAccess } from "../../src/runtime/sources.js"
 import { failureOf, shapeOf } from "../../scripts/canary-shape.js"
 
@@ -69,29 +69,31 @@ test("the adapter's exact refusal: its path, what it expects, and the type found
     }
     throw new Error("the adapter accepted it")
   }
-  expect(refusal({ model: "cloudflare/clairic", answers: { total: { value: 1, confidence: "high" } } })).toEqual({
+  expect(refusal({ model: "cloudflare/clairic", answers: { total: { type: "number", value: 1, confidence: "high" } } })).toEqual({
     code: "PROVIDER_CONTRACT_CHANGED",
-    message: "OpenRouter's extraction answer does not match the reviewed contract (openrouter-alpha-extractions-2026-11-11.1): answers.total.confidence is not a probability.",
+    message: `OpenRouter's extraction answer does not match the reviewed contract (${WIRE_REVISION}): answers.total.confidence is not a probability.`,
     path: "answers.total.confidence",
     expected: "is not a probability",
     received: "string",
   })
   // A shape the adapter never saw: the answers live somewhere else.
   expect(refusal({ model: "cloudflare/clairic", result: { total: { value: "1.00" } } })).toMatchObject({ path: "answers", expected: "is missing or not an object", received: "missing" })
+  // A missing documented key: the path and "missing".
+  expect(refusal({ model: "cloudflare/clairic", answers: { total: { value: 1 } } })).toMatchObject({ path: "answers.total.type", expected: "is not number", received: "missing" })
   // A refusal that names no path keeps only the code and the message.
   expect(refusal({ model: "another/model", answers: {} })).toEqual({ code: "PROVIDER_CONTRACT_CHANGED", message: expect.stringMatching(/the answer came from another model\.$/) })
 
   const jev = { ...OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "typesafe/jev-1.14")!, effectiveContextTokens: 2048, contextAllowance: { tokens: 1024, source: "test" } }
   const decide = decisionsAdapter.prepare!(DecideInput.parse({ model: jev.model, source: { kind: "text", text: SOURCE }, questions: { paid: { type: "noul", prompt: "Paid?" } } }), loadConfig({}))
   const decideSource = await snapshot({ kind: "text", text: SOURCE }, {} as FileAccess, jev, new AbortController().signal)
-  const response = answer({ model: jev.model, answers: { paid: { probability: [0.9] } } })
+  const response = answer({ model: jev.model, answers: { paid: { type: "noul", noul: [0.9] } } })
   let failure: ReturnType<typeof failureOf> | undefined
   try {
     decisionsAdapter.parse(response, { source: decideSource, route: jev, input: decide })
   } catch (error) {
     failure = failureOf(error, response.body)
   }
-  expect(failure).toMatchObject({ code: "PROVIDER_CONTRACT_CHANGED", path: "answers.paid.probability", received: "array" })
+  expect(failure).toMatchObject({ code: "PROVIDER_CONTRACT_CHANGED", path: "answers.paid.noul", received: "array" })
   // Anything but the plugin's own error is reported by its name only.
   expect(failureOf(new TypeError(`boom ${SOURCE}`), undefined)).toEqual({ code: "error", message: "TypeError" })
 })

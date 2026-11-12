@@ -100,7 +100,7 @@ for (const item of cases) {
   const input = ExtractInput.parse(item.input)
   let request: { path: string; body: Uint8Array }
   if (item.refused) {
-    const body = { model: item.route.model, state: source.text(), fields: { names: { type: "list", items: { type: "text" }, null_threshold: 0.5 } }, provider: { allow_fallbacks: false } }
+    const body = { model: item.route.model, state: source.text(), fields: { names: { type: "list", items: "text", null_threshold: 0.5 } }, provider: { allow_fallbacks: false } }
     request = { path: "/api/alpha/extractions", body: new TextEncoder().encode(JSON.stringify(body)) }
   } else request = extractionsAdapter.request(input, source, item.route)
   // The worst case must fit BEFORE the call, in a dry run too, so the report shows what a real run would skip.

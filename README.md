@@ -16,7 +16,8 @@ has verified it against the live API, so in this version both tools refuse with 
 - **`inference_plan`**: given `{ task, input }` for an extract, decide or read call, the route and its exclusion reasons,
   the local preparation it would need, what would be sent and where, a quote, expected coverage, likely review and the
   unknowns. It never opens a file, uploads, calls a provider or spends. A plan is not a permission.
-- **`inference_extract`** (`send`): named typed fields (text, number, date, time, datetime, duration, list of text) from
+- **`inference_extract`** (`send`): named typed fields (text, number, date, time, datetime, list of text; duration is
+  refused on OpenRouter in this version, as its answer is a number in a unit the result cannot carry yet) from
   supplied text, a local file or an artifact, on an enabled route. Each field keeps its nullable value (a guess never
   fills it), the provider's confidence and null probability when reported, evidence as Unicode code-point spans of the
   exact source, review reasons, and the number exactly as written. It asks the host before reading a file, reserves

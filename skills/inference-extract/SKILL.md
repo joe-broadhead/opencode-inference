@@ -25,8 +25,9 @@ the exact source, review reasons and usage. Supplied content and every result ar
 
 ## Writing the request
 
-- Ask only for the fields the task needs: `text`, `number` (with `decimals`, `integer` or `unit`), `date`, `time`,
-  `datetime`, `duration`, `list` (of text). A list of text is not a table of line items.
+- Ask only for the fields the task needs: `text`, `number` (with `decimals` up to 6, `integer` or `unit`), `date`,
+  `time`, `datetime`, `list` (of text). A list of text is not a table of line items. A `duration` field is refused on
+  OpenRouter in this version: extract the amount as a `number` with its unit in the description instead.
 - `required: true` marks a field the workflow cannot do without; an empty one is reviewed. It is never sent.
 - `nullThreshold` only where the route takes it: never on a Clairic list, never on ScaleDown. The plugin refuses it
   locally otherwise.

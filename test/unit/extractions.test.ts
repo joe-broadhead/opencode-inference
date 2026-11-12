@@ -38,7 +38,7 @@ const contractFailure = async (work: Promise<unknown>) => {
 }
 
 describe("the request", () => {
-  test("is the documented wire shape: model, state, snake_case fields, no fallbacks, and no plugin-only option", async () => {
+  test("is the documented wire shape (A4): model, state, fields with documented keys only, no fallbacks, no plugin-only option", async () => {
     const built = extractionsAdapter.request(input(), await textSource(), CLAIRIC)
     expect(built.path).toBe(EXTRACTIONS_PATH)
     expect(JSON.parse(new TextDecoder().decode(built.body))).toEqual({
@@ -49,18 +49,24 @@ describe("the request", () => {
         currency: { type: "text", null_threshold: 0.5 },
         total: { type: "number", decimals: 2 },
         due_on: { type: "date" },
-        items: { type: "list", items: { type: "text" }, max_items: 5 },
+        // A list's items is a string, and maxItems is checked locally, never sent (the schema allows no other key).
+        items: { type: "list", items: "text" },
       },
       provider: { allow_fallbacks: false },
     })
     expect(extractionsAdapter.revision).toBe(WIRE_REVISION)
+    // A description is sent as the documented `instructions`.
+    const described = JSON.parse(new TextDecoder().decode(extractionsAdapter.request(input({ total: { type: "number", description: "The invoice total" } }), await textSource(), CLAIRIC).body))
+    expect(described.fields).toEqual({ total: { type: "number", instructions: "The invoice total" } })
   })
 
-  test("an image is one ordered asset, base64, with its media type", () => {
+  test("a file is one documented asset (A2): a keyed map entry with type, format and data_base64, and no state", () => {
     const image = imageSource(16)
     const body = JSON.parse(new TextDecoder().decode(extractionsAdapter.request(input({ name: { type: "text" } }), image, CLAIRIC).body))
     expect(body.state).toBeUndefined()
-    expect(body.assets).toEqual([{ type: "image", media_type: "image/png", data: Buffer.from(new Uint8Array(16)).toString("base64") }])
+    expect(body.assets).toEqual({ source: { type: "image", format: "png", data_base64: Buffer.from(new Uint8Array(16)).toString("base64") } })
+    const pdf = { ...imageSource(16), modality: "pdf" as const, mimeType: "application/pdf" }
+    expect(JSON.parse(new TextDecoder().decode(extractionsAdapter.request(input({ name: { type: "text" } }), pdf, SCALEDOWN).body)).assets).toEqual({ source: { type: "document", format: "pdf", data_base64: Buffer.from(new Uint8Array(16)).toString("base64") } })
   })
 
   test("provider constraints are refused locally with coded errors", async () => {
@@ -73,6 +79,9 @@ describe("the request", () => {
     refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), imageSource(16, "image/gif"), CLAIRIC), "CAPABILITY_UNSUPPORTED")
     refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), { ...imageSource(16), modality: "pdf", mimeType: "application/pdf" }, CLAIRIC), "CAPABILITY_UNSUPPORTED")
     refuse(() => extractionsAdapter.request(input({ name: { type: "text" } }), text, { ...CLAIRIC, maxRequestBytes: 100 }), "CONTEXT_LIMIT")
+    // The schema keeps at most 6 decimals; a duration answer is a number in a unit this version's result cannot carry.
+    refuse(() => extractionsAdapter.request(input({ total: { type: "number", decimals: 7 } }), text, CLAIRIC), "CAPABILITY_UNSUPPORTED")
+    refuse(() => extractionsAdapter.request(input({ took: { type: "duration" } }), text, CLAIRIC), "CAPABILITY_UNSUPPORTED")
   })
 })
 
@@ -94,10 +103,35 @@ describe("the answer", () => {
     expect(fields.due_on.review).toEqual(["CONFIDENCE_MISSING", "FIELD_ABSENT"])
     // A list item without a span keeps an empty list.
     expect(fields.items.items).toEqual([{ value: "pens", evidence: [expect.objectContaining({ textRange: expect.objectContaining({ start: 40, end: 44 }) })] }, { value: "ink", evidence: [] }])
+    expect(fields.total).toMatchObject({ guess: 120, nullProbability: 2.3e-8 })
     expect(fields.items.review).toContain("EVIDENCE_UNAVAILABLE")
     expect(result.coverage).toEqual({ status: "complete", basis: "provided-text", sourceTruncated: false, providerTruncated: false, warnings: ["1 unknown response key(s) ignored"] })
     expect(result.review).toEqual({ required: true, reasons: ["CALIBRATION_UNAVAILABLE", "CONFIDENCE_MISSING", "EVIDENCE_UNAVAILABLE", "FIELD_ABSENT"], profileVersion: "review-first-v1" })
     expect(result.providerRequestId).toBe("gen-extract-fixture-0001")
+  })
+
+  test("the live Clairic answer's structure (canary, 2026-11-12) is accepted: a synthetic answer with exactly that structure parses", async () => {
+    const { shapeOf } = await import("../../scripts/canary-shape.js")
+    const live = JSON.parse(readFileSync(new URL("../fixtures/providers/openrouter-extractions/clairic-live-shape.json", import.meta.url), "utf8"))
+    const body = JSON.stringify(live.synthetic)
+    // The synthetic answer has the recorded structure, path for path and type for type.
+    const shape = shapeOf({ status: 200, contentType: "application/json", body: new TextEncoder().encode(body) })
+    const comparable = (entries: { path: string; type: string; length?: unknown; value?: string }[]) => entries.map(({ path, type, value }) => ({ path, type, ...(value ? { value } : {}) }))
+    expect(comparable(shape.entries as never)).toEqual(comparable(live.recorded.entries))
+    for (const entry of live.recorded.entries as { path: string; length?: number }[])
+      if ((entry.path === "$.model" || entry.path === "$.id" || entry.path === "$.provider") && entry.length !== undefined)
+        expect({ path: entry.path, length: shape.entries.find((item) => item.path === entry.path)!.length }).toEqual({ path: entry.path, length: entry.length })
+    // The canary's own request: one number field, total, with 2 decimals, on "Total EUR 1.00".
+    const source = await textSource("Total EUR 1.00")
+    const canaryInput = ExtractInput.parse({ model: "cloudflare/clairic", source: { kind: "text", text: "Total EUR 1.00" }, fields: { total: { type: "number", decimals: 2 } } })
+    const result = extractionsAdapter.parse(answer(body), { source, route: CLAIRIC, input: canaryInput })
+    const total = (result.data as { fields: Record<string, any> }).fields.total
+    expect(total).toMatchObject({ type: "number", value: 1, exact: "1", guess: 1, nullProbability: 0.0001, confidence: 0.99, evidence: [] })
+    // No span came back: the value is reviewed for missing evidence, never given an invented offset.
+    expect(total.review).toEqual(["EVIDENCE_UNAVAILABLE"])
+    expect(result.usage).toEqual({ charges: [{ party: "platform", currency: "USD", amount: "0.0000125", basis: "reported" }], inputTokens: 120, outputTokens: 0, costStatus: "known" })
+    expect(result.coverage.warnings).toEqual([])
+    expect(result.providerRequestId).toBe("gen-ext-1794000000-ABCDEFGHIJKLMNOPQRST")
   })
 
   test("usage: the cost read exactly from its literal and rounded UP to 12 places; the upstream breakdown is not added", async () => {
@@ -117,27 +151,29 @@ describe("the answer", () => {
   test("deterministic checks mark review, never repair: integer, decimals, calendar dates, list size, evidence that disagrees", async () => {
     const result = await parse(
       withAnswers({
-        count: { value: 1.5, confidence: 0.9, evidence: [{ start: 14, end: 20 }] },
-        total: { value: 120.125, confidence: 0.9, evidence: [{ start: 14, end: 20 }] },
-        on: { value: "2026-02-30", confidence: 0.9, evidence: [{ start: 14, end: 20 }] },
-        tags: { value: ["a", "b", "c"], confidence: 0.9 },
-        name: { value: "Bob", confidence: 0.9, evidence: [{ start: 2, end: 6 }] },
-        quoted: { value: "EUR", confidence: 0.9, evidence: [{ start: 10, end: 13, text: "USD" }] },
+        count: { type: "number", value: 1.5, confidence: 0.9, span: [14, 20] },
+        total: { type: "number", value: 120.125, confidence: 0.9, span: [14, 20] },
+        on: { type: "date", value: "2026-02-30", confidence: 0.9, span: [14, 20] },
+        tags: { type: "list", value: ["a", "b", "c"], confidence: 0.9 },
+        name: { type: "text", value: "Bob", confidence: 0.9, span: [2, 6] },
+        listed: { type: "list", value: ["pens", "ink"], confidence: 0.9, spans: [[40, 44], [10, 13]] },
       }),
-      { count: { type: "number", integer: true }, total: { type: "number", decimals: 2 }, on: { type: "date" }, tags: { type: "list", items: "text", maxItems: 2 }, name: { type: "text" }, quoted: { type: "text" } },
+      { count: { type: "number", integer: true }, total: { type: "number", decimals: 2 }, on: { type: "date" }, tags: { type: "list", items: "text", maxItems: 2 }, name: { type: "text" }, listed: { type: "list", items: "text" } },
     )
     const fields = (result.data as { fields: Record<string, any> }).fields
     for (const key of ["count", "total", "on", "tags"]) expect(fields[key].review).toContain("VALIDATION_FAILED")
     expect(fields.count.value).toBe(1.5)
+    // A value its span does not quote is reviewed, never moved: the span stays as reported.
     expect(fields.name.review).toContain("EVIDENCE_MISMATCH")
-    // A span whose quote is not the source text is dropped, not trusted.
-    expect(fields.quoted.evidence).toEqual([])
-    expect(fields.quoted.review).toContain("EVIDENCE_MISMATCH")
+    expect(fields.name.evidence).toHaveLength(1)
+    // A list item whose span quotes something else ("EUR" for "ink") is reviewed the same way.
+    expect(fields.listed.review).toContain("EVIDENCE_MISMATCH")
+    expect(fields.listed.items.map((item: { evidence: unknown[] }) => item.evidence.length)).toEqual([1, 1])
   })
 
   test("a number's evidence is checked against its digits, quoted or not", async () => {
     const result = await parse(
-      withAnswers({ right: { value: 120.0, confidence: 0.9, evidence: [{ start: 14, end: 20 }] }, wrong: { value: 120.0, confidence: 0.9, evidence: [{ start: 10, end: 13 }] } }),
+      withAnswers({ right: { type: "number", value: 120.0, confidence: 0.9, span: [14, 20] }, wrong: { type: "number", value: 120.0, confidence: 0.9, span: [10, 13] } }),
       { right: { type: "number" }, wrong: { type: "number" } },
     )
     const fields = (result.data as { fields: Record<string, any> }).fields
@@ -147,18 +183,18 @@ describe("the answer", () => {
 
   test("a long number literal is kept whole; past 1024 characters, and text past 1 MB, is a contract failure before settling", async () => {
     const long = `0.${"1".repeat(100)}`
-    const kept = await parse(withAnswers({ total: { value: "__N__", confidence: 0.9 } }).replace('"__N__"', long), { total: { type: "number" } })
+    const kept = await parse(withAnswers({ total: { type: "number", value: "__N__", confidence: 0.9 } }).replace('"__N__"', long), { total: { type: "number" } })
     expect((kept.data as any).fields.total.exact).toBe(long)
     expect(ExtractData.safeParse(kept.data).success).toBe(true)
-    await contractFailure(parse(withAnswers({ total: { value: "__N__" } }).replace('"__N__"', `0.${"1".repeat(1100)}`), { total: { type: "number" } }))
+    await contractFailure(parse(withAnswers({ total: { type: "number", value: "__N__" } }).replace('"__N__"', `0.${"1".repeat(1100)}`), { total: { type: "number" } }))
     const huge = "x".repeat(1_000_001)
-    await contractFailure(parse(withAnswers({ name: { value: huge } }), { name: { type: "text" } }))
-    await contractFailure(parse(withAnswers({ name: { value: null, guess: huge } }), { name: { type: "text" } }))
-    await contractFailure(parse(withAnswers({ tags: { value: [huge] } }), { tags: { type: "list", items: "text" } }))
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: huge } }), { name: { type: "text" } }))
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: null, guess: huge } }), { name: { type: "text" } }))
+    await contractFailure(parse(withAnswers({ tags: { type: "list", value: [huge] } }), { tags: { type: "list", items: "text" } }))
   })
 
   test("truncation is partial coverage and a review reason", async () => {
-    const result = await parse(withAnswers({ name: { value: "Zoé", confidence: 0.9, evidence: [{ start: 2, end: 6 }], truncated: true } }), { name: { type: "text" } })
+    const result = await parse(withAnswers({ name: { type: "text", value: "Zoé", confidence: 0.9, span: [2, 6] } }, { truncated: true }), { name: { type: "text" } })
     expect(result.coverage).toMatchObject({ status: "partial", providerTruncated: true })
     expect(result.review.reasons).toContain("PROVIDER_TRUNCATED")
   })
@@ -167,21 +203,29 @@ describe("the answer", () => {
     const answers = JSON.parse(FIXTURE).answers
     const bad: [string, string][] = [
       ["missing answer", withAnswers({ ...answers, total: undefined })],
-      ["extra answer", withAnswers({ ...answers, extra: { value: "x" } })],
-      ["number as text", withAnswers({ ...answers, total: { value: "120.00" } })],
-      ["text as number", withAnswers({ ...answers, name: { value: 3 } })],
-      ["no value key", withAnswers({ ...answers, name: { confidence: 0.5 } })],
-      ["confidence over 1", withAnswers({ ...answers, name: { value: "x", confidence: 1.5 } })],
-      ["span past the text", withAnswers({ ...answers, name: { value: "x", evidence: [{ start: 40, end: 50 }] } })],
-      ["span backwards", withAnswers({ ...answers, name: { value: "x", evidence: [{ start: 5, end: 2 }] } })],
-      ["span with an asset on text", withAnswers({ ...answers, name: { value: "x", evidence: [{ start: 0, end: 1, asset: 0 }] } })],
-      ["list of numbers", withAnswers({ ...answers, items: { value: [1, 2] } })],
-      ["items that disagree", withAnswers({ ...answers, items: { value: ["a"], items: [{ value: "b" }] } })],
+      ["extra answer", withAnswers({ ...answers, extra: { type: "text", value: "x" } })],
+      ["no type", withAnswers({ ...answers, name: { value: "x" } })],
+      ["another type", withAnswers({ ...answers, name: { type: "number", value: 3 } })],
+      ["number as text", withAnswers({ ...answers, total: { type: "number", value: "120.00" } })],
+      ["text as number", withAnswers({ ...answers, name: { type: "text", value: 3 } })],
+      ["no value key", withAnswers({ ...answers, name: { type: "text", confidence: 0.5 } })],
+      ["confidence over 1", withAnswers({ ...answers, name: { type: "text", value: "x", confidence: 1.5 } })],
+      ["p_null over 1", withAnswers({ ...answers, name: { type: "text", value: "x", p_null: 2 } })],
+      ["span past the text", withAnswers({ ...answers, name: { type: "text", value: "x", span: [40, 50] } })],
+      ["span backwards", withAnswers({ ...answers, name: { type: "text", value: "x", span: [5, 2] } })],
+      ["span not a pair", withAnswers({ ...answers, name: { type: "text", value: "x", span: [1, 2, 3] } })],
+      ["source a file on text", withAnswers({ ...answers, name: { type: "text", value: "x", source: "image" } })],
+      ["spans on a text field", withAnswers({ ...answers, name: { type: "text", value: "x", spans: [[0, 1]] } })],
+      ["span on a list", withAnswers({ ...answers, items: { type: "list", value: ["a"], span: [0, 1] } })],
+      ["list of numbers", withAnswers({ ...answers, items: { type: "list", value: [1, 2] } })],
+      ["spans that disagree", withAnswers({ ...answers, items: { type: "list", value: ["a"], spans: [[0, 1], [1, 2]] } })],
+      ["confidences that disagree", withAnswers({ ...answers, items: { type: "list", value: ["a"], confidences: [0.5, 0.5] } })],
+      ["provider not a name", JSON.stringify({ model: "cloudflare/clairic", provider: 7, answers })],
       ["another model", JSON.stringify({ model: "cloudflare/other", answers })],
       ["no answers", JSON.stringify({ model: "cloudflare/clairic", fields: answers })],
       ["bad id", JSON.stringify({ model: "cloudflare/clairic", id: "x".repeat(300), answers })],
       ["not JSON", "<html>oops</html>"],
-      ["duplicate key", FIXTURE.replace('"object": "extraction",', '"object": "extraction", "model": "cloudflare/clairic",')],
+      ["duplicate key", FIXTURE.replace('"provider": "Cloudflare",', '"provider": "Cloudflare", "model": "cloudflare/clairic",')],
       ["too many unknown keys", JSON.stringify({ model: "cloudflare/clairic", answers, ...Object.fromEntries(Array.from({ length: 33 }, (_, index) => [`k${index}`, 1])) })],
     ]
     for (const [name, body] of bad) {
@@ -192,13 +236,26 @@ describe("the answer", () => {
     await contractFailure(Promise.resolve().then(() => extractionsAdapter.parse(answer(FIXTURE, "text/html"), { source, route: CLAIRIC, input: input() })))
   })
 
-  test("image answers: evidence is attributed to the one asset sent, or refused", async () => {
+  test("state_text is accepted only when it is exactly the text sent: spans would otherwise index other text", async () => {
+    const answers = JSON.parse(FIXTURE).answers
+    const same = await parse(withAnswers(answers, { state_text: STATE }))
+    expect((same.data as any).fields.currency.evidence[0].textRange).toMatchObject({ start: 10, end: 13 })
+    await contractFailure(parse(withAnswers(answers, { state_text: STATE.replace("EUR", "USD") })))
+    await contractFailure(parse(withAnswers(answers, { state_text: `${STATE} ` })))
+    // A file sent no text, so no state_text can be the text sent.
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", source: "image" } }, { state_text: "x" }), { name: { type: "text" } }, CLAIRIC, imageSource(16)))
+    // null is no state_text.
+    expect((await parse(withAnswers(answers, { state_text: null }))).providerRequestId).toBeUndefined()
+  })
+
+  test("image answers: read from the image, with no text span; a span or a state source is refused", async () => {
     const image = imageSource(16)
     const fields = { name: { type: "text" } }
-    const ok = await parse(withAnswers({ name: { value: "x", confidence: 0.9, evidence: [{ asset: 0 }] } }), fields, CLAIRIC, image)
-    expect((ok.data as any).fields.name.evidence).toEqual([{ sourceHash: image.sha256, basis: "unavailable" }])
+    const ok = await parse(withAnswers({ name: { type: "text", value: "x", confidence: 0.9, source: "image", spell_confidence: 0.8 } }), fields, CLAIRIC, image)
+    expect((ok.data as any).fields.name).toMatchObject({ evidence: [], spellingConfidence: 0.8, review: ["EVIDENCE_UNAVAILABLE"] })
     expect(ok.coverage).toMatchObject({ status: "unknown", basis: "native-file" })
-    await contractFailure(parse(withAnswers({ name: { value: "x", evidence: [{ asset: 1 }] } }), fields, CLAIRIC, image))
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", span: [0, 1] } }), fields, CLAIRIC, image))
+    await contractFailure(parse(withAnswers({ name: { type: "text", value: "x", source: "state" } }), fields, CLAIRIC, image))
   })
 })
 
@@ -257,6 +314,32 @@ describe("through the dispatcher, with the fake transport", () => {
       ["0.004", "upper_bound", "settled", "0.000012345679"],
     ])
     expect(JSON.parse(new TextDecoder().decode(harness.sent[0]!.body)).state).toBe(STATE)
+  })
+})
+
+describe("duration is not adopted", () => {
+  test("plan reports a duration field ineligible on Clairic, and a call with one reads, sends and reserves nothing", async () => {
+    const { plan } = await import("../../src/domain/routing.js")
+    const { loadConfig } = await import("../../src/domain/config.js")
+    const { PlanInput } = await import("../../src/domain/contracts.js")
+    const { implemented } = await import("../../src/domain/registry.js")
+    expect(CLAIRIC.fieldTypes).not.toContain("duration")
+    const planned = plan(PlanInput.parse({ task: "extract", input: { profile: "extract-typed", source: { kind: "text", text: STATE }, fields: { took: { type: "duration" } } } }), { config: loadConfig({}), fixture: OPENROUTER_CAPABILITIES, implemented, now: new Date() })
+    expect(planned.route.selected!.exclusions).toContain("FIELD_TYPE_UNSUPPORTED")
+
+    const { probeHarness, probeRoute } = await import("../support/operation-kit.js")
+    const { ExtractResult } = await import("../../src/domain/contracts.js")
+    const { writeFileSync } = await import("node:fs")
+    const { join } = await import("node:path")
+    const tool = { name: "extract", class: "send" as const, operation: "extract" as const, module: "extractions" as const, effects: { network: true, uploadsSource: true, billable: true, readsFiles: true }, description: "extract", input: ExtractInput, output: ExtractResult }
+    const route = probeRoute({ ...CLAIRIC, enabled: true, pricing: { revision: "test", currency: "USD", perRequest: "0.004", upperBound: true } })
+    const harness = await probeHarness({ route, tool, adapter: extractionsAdapter, options: { profiles: { probe: { model: "cloudflare/clairic" } } } })
+    writeFileSync(join(harness.project, "invoice.txt"), "Paid within 30 days.")
+    const error = await Promise.resolve(harness.model({ profile: "probe", source: { kind: "path", path: "invoice.txt" }, fields: { took: { type: "duration" } } })).then(() => undefined, (caught: Error) => caught)
+    expect(error?.message).toMatch(/^CAPABILITY_UNSUPPORTED: /)
+    expect(harness.counts.read).toBe(0)
+    expect(harness.sent).toEqual([])
+    expect(await harness.journal.list()).toEqual([])
   })
 })
 
