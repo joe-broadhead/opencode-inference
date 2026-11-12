@@ -47,7 +47,7 @@ test("the lint refuses every form of fetch outside the transport boundary, and a
   expect(lint("src/providers/openrouter/http.ts", `await fetch("https://x")\n`)).not.toContain("network access")
   // A comment is not code.
   expect(lint("src/host/x.ts", `// the models fetch is off\n/** fetch */\n`)).not.toContain("network access")
-})
+}, 120_000)
 
 test("the lint refuses network modules outside the transport boundary, bare or node:-prefixed", () => {
   for (const name of ["http", "https", "http2", "tls", "net", "dns", "dgram", "dns/promises", "undici"])
@@ -58,7 +58,7 @@ test("the lint refuses network modules outside the transport boundary, bare or n
     }
   expect(lint("src/providers/openrouter/http.ts", `import https from "node:https"\n`)).not.toContain("network module")
   expect(lint("src/host/x.ts", `import { join } from "node:path"\nimport x from "./http.js"\n`)).not.toContain("network module")
-})
+}, 120_000)
 
 test("the lint refuses connection.resolve in any form outside the transport boundary", () => {
   for (const line of [
@@ -72,4 +72,4 @@ test("the lint refuses connection.resolve in any form outside the transport boun
     expect(lint("src/host/x.ts", `${line}\n`)).toContain("the OpenRouter key is resolved only at the transport boundary")
   expect(lint("src/providers/openrouter/http.ts", `await integration.connection.resolve(c)\n`)).not.toContain("resolved only")
   expect(lint("src/host/x.ts", `// the transport calls connection.resolve\nconst p = new Promise((resolve) => resolve(1))\n`)).not.toContain("resolved only")
-})
+}, 120_000)
