@@ -16,7 +16,7 @@ const base = (overrides: Partial<Parameters<typeof buildStatus>[0]> = {}) =>
     host,
     config: loadConfig({}),
     fixture: OPENROUTER_CAPABILITIES,
-    connection: async () => ({ state: "not_connected", next: "Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key." }),
+    connectionState: async () => ({ state: "not_connected", next: "Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key." }),
     agents: async () => [{ id: "build", permissions: [{ action: "*", resource: "*", effect: "allow" }, ...defaultRules()] }],
     problems: () => [],
     now: () => new Date("2026-11-12T00:00:00Z"),

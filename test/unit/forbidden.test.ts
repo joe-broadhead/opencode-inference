@@ -1,26 +1,46 @@
 import { expect, test } from "bun:test"
 import { execFileSync, spawnSync } from "node:child_process"
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 const script = new URL("../../scripts/check-forbidden.mjs", import.meta.url).pathname
+const { networkProblems } = (await import(new URL("../../scripts/check-network.mjs", import.meta.url).href as string)) as {
+  networkProblems: (file: string, text: string) => [number, string][]
+}
 
-/** Runs a copy of the lint in a scratch git repo holding one source file, and returns its output. */
+/** Runs the lint on a scratch git repo holding one source file (FORBIDDEN_ROOT), and returns its output. */
 const lint = (path: string, content: string) => {
   const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "forbidden-"))
   try {
-    mkdirSync(join(dir, "scripts"))
-    copyFileSync(script, join(dir, "scripts/check-forbidden.mjs"))
     mkdirSync(join(dir, path.split("/").slice(0, -1).join("/")), { recursive: true })
     writeFileSync(join(dir, path), content)
     execFileSync("git", ["init", "-q"], { cwd: dir })
-    const run = spawnSync("node", ["scripts/check-forbidden.mjs"], { cwd: dir, encoding: "utf8" })
+    const run = spawnSync("node", [script], { cwd: dir, encoding: "utf8", env: { ...process.env, FORBIDDEN_ROOT: dir } })
     return run.stderr + run.stdout
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 }
+
+/** Runs the lint once on a scratch repo holding several files. */
+const lintMany = (files: Record<string, string>) => {
+  const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "forbidden-"))
+  try {
+    for (const [path, content] of Object.entries(files)) {
+      mkdirSync(join(dir, path.split("/").slice(0, -1).join("/")), { recursive: true })
+      writeFileSync(join(dir, path), content)
+    }
+    execFileSync("git", ["init", "-q"], { cwd: dir })
+    const run = spawnSync("node", [script], { cwd: dir, encoding: "utf8", env: { ...process.env, FORBIDDEN_ROOT: dir } })
+    return run.stderr + run.stdout
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+/** The network check's messages for one source text. */
+const network = (text: string, file = "src/host/x.ts") => networkProblems(file, text).map(([, message]) => message)
 
 test("the lint refuses fs imports in the domain and the runtime", () => {
   for (const specifier of ["node:fs", "fs", "node:fs/promises", "fs/promises"]) {
@@ -34,42 +54,68 @@ test("the lint allows fs in the host layer", () => {
   expect(lint("src/host/x.ts", `import { readFileSync } from "node:fs"\n`)).not.toContain("filesystem access")
 })
 
-test("the lint refuses every form of fetch outside the transport boundary, and allows it there", () => {
-  for (const line of [
-    `await fetch("https://x")`,
-    `const f = globalThis.fetch`,
-    `const { fetch } = globalThis`,
-    `const f = globalThis["fetch"]`,
-    `const ws = new WebSocket(url)`,
-    `const s = Bun.connect({})`,
-  ])
-    for (const path of ["src/runtime/x.ts", "src/host/x.ts", "src/providers/openrouter/other.ts"]) expect(lint(path, `${line}\n`)).toContain("network access outside the transport boundary")
-  expect(lint("src/providers/openrouter/http.ts", `await fetch("https://x")\n`)).not.toContain("network access")
-  // A comment is not code.
-  expect(lint("src/host/x.ts", `// the models fetch is off\n/** fetch */\n`)).not.toContain("network access")
-}, 120_000)
+test("the network check refuses each reviewed bypass of the old text rule", () => {
+  const bypasses = {
+    "template dynamic import": "const h = await import(`node:https`)",
+    "computed dynamic import": "const name = 'https'; const h = await import(name)",
+    getBuiltinModule: 'const h = process.getBuiltinModule("node:https")',
+    "getBuiltinModule by string": 'const h = process["getBuiltinModule"]("https")',
+    createRequire: 'import { createRequire } from "node:module"\nconst h = createRequire(import.meta.url)("https")',
+    "bare module": 'import { createRequire } from "module"',
+    "child_process curl": 'import { execFile } from "node:child_process"\nexecFile("curl", ["https://x"])',
+    worker_threads: 'import { Worker } from "worker_threads"',
+    "connection alias": "const c = integration.connection\nawait c.resolve(x)",
+    "resolve on another line": "await integration\n  .connection\n  .resolve(x)",
+    "resolve on a connection variable": "await connection\n  .resolve(x)",
+    "Reflect.get": 'const r = Reflect.get(connection, "resolve")',
+    "globalThis concatenation": 'const f = globalThis["fet" + "ch"]',
+    "globalThis alias": "const g = globalThis\nconst f = g.fetch",
+    "destructured connection": "const { connection } = ctx.integration",
+    "computed connection": 'const r = ctx.integration["connection"]',
+    "import.meta.require": 'const h = import.meta.require("https")',
+    "require as a value": "const r = require\nr('https')",
+    "Bun.connect": "await Bun.connect({ hostname: 'x', port: 1 })",
+  }
+  const files = Object.fromEntries(Object.values(bypasses).map((text, index) => [`src/host/bypass${index}.ts`, `${text}\n`]))
+  const output = lintMany(files)
+  const caught = Object.keys(bypasses).map((name, index) => ({ name, caught: output.includes(`src/host/bypass${index}.ts:`) }))
+  expect(caught).toEqual(Object.keys(bypasses).map((name) => ({ name, caught: true })))
+}, 60_000)
 
-test("the lint refuses network modules outside the transport boundary, bare or node:-prefixed", () => {
-  for (const name of ["http", "https", "http2", "tls", "net", "dns", "dgram", "dns/promises", "undici"])
-    for (const prefix of ["", "node:"]) {
-      expect(lint("src/host/x.ts", `import x from "${prefix}${name}"\n`)).toContain("network module import outside the transport boundary")
-      expect(lint("src/host/x.ts", `const x = await import("${prefix}${name}")\n`)).toContain("network module import outside the transport boundary")
-      expect(lint("src/host/x.ts", `const x = require("${prefix}${name}")\n`)).toContain("network module import outside the transport boundary")
-    }
-  expect(lint("src/providers/openrouter/http.ts", `import https from "node:https"\n`)).not.toContain("network module")
-  expect(lint("src/host/x.ts", `import { join } from "node:path"\nimport x from "./http.js"\n`)).not.toContain("network module")
-}, 120_000)
+test("the network check refuses every network module, bare or node:-prefixed, imported, required or dynamically imported", () => {
+  for (const name of ["http", "https", "http2", "net", "tls", "dns", "dns/promises", "dgram", "undici", "child_process", "worker_threads", "module"])
+    for (const prefix of ["", "node:"])
+      for (const form of [`import x from "${prefix}${name}"`, `export * from "${prefix}${name}"`, `const x = await import("${prefix}${name}")`, `const x = require("${prefix}${name}")`, `import x = require("${prefix}${name}")`])
+        expect(network(form)).toContain(`network module import outside the transport boundary: ${prefix}${name}`)
+})
 
-test("the lint refuses connection.resolve in any form outside the transport boundary", () => {
-  for (const line of [
-    `await ctx.integration.connection.resolve(c)`,
-    `const r = integration.connection.resolve`,
-    `const r = connection?.resolve`,
-    `const r = connection["resolve"]`,
-    `const { resolve } = ctx.integration.connection`,
-    `const { connection: { resolve } } = ctx.integration`,
-  ])
-    expect(lint("src/host/x.ts", `${line}\n`)).toContain("the OpenRouter key is resolved only at the transport boundary")
-  expect(lint("src/providers/openrouter/http.ts", `await integration.connection.resolve(c)\n`)).not.toContain("resolved only")
-  expect(lint("src/host/x.ts", `// the transport calls connection.resolve\nconst p = new Promise((resolve) => resolve(1))\n`)).not.toContain("resolved only")
-}, 120_000)
+test("the network check refuses every network global, however it is reached", () => {
+  for (const text of [`await fetch("https://x")`, "const f = globalThis.fetch", "const { fetch } = globalThis", 'const f = globalThis["fetch"]', "new WebSocket(u)", "new XMLHttpRequest()", "new EventSource(u)", "Bun.spawn(['curl'])"])
+    expect(network(text).length).toBeGreaterThan(0)
+})
+
+test("the network check allows the transport boundary, method calls on the connection API, comments, types and ordinary code", () => {
+  expect(network('const r = await fetch("https://x")\nawait integration.connection.resolve(c)\nimport https from "node:https"', "src/providers/openrouter/http.ts")).toEqual([])
+  expect(
+    network(
+      [
+        "// the models fetch is off; the transport calls connection.resolve",
+        "/** fetch */",
+        "const active = await integration.connection.active(ID)",
+        "const ok = view.connection.state === 'connected'",
+        "type C = Pick<Integration, \"connection\">",
+        "const p = new Promise((resolve) => resolve(1))",
+        'import { join } from "node:path"',
+        'import { createHash } from "node:crypto"',
+        'import x from "./http.js"',
+        "const self_ = 1",
+      ].join("\n"),
+    ),
+  ).toEqual([])
+})
+
+test("the lint runs the network check on src/ and reports file and line", () => {
+  const output = lint("src/host/x.ts", `const a = 1\nconst h = process.getBuiltinModule("node:https")\n`)
+  expect(output).toContain("src/host/x.ts:2: module loader access outside the transport boundary: getBuiltinModule")
+  expect(lint("src/providers/openrouter/http.ts", `await fetch("https://x")\n`)).not.toContain("network")
+}, 60_000)

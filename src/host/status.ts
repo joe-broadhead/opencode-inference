@@ -12,7 +12,7 @@ export interface StatusSources {
   readonly host: HostCheck
   readonly config: Config
   readonly fixture: CapabilityFixture
-  readonly connection: () => Promise<{ state: ConnectionState; next?: string }>
+  readonly connectionState: () => Promise<{ state: ConnectionState; next?: string }>
   /** Read lazily: OpenCode creates config-only agents after plugins set up. */
   readonly agents: () => Promise<readonly { readonly id: string; readonly permissions: readonly Rule[] }[]>
   readonly problems: () => readonly string[]
@@ -27,7 +27,7 @@ export function keyRequired(config: Config, fixture: CapabilityFixture) {
 /** Joins the plugin's facts with the host's. No provider is called and no key is read. */
 export async function buildStatus(sources: StatusSources): Promise<StatusView> {
   const { config, fixture } = sources
-  const [connection, agents] = await Promise.all([sources.connection(), sources.agents().catch(() => [])])
+  const [connection, agents] = await Promise.all([sources.connectionState(), sources.agents().catch(() => [])])
   const ageDays = fixtureAgeDays(fixture, (sources.now ?? (() => new Date()))())
   const view = completeStatus({
     version: sources.version,

@@ -98,7 +98,7 @@ export function createPlugin(sources: PluginSources): Plugin.Plugin {
             host,
             config,
             fixture,
-            connection: () => connectionState(ctx.integration),
+            connectionState: () => connectionState(ctx.integration),
             agents: async () => (await ctx.agent.list()).data as unknown as readonly { id: string; permissions: readonly Rule[] }[],
             problems: () => [rulesProblem, integrationProblem].filter((problem): problem is string => problem !== undefined),
             ...(sources.now ? { now: sources.now } : {}),

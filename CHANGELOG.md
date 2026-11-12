@@ -19,4 +19,4 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - Status lists an agent as unguarded when its own rules would run any non-read Inference action without asking, registered or planned, not only the planned ones.
-- `npm run lint` refuses every form of `fetch`, `connection.resolve`, network globals and network module imports (`http`, `https`, `http2`, `tls`, `net`, `dns`, `dgram`, `undici`, bare or `node:`) outside the transport boundary.
+- `npm run lint` checks the network and key boundary on the syntax tree: outside the transport boundary it refuses network and process modules (`http`, `https`, `http2`, `net`, `tls`, `dns`, `dgram`, `undici`, `child_process`, `worker_threads`, `module`, bare or `node:`, imported, required or dynamically imported), `process.getBuiltinModule`, `fetch` and the other network globals, computed access on `globalThis`, and any use of the host's connection API other than a direct method call that is not `resolve`.

@@ -114,11 +114,14 @@ const CONNECTION_TEXT = {
  * text for the compact tool output.
  */
 export function statusLines(view: StatusView, { paste, agents }: { readonly paste: boolean; readonly agents?: string }): StatusLine[] {
-  const connection = view.connection
   const unguarded = view.unguardedAgents
   const caps = view.capabilities
   return [
-    line("Connection", `${CONNECTION_TEXT[connection.state]}${connection.required ? "" : `; not needed yet: no route sends in this version (${INTEGRATION_NAME} in /connect)`}`, !connection.required || connection.state === "connected"),
+    line(
+      "Connection",
+      `${CONNECTION_TEXT[view.connection.state]}${view.connection.required ? "" : `; not needed yet: no route sends in this version (${INTEGRATION_NAME} in /connect)`}`,
+      !view.connection.required || view.connection.state === "connected",
+    ),
     line("Account", "the key's own OpenRouter account; Inference never reads it in this version", true),
     line("Access", `${view.access}. Reads always run; sends ${view.access === "all" ? "run" : view.access === "ask-changes" ? "ask first" : "are denied"}`, true),
     ...MODULES.map((name) => line(MODULE_TEXT[name], view.modules[name].enabled ? "on (not implemented in this version)" : "off", true)),
