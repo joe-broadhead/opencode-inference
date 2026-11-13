@@ -30,6 +30,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The `inference-extract` and `inference-decide` skills, shipped in the package and registered per module; a missing or malformed skill is skipped with `SKILLS_INVALID` in status.
 - docs/jobs.md, a Jobs recipe tested through the released Jobs plugin on a real host, and docs/operations.md: uncertainty, cost scope, privacy, refreshing the fixture, alpha compatibility and common errors.
 - A docs drift test: tool names, methods, manifest entries, examples and error codes in the docs and skills must match the registry.
+- `typesafe/jev-1.14` decisions are enabled, for noul, choice and score over text, after the compatibility canary passed on 2026-11-12 (request and malformed-request reports, wire revision `openrouter-alpha-decisions-2026-11-12.2`). Effective context 32000 tokens with a documented allowance of 0 (TypeSafe's models page), so a request above about 32 KB of state and questions is refused before sending. Price from OpenRouter's catalog: USD 0.000000042 per input token, output free, with no documented ceiling. Every answer goes to review under `review-first-v1`.
 
 ### Changed
 
