@@ -31,7 +31,7 @@ import { CLAIRIC_DOCUMENTED_IMAGES, OPENROUTER_CAPABILITIES, type RouteCapabilit
 import { extractionsAdapter } from "../src/providers/openrouter/extractions.js"
 import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
 import { snapshot, type FileAccess, type Snapshot } from "../src/runtime/sources.js"
-import { canaryArgs } from "./canary-cli.js"
+import { canaryArgs, provenance } from "./canary-cli.js"
 import { BREAKS, malformedRequest } from "./canary-malformed.js"
 import { failureOf, shapeOf } from "./canary-shape.js"
 
@@ -77,7 +77,8 @@ const cases: Case[] = [
   { canary: "malformed", route: route("cloudflare/clairic"), input: { model: "cloudflare/clairic", source: { kind: "text", text: "a, b" }, fields: { names: { type: "list", items: "text" } } }, source: () => snapshot({ kind: "text", text: "a, b" }, noFiles, route("cloudflare/clairic"), signal), refused: true },
 ]
 
-const report: Record<string, unknown> = { at: new Date().toISOString(), origin: OPENROUTER_ORIGIN, budgetUsd: format(budget), perCallUsd: format(perCall), dryRun, shape }
+// Every report names the wire revision it checks and the commit it ran from: a pass is evidence for those only.
+const report: Record<string, unknown> = { at: new Date().toISOString(), wireRevision: extractionsAdapter.revision, ...provenance(), origin: OPENROUTER_ORIGIN, budgetUsd: format(budget), perCallUsd: format(perCall), dryRun, shape }
 
 if (selected.has("catalog")) {
   if (dryRun) report["catalog"] = { would: "GET /api/v1/models?endpoints=/api/alpha/extractions (no key)" }

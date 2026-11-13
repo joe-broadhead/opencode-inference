@@ -1,6 +1,8 @@
 // The arguments every opt-in canary takes, checked the same way: an explicit key from OPENROUTER_CANARY_KEY, a budget of
 // at most 0.10, a per-call worst case of at most the budget, --yes-spend, never in CI. Anything missing exits 2 before
 // any request exists.
+import { spawnSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
 import { compare, money, type Money } from "../src/domain/money.js"
 import { CanaryBudget } from "./canary-budget.js"
 
@@ -50,4 +52,18 @@ export function canaryArgs<C extends string>(script: string, canaries: readonly 
   const only = (value("--only") ?? canaries.join(",")).split(",")
   for (const name of only) if (!(canaries as readonly string[]).includes(name)) refuse(`unknown canary ${name}`)
   return { key: key!, budget, perCall, spend: new CanaryBudget(budget, perCall), selected: new Set(only as C[]), dryRun: flag("--dry-run"), shape: flag("--shape") }
+}
+
+/**
+ * Where a report comes from: the checkout's commit (40 hex characters, or "unknown" outside a git checkout) and whether
+ * its tracked files differ from that commit. Never a path. A pass is evidence for this commit's adapters only.
+ */
+export function provenance(): { readonly commit: string; readonly dirty: boolean | "unknown" } {
+  const cwd = fileURLToPath(new URL("../", import.meta.url))
+  const git = (...args: string[]) => spawnSync("git", args, { cwd, encoding: "utf8", timeout: 10_000 })
+  const head = git("rev-parse", "HEAD")
+  const commit = head.status === 0 && /^[0-9a-f]{40}$/.test(head.stdout.trim()) ? head.stdout.trim() : "unknown"
+  if (commit === "unknown") return { commit, dirty: "unknown" }
+  const status = git("status", "--porcelain", "--untracked-files=no")
+  return { commit, dirty: status.status === 0 ? status.stdout.trim().length > 0 : "unknown" }
 }

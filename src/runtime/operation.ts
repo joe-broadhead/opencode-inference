@@ -115,8 +115,11 @@ const UNSUPPORTED: readonly Exclusion[] = [
   "QUESTION_SET_UNKNOWN",
 ]
 
-/** Step 3: the explicitly requested route, eligible now, from trusted options and the reviewed fixture only. */
-export function resolveRoute(operation: Operation, input: OperationInput, config: Config, fixture: CapabilityFixture): RouteCapability {
+/**
+ * Step 3: the explicitly requested route, eligible now, from trusted options and the reviewed fixture only. `revision` is
+ * the adapter's WIRE_REVISION: an enabled route runs only while its canary passed against that exact revision.
+ */
+export function resolveRoute(operation: Operation, input: OperationInput, config: Config, fixture: CapabilityFixture, revision: string): RouteCapability {
   if (!config.modules[OPERATION_MODULE[operation]]) throw new InferenceError("MODULE_DISABLED")
   const model = input.profile !== undefined ? profileModel(config, input.profile) : input.model
   if (model === undefined) throw new InferenceError("CAPABILITY_UNSUPPORTED", `There is no profile named ${JSON.stringify(input.profile)} in the trusted options.`, "Pass a configured profile or an explicit model; inference_capabilities lists them.")
@@ -132,6 +135,14 @@ export function resolveRoute(operation: Operation, input: OperationInput, config
       "CAPABILITY_UNSUPPORTED",
       `${model} is disabled in this version: its route waits for a compatibility canary against the live API. Nothing was read or sent.`,
       "Check routes with inference_capabilities or inference_plan; a later release enables a route once it is verified.",
+    )
+  // A pass is evidence for one wire contract. When the adapter changes, the route waits for a new canary: it can never
+  // stay enabled on a contract nobody has checked against the live API.
+  if (route.canary.wireRevision !== revision)
+    throw new InferenceError(
+      "ROUTE_NOT_VERIFIED",
+      `${model}'s compatibility canary passed against wire revision ${route.canary.wireRevision ?? "(none recorded)"}, but this version's adapter is ${revision}. Nothing was read or sent.`,
+      "Re-run the compatibility canary for this revision; a reviewed change records the new pass.",
     )
   if (reasons.includes("PRICE_UNKNOWN")) throw new InferenceError("PRICE_UNKNOWN", `No price, or no upper bound, is known for ${model}, and the spend options require one.`)
   const blocking = reasons.filter((reason) => UNSUPPORTED.includes(reason))
@@ -232,7 +243,7 @@ export async function runOperation(tool: { readonly name: string }, adapter: Ada
   // 3. Route and key presence, before any file or prompt.
   // What the input names in the trusted options, resolved first: an unknown question set or profile sends nothing.
   const prepared = adapter.prepare ? adapter.prepare(input, config) : input
-  const route = resolveRoute(adapter.operation, input, config, fixture)
+  const route = resolveRoute(adapter.operation, input, config, fixture, adapter.revision)
   const connected = await runtime.transport.account()
   if (connected === undefined) throw new InferenceError("AUTH_REQUIRED")
   if (connected === "needs_auth") throw new InferenceError("AUTH_REJECTED")

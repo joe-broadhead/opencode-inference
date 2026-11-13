@@ -13,6 +13,8 @@ import { Decimal, ModelId, OPERATIONS } from "../../domain/contracts.js"
 // refresh as a separate, explicit operation and bumps `revision` when this table changes.
 
 const MiB = 1024 * 1024
+/** A redacted canary report's file name, as scripts/canary-*.ts and run.sh write it. */
+const REPORT = /^(?:extractions|decisions)-\d{8}T\d{6}Z\.json$/
 
 const Images = z.strictObject({
   maxCount: z.number().int().positive().nullable(),
@@ -79,10 +81,12 @@ export const RouteCapability = z.strictObject({
       status: z.enum(["not_run", "passed", "failed"]),
       on: z.iso.date().nullable(),
       reports: z
-        .array(z.string().regex(/^(?:extractions|decisions)-\d{8}T\d{6}Z\.json$/))
-        .max(8)
+        .strictObject({
+          request: z.string().regex(REPORT).describe("The report whose request canary passed."),
+          malformed: z.string().regex(REPORT).describe("The report whose malformed-request canary passed (a 4xx)."),
+        })
         .optional()
-        .describe("The redacted canary reports that show the pass, by file name: the request canary and the malformed-request canary."),
+        .describe("The redacted canary reports that show the pass, by file name; each starts with the route's endpoint (extractions- or decisions-)."),
       wireRevision: z.string().max(64).optional().describe("The adapter's WIRE_REVISION the canary passed against. Another revision needs the canary again."),
     })
     .describe("The opt-in compatibility canary against the live API (scripts/canary-*.ts). A route is enabled only after it passed."),
@@ -108,9 +112,14 @@ export const CapabilityFixture = z.strictObject({
     .superRefine((routes, context) => {
       for (const route of routes) {
         if (route.enabled && route.canary.status !== "passed") context.addIssue({ code: "custom", message: `${route.model} is enabled without a passed compatibility canary` })
-        // A pass names its evidence: the request and malformed-request reports, and the wire revision they ran against.
-        if (route.enabled && ((route.canary.reports?.length ?? 0) < 2 || route.canary.wireRevision === undefined))
+        // A pass names its evidence: exactly one request report and one malformed-request report, both from the route's
+        // own endpoint, and the wire revision they ran against.
+        if (route.enabled && (route.canary.reports === undefined || route.canary.wireRevision === undefined))
           context.addIssue({ code: "custom", message: `${route.model} is enabled without its canary reports and wire revision` })
+        const prefix = route.operation === "extract" ? "extractions-" : route.operation === "decide" ? "decisions-" : undefined
+        const reports = route.canary.reports
+        if (reports && (prefix === undefined || !reports.request.startsWith(prefix) || !reports.malformed.startsWith(prefix)))
+          context.addIssue({ code: "custom", message: `${route.model}'s canary reports are not from its own endpoint (${prefix ?? "none"})` })
       }
     }),
 })
@@ -131,8 +140,8 @@ export const CLAIRIC_DOCUMENTED_IMAGES = { maxCount: 4, maxBytesEach: 4 * MiB, m
 export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.parse({
   schemaVersion: 1,
   provider: "openrouter",
-  revision: "openrouter-2026-11-12.4",
-  reviewedOn: "2026-11-11",
+  revision: "openrouter-2026-11-13.2",
+  reviewedOn: "2026-11-13",
   basis: "documentation",
   verified: false,
   notice:
@@ -145,7 +154,9 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
     { id: "C1", title: "OpenRouter model catalog (canonical slugs), read 2026-11-12", url: "https://openrouter.ai/api/v1/models" },
     { id: "T1", title: "TypeSafe models page: Jev's context length, measured over the state and questions, read 2026-11-12", url: "https://docs.typesafe.ai/models.md" },
   ],
-  catalog: { checkedOn: null, status: "not_checked" },
+  // Checked on 2026-11-13: the enabled routes are listed with the reviewed canonical slugs, context and prices;
+  // inception/mercury-decide and levanto/sage-2 are not listed, and new models are candidates only (drift, reported).
+  catalog: { checkedOn: "2026-11-13", status: "drift" },
   routes: [
     {
       id: "openrouter:extract:cloudflare/clairic",
@@ -185,7 +196,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       canary: {
         status: "passed",
         on: "2026-11-12",
-        reports: ["extractions-20261112T215014Z.json", "extractions-20261112T225713Z.json"],
+        reports: { request: "extractions-20261112T215014Z.json", malformed: "extractions-20261112T225713Z.json" },
         wireRevision: "openrouter-alpha-extractions-2026-11-12.2",
       },
       notes: [
@@ -300,7 +311,7 @@ export const OPENROUTER_CAPABILITIES: CapabilityFixture = CapabilityFixture.pars
       canary: {
         status: "passed",
         on: "2026-11-12",
-        reports: ["decisions-20261112T215015Z.json", "decisions-20261112T225714Z.json"],
+        reports: { request: "decisions-20261112T215015Z.json", malformed: "decisions-20261112T225714Z.json" },
         wireRevision: "openrouter-alpha-decisions-2026-11-12.2",
       },
       notes: [

@@ -25,7 +25,7 @@ const run = (request: unknown, options: { config?: Config; fixture?: CapabilityF
 describe("the committed capability fixture", () => {
   test("is dated and documentation-derived; a route is enabled only with a passed canary, its reports, its wire revision and a price", async () => {
     expect(CapabilityFixture.safeParse(OPENROUTER_CAPABILITIES).success).toBe(true)
-    expect(OPENROUTER_CAPABILITIES).toMatchObject({ reviewedOn: "2026-11-11", basis: "documentation", verified: false })
+    expect(OPENROUTER_CAPABILITIES).toMatchObject({ reviewedOn: "2026-11-13", basis: "documentation", verified: false })
     expect(OPENROUTER_CAPABILITIES.routes.map((route) => route.model).sort()).toEqual(["cloudflare/clairic", "inception/mercury-decide", "levanto/sage-2", "scaledown/extract", "typesafe/jev-1.14"])
     const { WIRE_REVISION: EXTRACTIONS } = await import("../../src/providers/openrouter/extractions.js")
     const { WIRE_REVISION: DECISIONS } = await import("../../src/providers/openrouter/decisions.js")
@@ -33,10 +33,10 @@ describe("the committed capability fixture", () => {
     for (const route of OPENROUTER_CAPABILITIES.routes) {
       // A pass is evidence for one wire revision: when the adapter's revision changes, the canary must run again.
       if (route.enabled)
-        expect({ model: route.model, canary: route.canary.status, reports: route.canary.reports?.length, revision: route.canary.wireRevision, priced: route.pricing !== null }).toEqual({
+        expect({ model: route.model, canary: route.canary.status, reports: Object.keys(route.canary.reports ?? {}), revision: route.canary.wireRevision, priced: route.pricing !== null }).toEqual({
           model: route.model,
           canary: "passed",
-          reports: 2,
+          reports: ["request", "malformed"],
           revision: adapterRevision[route.operation],
           priced: true,
         })
@@ -65,7 +65,7 @@ describe("plan", () => {
     expect(result.route.selected).toMatchObject({ route: { model: "cloudflare/clairic", capabilityRevision: OPENROUTER_CAPABILITIES.revision }, eligible: true, exclusions: [] })
     expect(result.execution).toEqual({ available: true, tool: "inference_extract", reasons: [] })
     // A per-token price is an estimate, never a ceiling.
-    expect(result.quote).toMatchObject({ kind: "estimate", basis: "fixture", priceRevision: "openrouter-catalog-2026-11-12", freshness: { reviewedOn: "2026-11-11", ageDays: 1, stale: false } })
+    expect(result.quote).toMatchObject({ kind: "estimate", basis: "fixture", priceRevision: "openrouter-catalog-2026-11-12", freshness: { reviewedOn: "2026-11-13", ageDays: 0, stale: false } })
     expect(result.transmission).toEqual({ provider: "openrouter", apiRoute: "POST /api/alpha/extractions", representation: "text", credentialScope: "inference-openrouter" })
     expect(result.coverage).toMatchObject({ expected: "complete", basis: "provided-text" })
     expect(result.review).toEqual({ likely: true, reasons: ["CALIBRATION_UNAVAILABLE"], profileVersion: "review-first-v1" })
@@ -180,7 +180,7 @@ describe("plan", () => {
 
   test("a stale fixture is reported in the quote's freshness", () => {
     const result = run({ task: "extract", input: { source: text, profile: "extract-typed", fields } }, { now: new Date("2027-01-15T00:00:00Z") })
-    expect(result.quote.freshness).toEqual({ reviewedOn: "2026-11-11", ageDays: 65, stale: true })
+    expect(result.quote.freshness).toEqual({ reviewedOn: "2026-11-13", ageDays: 63, stale: true })
   })
 })
 
@@ -235,7 +235,7 @@ describe("capabilities", () => {
     }
     expect(result.routes.filter((route) => route.reasons.includes("NOT_IMPLEMENTED"))).toEqual([])
     expect(result.routes.find((route) => route.model === "cloudflare/clairic")!.profiles).toEqual(["extract-typed"])
-    expect(result.fixture).toMatchObject({ revision: OPENROUTER_CAPABILITIES.revision, verified: false, ageDays: 1, stale: false })
+    expect(result.fixture).toMatchObject({ revision: OPENROUTER_CAPABILITIES.revision, verified: false, ageDays: 0, stale: false })
     expect(result.routing).toEqual({ mode: "explicit", fallbacks: [] })
   })
 

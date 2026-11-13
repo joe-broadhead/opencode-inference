@@ -32,7 +32,7 @@ const answer = (body: string) => ({ status: 200, contentType: "application/json"
 test("the committed route records its canary, its reviewed context with its source, and the catalog's price", () => {
   expect(JEV).toMatchObject({
     enabled: true,
-    canary: { status: "passed", on: "2026-11-12", reports: ["decisions-20261112T215015Z.json", "decisions-20261112T225714Z.json"], wireRevision: WIRE_REVISION },
+    canary: { status: "passed", on: "2026-11-12", reports: { request: "decisions-20261112T215015Z.json", malformed: "decisions-20261112T225714Z.json" }, wireRevision: WIRE_REVISION },
     inputs: { text: true, images: null, pdf: null },
     questionTypes: ["noul", "choice", "score"],
     effectiveContextTokens: 32000,

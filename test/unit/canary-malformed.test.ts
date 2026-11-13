@@ -6,7 +6,7 @@ import { expect, test } from "bun:test"
 import { loadConfig } from "../../src/domain/config.js"
 import { DecideInput, DecideResult, ExtractInput } from "../../src/domain/contracts.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
-import { decisionsAdapter } from "../../src/providers/openrouter/decisions.js"
+import { decisionsAdapter, WIRE_REVISION as DECISIONS_REVISION } from "../../src/providers/openrouter/decisions.js"
 import { extractionsAdapter } from "../../src/providers/openrouter/extractions.js"
 import { snapshot, type FileAccess } from "../../src/runtime/sources.js"
 import { BREAKS, malformedBody, malformedRequest, SOURCES } from "../../scripts/canary-malformed.js"
@@ -70,7 +70,7 @@ test("a one-option choice (valid to the API, and billed) is refused locally: no 
   expect(DecideInput.safeParse({ model: "typesafe/jev-1.14", source: { kind: "text", text: "Paid." }, questions: { size: { type: "score", prompt: "How?", levels: [{ id: "only", description: "only" }] } } }).success).toBe(false)
   const { probeHarness, probeRoute } = await import("../support/operation-kit.js")
   const jev = OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "typesafe/jev-1.14")!
-  const route = probeRoute({ ...jev, enabled: true, canary: { status: "passed", on: "2026-11-12" }, effectiveContextTokens: 4096, contextAllowance: { tokens: 512, source: "test" }, pricing: { revision: "test", currency: "USD", perRequest: "0.002", upperBound: true } })
+  const route = probeRoute({ ...jev, enabled: true, canary: { status: "passed", on: "2026-11-12", reports: { request: "decisions-20261112T215015Z.json", malformed: "decisions-20261112T225714Z.json" }, wireRevision: DECISIONS_REVISION }, effectiveContextTokens: 4096, contextAllowance: { tokens: 512, source: "test" }, pricing: { revision: "test", currency: "USD", perRequest: "0.002", upperBound: true } })
   const tool = { name: "decide", class: "send" as const, operation: "decide" as const, module: "decisions" as const, effects: { network: true, uploadsSource: true, billable: true, readsFiles: true }, description: "decide", input: DecideInput, output: DecideResult }
   const harness = await probeHarness({ route, tool, adapter: decisionsAdapter, options: { profiles: { probe: { model: "typesafe/jev-1.14" } } } })
   const error = await Promise.resolve(harness.model({ profile: "probe", source: { kind: "text", text: "Paid." }, questions: one })).then(() => undefined, (caught: Error) => caught)

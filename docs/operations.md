@@ -67,12 +67,16 @@ anything. Enabling a route is a reviewed change, one route at a time (see [Refre
 live only through a reviewed change, in this order:
 
 1. Run the opt-in canary for the route (`scripts/canary-extractions.ts`, `scripts/canary-decisions.ts`) with a dedicated
-   key, a small budget and a per-call worst case. It reports catalog drift, contract compatibility and reported costs,
-   and never edits the fixture.
-2. Record what was verified: the route's `canary` (`passed` and the date), its prices (`pricing`, with a documented
-   `ceiling` and its source if a per-token price is to be an upper bound), for Decisions its reviewed
-   `effectiveContextTokens` and documented `contextAllowance`, and a new fixture `revision`.
-3. Only then set `enabled: true`. The fixture's schema refuses an enabled route without a passed canary.
+   key, a small budget and a per-call worst case: the request canary and the malformed-request canary. It reports
+   catalog drift, contract compatibility and reported costs, names the wire revision it checked and the commit it ran
+   from, and never edits the fixture.
+2. Record what was verified: the route's `canary` (`passed`, the date, `reports: { request, malformed }` by file name,
+   both from the route's endpoint, and the `wireRevision`), its prices (`pricing`, with a documented `ceiling` and its
+   source if a per-token price is to be an upper bound), for Decisions its reviewed `effectiveContextTokens` and
+   documented `contextAllowance`, the catalog check (`catalog.checkedOn`), `reviewedOn`, and a new fixture `revision`.
+3. Only then set `enabled: true`. The fixture's schema refuses an enabled route without that evidence, and at run time a
+   route whose recorded `wireRevision` is not its adapter's refuses with `ROUTE_NOT_VERIFIED`: an adapter change needs
+   a new canary.
 
 A fixture older than 30 days is reported stale by status and capabilities. A new model in OpenRouter's catalog is a
 disabled candidate, never enabled by being listed.
@@ -93,6 +97,7 @@ The Extractions and Decisions endpoints are alpha. Each adapter pins a wire revi
 | Code | What it usually means | What to do |
 | --- | --- | --- |
 | `CAPABILITY_UNSUPPORTED` | The route is disabled, or the request needs something it does not take. | Read the message; check routes with `inference_capabilities` or `inference_plan`. Do not switch tools to get around it. |
+| `ROUTE_NOT_VERIFIED` | The route's canary passed against another wire revision than this version's adapter. | Nothing was read or sent. Re-run the canary for this revision; a reviewed change records the new pass. |
 | `PRICE_UNKNOWN` | No price is known and the spend options require one. | Wait for a priced route, or change the trusted spend options deliberately. |
 | `BUDGET_EXCEEDED` | The reservation would pass the request, session or 24-hour budget. | Wait for the window, or raise the trusted limit. |
 | `AUTH_REQUIRED` / `AUTH_REJECTED` | No usable OpenRouter key for Inference. | `/connect` and choose OpenRouter for Inference. |

@@ -96,3 +96,28 @@ test("the Decisions canary refuses the same way, and its dry run sends nothing",
   expect(report.next).toBe("Dry run: nothing was sent.")
   expect(dry.out).not.toContain(KEY.OPENROUTER_CANARY_KEY)
 }, 30_000)
+
+test("every report names the wire revision it checks and the commit it ran from, and no path", async () => {
+  const { WIRE_REVISION: EXTRACTIONS } = await import("../../src/providers/openrouter/extractions.js")
+  const { WIRE_REVISION: DECISIONS } = await import("../../src/providers/openrouter/decisions.js")
+  const repo = new URL("../../", import.meta.url).pathname
+  for (const [script, revision] of [["canary-extractions", EXTRACTIONS], ["canary-decisions", DECISIONS]] as const) {
+    const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== "CI" && name !== "OPENROUTER_CANARY_KEY"))
+    const child = Bun.spawnSync([process.execPath, new URL(`../../scripts/${script}.ts`, import.meta.url).pathname, "--yes-spend", "--budget-usd", "0.02", "--per-call-usd", "0.01", "--only", "malformed", "--dry-run"], {
+      env: { ...base, ...KEY } as Record<string, string>,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    expect({ script, code: child.exitCode }).toEqual({ script, code: 0 })
+    const out = child.stdout.toString()
+    const report = JSON.parse(out) as { wireRevision: string; commit: string; dirty: unknown }
+    expect({ script, wireRevision: report.wireRevision }).toEqual({ script, wireRevision: revision })
+    // This suite runs in a git checkout: the commit is the checkout's HEAD.
+    const head = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: repo, stdout: "pipe" }).stdout.toString().trim()
+    expect(report.commit).toBe(head)
+    expect(report.commit).toMatch(/^[0-9a-f]{40}$/)
+    expect(typeof report.dirty).toBe("boolean")
+    expect(out).not.toContain(repo.replace(/\/$/, ""))
+    expect(out).not.toContain(KEY.OPENROUTER_CANARY_KEY)
+  }
+}, 60_000)

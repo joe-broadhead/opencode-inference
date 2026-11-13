@@ -207,7 +207,7 @@ describe("through the dispatcher, with the fake transport", () => {
   test("a decision settles the exact reported charge, on both surfaces; an unknown question set sends nothing", async () => {
     const { probeHarness, probeRoute } = await import("../support/operation-kit.js")
     const { DecideResult } = await import("../../src/domain/contracts.js")
-    const route = probeRoute({ ...JEV, enabled: true, canary: { status: "passed", on: "2026-11-12" }, pricing: { revision: "test", currency: "USD", perRequest: "0.002", upperBound: true } })
+    const route = probeRoute({ ...JEV, enabled: true, canary: { status: "passed", on: "2026-11-12", reports: { request: "decisions-20261112T215015Z.json", malformed: "decisions-20261112T225714Z.json" }, wireRevision: WIRE_REVISION }, pricing: { revision: "test", currency: "USD", perRequest: "0.002", upperBound: true } })
     const tool = { name: "decide", class: "send" as const, operation: "decide" as const, module: "decisions" as const, effects: { network: true, uploadsSource: true, billable: true, readsFiles: true }, description: "decide", input: DecideInput, output: DecideResult }
     const harness = await probeHarness({ route, tool, adapter: decisionsAdapter, options: { profiles: { probe: { model: "typesafe/jev-1.14" } } } })
     harness.replies.push(answer(FIXTURE), answer(FIXTURE))
