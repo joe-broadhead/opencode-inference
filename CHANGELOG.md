@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.1] - 2026-11-13
+
+### Added
+
+- The `jelly` settings declare their choices: `access` offers Jelly's three (Allowed, Ask before changes, Read only),
+  generated from the access values with the rest of the declaration, so Jelly draws it as a choice instead of free text.
+  A test reads the settings with Jelly's setting schema and checks that the options parser takes every declared value
+  and refuses one outside the set (needs a jelly that includes app#1301).
+- The README says how to move to a newer release: remove the old tag's entry, then add the new tag.
+
 ## [0.0.0] - 2026-11-13
 
 ### Added

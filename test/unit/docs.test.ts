@@ -116,13 +116,24 @@ describe("the spend defaults are stated as confirmed, and as the values the opti
 })
 
 
+/** Orders two `x.y.z` versions. */
+const compare = (left: string, right: string) => {
+  const [a, b] = [left, right].map((value) => value.split(".").map(Number))
+  for (let index = 0; index < 3; index++) if (a![index] !== b![index]) return a![index]! - b![index]!
+  return 0
+}
+
 describe("the release", () => {
   test("installs from the release tag of package.json's version, with every install spec pinned to it, and states its known limits", () => {
     const { version } = JSON.parse(text("package.json")) as { version: string }
     for (const file of [...FILES, "AGENTS.md"]) {
-      const specs = text(file).match(/github:joe-broadhead\/opencode-inference(?:#[^\s"'`)]*)?/g) ?? []
-      // A spec whose tag is a placeholder, such as `#v<x>`, describes the form, not a release.
-      for (const spec of specs.filter((item) => !item.includes("#v<"))) expect({ file, spec }).toEqual({ file, spec: `github:joe-broadhead/opencode-inference#v${version}` })
+      const specs = text(file).match(/(?:plugin remove )?github:joe-broadhead\/opencode-inference(?:#[^\s"'`)]*)?/g) ?? []
+      // A spec whose tag is a placeholder, such as `#v<x>`, describes the form, not a release. The upgrade example
+      // removes an earlier release's entry.
+      for (const spec of specs.filter((item) => !item.includes("#v<"))) {
+        if (spec.startsWith("plugin remove ")) expect({ file, earlier: compare(spec.slice(spec.indexOf("#v") + 2), version) < 0 }).toEqual({ file, earlier: true })
+        else expect({ file, spec }).toEqual({ file, spec: `github:joe-broadhead/opencode-inference#v${version}` })
+      }
     }
     const readme = text("README.md")
     expect(readme.match(/github:joe-broadhead\/opencode-inference#v/g)?.length).toBeGreaterThanOrEqual(3)
