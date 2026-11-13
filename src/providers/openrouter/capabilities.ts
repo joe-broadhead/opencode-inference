@@ -3,11 +3,11 @@ import { Decimal, ModelId, OPERATIONS } from "../../domain/contracts.js"
 
 // The reviewed capability fixture for OpenRouter's alpha Extractions and Decisions routes.
 //
-// DOCUMENTATION-DERIVED. Every value below was transcribed on 2026-11-11 from OpenRouter's public documentation as
-// summarised in the design handoff (§3.1, §7.3, §8.1). None was observed from the live API. No price is recorded,
-// because the reviewed sources did not state one, so every quote is `unavailable`. Every route is `enabled: false`
-// until its adapter exists and a compatibility canary passes (PR 3 and PR 4). A newer catalog entry never enables a
-// route by itself.
+// DOCUMENTATION-DERIVED. The values below were transcribed on 2026-11-11 from OpenRouter's public documentation as
+// summarised in the design handoff (§3.1, §7.3, §8.1), with canonical slugs and prices from OpenRouter's public catalog.
+// A route is enabled only after its adapter exists and a compatibility canary has passed against the live API (its
+// `canary` names the reports and the wire revision); a route without a price quotes `unavailable`. A newer catalog
+// entry never enables a route by itself.
 //
 // This module is data only: no adapter, no catalog refresh and no network. A later release adds the reviewed live
 // refresh as a separate, explicit operation and bumps `revision` when this table changes.

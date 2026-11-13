@@ -90,7 +90,8 @@ The Extractions and Decisions endpoints are alpha. Each adapter pins a wire revi
   unknown metadata is ignored and counted in coverage warnings.
 - When that happens: stop using the route, run its canary, update the adapter and its fixtures under a new wire
   revision, and re-evaluate any automatic profile (its report names the old revision, so it reviews until then).
-- The response shapes the adapters expect are documentation-derived and unverified until the canaries run.
+- The response shapes the adapters expect follow OpenRouter's API reference; for each enabled route, its canary checked
+  them against the live API at the recorded wire revision.
 
 ## Common errors
 

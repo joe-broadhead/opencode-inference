@@ -127,7 +127,7 @@ export function statusLines(view: StatusView, { paste, agents }: { readonly past
       `${CONNECTION_TEXT[view.connection.state]}${view.connection.required ? "" : `; not needed yet: no enabled route sends (${INTEGRATION_NAME} in /connect)`}`,
       !view.connection.required || view.connection.state === "connected",
     ),
-    line("Account", "the key's own OpenRouter account; Inference never reads it in this version", true),
+    line("Account", "the key's own OpenRouter account; Inference sends the key only with a call on an enabled route and never reads the account itself", true),
     line("Access", `${view.access}. Reads always run; sends ${view.access === "all" ? "run" : view.access === "ask-changes" ? "ask first" : "are denied"}`, true),
     ...MODULES.map((name) => line(MODULE_TEXT[name], view.modules[name].enabled ? (view.tools.registered.includes(MODULE_TOOL[name]) ? "on" : "on (not implemented in this version)") : "off", true)),
     line("Capabilities", `${caps.basis}-derived fixture ${caps.revision}, reviewed ${caps.reviewedOn} (${caps.ageDays} days ago${caps.stale ? ", stale" : ""}); ${caps.enabledRoutes} of ${caps.routes} routes enabled`, !caps.stale),

@@ -273,8 +273,9 @@ One view, built in `src/host/status.ts` and derived in `src/rpc.ts`, serves `/in
 TUI dialog and `inference_status` (with the unguarded agents as a count). The family's shared fields come first:
 `version`, `host { version, range, tested }`, `state`, `unguardedAgents`, `nextStep`. Then the connection (connected,
 not connected, needs sign-in or unknown, never the key), access, modules, tools, the fixture's age, the spend limits,
-operations and the permission block. In this version `state` is `local_only` (or `disabled` with every module off),
-spend and operations report `tracking: "none"`, and the key does not drive the next step because no route uses it.
+operations and the permission block. `state` is `ready` with a connected key, `sign_in_required` when an enabled route
+of a module that is on needs the key and none is connected (connecting it is then the next step), `local_only` when no
+enabled route needs it, and `disabled` with every module off. Spend and operations report `tracking: "none"`.
 
 ## Setup and cleanup
 
@@ -339,5 +340,5 @@ submit attempt. It holds no key, source text, request or response body, or URL.
 - A journal that does not parse, or belongs to another connection, is refused and left as it is, never reset.
 - Terminal records leave after 30 days; held reservations and `submission_unknown` records stay.
 
-Status still reports `tracking: "none"` for spend and operations: no registered tool writes the journal in this
-version. Status totals arrive with the first billable tool.
+Status reports `tracking: "none"` for spend and operations: it does not total the journal yet. The journal still holds
+every reservation and enforces the budgets at each call.
