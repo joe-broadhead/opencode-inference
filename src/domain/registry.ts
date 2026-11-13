@@ -11,7 +11,7 @@ import { StatusSummarySchema } from "./status-schema.js"
 // Only tools that work are registered. `PLANNED` names the operations a later release adds, for capabilities, plan and
 // the docs; none of them is a tool, a method or a permission rule in this version.
 
-/** What a tool may do beyond its class. Every registered tool is strictly local in this version. */
+/** What a tool may do beyond its class: the local tools do none of it; extract and decide do all of it. */
 export interface Effects {
   /** Calls a network service. */
   readonly network: boolean

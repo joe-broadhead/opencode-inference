@@ -137,3 +137,29 @@ describe("the release", () => {
     for (const phrase of ["text only", "noul, choice and score over text", "32 KB", "`review-first-v1`", "`ROUTE_NOT_VERIFIED`", "The defaults are"]) expect(limits).toContain(phrase)
   })
 })
+
+describe("the 0.0.0 release notes", () => {
+  const notes = () => {
+    const changelog = text("CHANGELOG.md")
+    const start = changelog.indexOf("## [0.0.0]")
+    const next = changelog.indexOf("\n## [", start + 1)
+    return changelog.slice(start, next === -1 ? undefined : next)
+  }
+
+  test("describe what ships: the key is read for enabled routes, the send tools are registered, two routes are enabled", () => {
+    const section = notes()
+    expect(section).toStartWith("## [0.0.0] - ")
+    // Statements an earlier stage made true and a later one made false.
+    for (const stale of [/never reads? the key/i, /no registered tool/i, /reached by no/i, /every route (?:is|stays) disabled/i, /not (?:yet )?released/i, /no prices?\b/i, /never (?:been )?run against/i, /after the (?:first|second|third|fourth|live)/i, /\bowner\b/i, /one-option choice, is valid/i])
+      expect({ stale: String(stale), found: stale.test(section) }).toEqual({ stale: String(stale), found: false })
+    // Every registered tool and every enabled route is named, with the wire revisions this version's adapters use.
+    for (const tool of TOOLS) expect(section).toContain(`\`inference_${tool.name}\``)
+    for (const route of OPENROUTER_CAPABILITIES.routes.filter((item) => item.enabled)) {
+      expect(section).toContain(`\`${route.model}\``)
+      expect(section).toContain(`\`${route.canary.wireRevision}\``)
+    }
+    // No superseded wire revision is named.
+    for (const revision of section.match(/openrouter-alpha-(?:extractions|decisions)-\d{4}-\d{2}-\d{2}\.\d+/g) ?? [])
+      expect(OPENROUTER_CAPABILITIES.routes.some((route) => route.canary.wireRevision === revision)).toBe(true)
+  })
+})
