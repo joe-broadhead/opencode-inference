@@ -11,6 +11,13 @@ import { NEXT_STEPS, TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { HOST_RANGE, TESTED_HOSTS } from "../../src/host/versions.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
 
+/** Jelly's words for each `access` value (app#172), drawn as its choices. */
+const ACCESS_WORDS: Record<Access, { label: string; description: string }> = {
+  all: { label: "Allowed", description: "Every tool runs without asking, reads and changes alike." },
+  "ask-changes": { label: "Ask before changes", description: "Reads run without asking. Each change asks you first." },
+  "read-only": { label: "Read only", description: "Reads run. Changes never run." },
+}
+
 /** The `jelly` section of package.json. */
 export const jellyDeclaration = () => ({
   title: "Inference",
@@ -39,7 +46,8 @@ export const jellyDeclaration = () => ({
         label: "Access",
         type: "string",
         default: DEFAULTS.access,
-        description: "all, ask-changes or read-only. Generates default rules for agents with a base allow rule; the three local reads always run, and extract and decide follow access.",
+        choices: ACCESS_VALUES.map((value) => ({ value, ...ACCESS_WORDS[value] })),
+        description: "What Inference's tools may do without asking. Generates default rules for agents with a base allow rule; the three local reads always run, and extract and decide follow access.",
       },
     ],
   },

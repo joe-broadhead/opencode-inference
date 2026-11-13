@@ -4,7 +4,8 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { NAMESPACE, PLUGIN_ID } from "../../src/domain/ids.js"
+import { loadConfig } from "../../src/domain/config.js"
+import { ACCESS_VALUES, NAMESPACE, PLUGIN_ID } from "../../src/domain/ids.js"
 import { actionOf, jsonSchemaOf, NAMESPACE_DESCRIPTION, PLANNED, TOOL_NAMES, TOOLS, type ToolSpec } from "../../src/domain/registry.js"
 import { ADAPTERS, createPlugin } from "../../src/host/plugin.js"
 import { defaultRules } from "../../src/host/permissions.js"
@@ -12,6 +13,7 @@ import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { fakeContext } from "../support/fake-context.js"
 import { ACCESS, contractsBlock, errorsBlock, hostsBlock, jellyDeclaration, optionsBlock, plannedBlock, routesBlock, rulesBlock, toolsBlock } from "../support/generated.js"
 import { declarationProblems, docProblems, effectFromRules, readPackage } from "../support/jelly-kit.js"
+import { ACCESS_CHOICES, type PluginSetting, settingChoices, settingsProblems, settingValueIssue } from "../support/jelly-settings.js"
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url))
 const ROOT_URL = new URL("../../", import.meta.url)
@@ -101,6 +103,21 @@ describe("the Jelly declaration", () => {
     const expected = jellyDeclaration()
     if (UPDATE && JSON.stringify(pkg.jelly) !== JSON.stringify(expected)) writeFileSync(`${ROOT}package.json`, `${JSON.stringify({ ...pkg, jelly: expected }, null, 2)}\n`)
     else expect(pkg.jelly).toEqual(expected)
+  })
+
+  test("its settings are read by Jelly's setting schema, and access offers Jelly's three choices the parser takes", () => {
+    const settings = (readPackage(ROOT_URL).jelly as { contributes: { settings: PluginSetting[] } }).contributes.settings
+    expect(settingsProblems(settings)).toEqual([])
+    expect(settings.map((setting) => setting.key)).toEqual(["access"])
+    const access = settings[0]!
+    expect(access.choices).toEqual([...ACCESS_CHOICES])
+    expect(settingChoices(access)?.map((choice) => choice.value)).toEqual([...ACCESS_VALUES])
+    const accepts = (options: Record<string, unknown>) => { try { loadConfig(options); return true } catch { return false } }
+    for (const { value } of ACCESS_CHOICES) expect(accepts({ access: value })).toBe(true)
+    for (const value of ["read", "write", "none", "ALL"]) {
+      expect(settingValueIssue(access, value)).not.toBeNull()
+      expect(accepts({ access: value })).toBe(false)
+    }
   })
 
   test("follows the plugin authors' standard, with the effects the plugin's own default rules give", () => {

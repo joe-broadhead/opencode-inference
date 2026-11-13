@@ -148,6 +148,8 @@ still win.
 - **Alpha endpoints.** OpenRouter's Extractions and Decisions APIs are alpha and may change. An answer that no longer
   matches the reviewed contract is refused (`PROVIDER_CONTRACT_CHANGED`), and an adapter change disables its route
   until a new canary passes for the new revision (`ROUTE_NOT_VERIFIED`).
+- **Jelly's settings need a recent Jelly.** The `jelly` settings declare their choices, which a Jelly without app#1301
+  does not read: it refuses the plugin's declaration.
 
 ## License
 
