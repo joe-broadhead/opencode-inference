@@ -43,7 +43,7 @@ anything. Enabling a route is a reviewed change, one route at a time (see [Refre
   charged it.
 - The budgets cover this machine's journal for one OpenRouter connection. They are not account-wide; OpenRouter's own
   key limits are the stronger, independent cap. Give the key a credit limit.
-- The spend defaults (USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours) are confirmed by the owner.
+- The spend defaults are USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours.
   They are budgets, not prices: what a call costs is the provider's reported charge.
 
 ## Privacy

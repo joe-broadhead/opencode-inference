@@ -95,13 +95,16 @@ describe("operations.md keeps the no-retry and privacy lists complete", () => {
 })
 
 describe("the spend defaults are stated as confirmed, and as the values the options actually default to", () => {
-  test("configuration.md, operations.md and AGENTS.md give the defaults loadConfig returns; nothing calls them a proposal", () => {
+  test("configuration.md, operations.md and AGENTS.md give the defaults loadConfig returns; nothing calls them a proposal, and no user doc speaks of the owner", () => {
     const { spend } = loadConfig(undefined)
     const stated = `USD ${spend.requestUsd} per request, ${spend.sessionUsd} per session,`
     for (const file of ["docs/configuration.md", "docs/operations.md", "AGENTS.md"]) {
       const content = text(file).replace(/\s+/g, " ")
-      expect({ file, stated: content.includes(stated) && content.includes(`${spend.rolling24hUsd} per rolling 24 hours`) && content.includes("confirmed by the owner") }).toEqual({ file, stated: true })
+      expect({ file, stated: content.includes(stated) && content.includes(`${spend.rolling24hUsd} per rolling 24 hours`) }).toEqual({ file, stated: true })
     }
+    // The maintainers' guide records the decision; what users read states the defaults without the process behind them.
+    expect(text("AGENTS.md").replace(/\s+/g, " ")).toContain("confirmed by the owner")
+    for (const file of ["README.md", "CHANGELOG.md", "docs/configuration.md", "docs/operations.md"]) expect({ file, owner: /owner-confirmed|by the owner/i.test(text(file)) }).toEqual({ file, owner: false })
     // The configuration table gives the same values.
     for (const [key, value] of Object.entries({ requestUsd: spend.requestUsd, sessionUsd: spend.sessionUsd, rolling24hUsd: spend.rolling24hUsd }))
       expect(text("docs/configuration.md")).toContain(`| \`spend.${key}\` | \`"${value}"\` |`)
@@ -112,3 +115,25 @@ describe("the spend defaults are stated as confirmed, and as the values the opti
   })
 })
 
+
+describe("the release", () => {
+  test("installs from the release tag of package.json's version, with every install spec pinned to it, and states its known limits", () => {
+    const { version } = JSON.parse(text("package.json")) as { version: string }
+    for (const file of [...FILES, "AGENTS.md"]) {
+      const specs = text(file).match(/github:joe-broadhead\/opencode-inference(?:#[^\s"'`)]*)?/g) ?? []
+      // A spec whose tag is a placeholder, such as `#v<x>`, describes the form, not a release.
+      for (const spec of specs.filter((item) => !item.includes("#v<"))) expect({ file, spec }).toEqual({ file, spec: `github:joe-broadhead/opencode-inference#v${version}` })
+    }
+    const readme = text("README.md")
+    expect(readme.match(/github:joe-broadhead\/opencode-inference#v/g)?.length).toBeGreaterThanOrEqual(3)
+    expect(readme).not.toMatch(/not (?:yet )?released|not published/i)
+    expect(readme).toContain("## Install\n")
+    expect(readme).toContain("The install takes the GitHub release tag.")
+    // The known limits name both enabled routes and what each covers, and the spend defaults the options actually have.
+    const limits = readme.slice(readme.indexOf("## Known limits"), readme.indexOf("## License"))
+    for (const route of OPENROUTER_CAPABILITIES.routes.filter((item) => item.enabled)) expect(limits).toContain(`\`${route.model}\``)
+    const { spend } = loadConfig(undefined)
+    for (const [key, value] of Object.entries({ requestUsd: spend.requestUsd, sessionUsd: spend.sessionUsd, rolling24hUsd: spend.rolling24hUsd })) expect(limits).toContain(`\`spend.${key}\` ${value}`)
+    for (const phrase of ["text only", "noul, choice and score over text", "32 KB", "`review-first-v1`", "`ROUTE_NOT_VERIFIED`", "The defaults are"]) expect(limits).toContain(phrase)
+  })
+})
