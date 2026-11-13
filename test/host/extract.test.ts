@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import { join } from "node:path"
+import { WIRE_REVISION as EXTRACTIONS_REVISION } from "../../src/providers/openrouter/extractions.js"
 import { createPlugin } from "../../src/host/plugin.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
@@ -25,7 +26,7 @@ const fixture = {
   ...OPENROUTER_CAPABILITIES,
   revision: "host-test-1",
   routes: OPENROUTER_CAPABILITIES.routes.map((route) =>
-    route.model === "cloudflare/clairic" ? { ...route, enabled: true, canary: { status: "passed" as const, on: "2026-11-12" }, pricing: { revision: "host-test", currency: "USD" as const, perRequest: "0.004", upperBound: true } } : route,
+    route.model === "cloudflare/clairic" ? { ...route, enabled: true, canary: { status: "passed" as const, on: "2026-11-12", reports: { request: "extractions-20261112T000000Z.json", malformed: "extractions-20261112T000001Z.json" }, wireRevision: EXTRACTIONS_REVISION }, pricing: { revision: "host-test", currency: "USD" as const, perRequest: "0.004", upperBound: true } } : route,
   ),
 }
 

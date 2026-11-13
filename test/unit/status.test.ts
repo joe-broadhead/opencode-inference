@@ -74,7 +74,7 @@ describe("the view", () => {
       nextStep: NOTHING_TO_DO,
       connection: { integration: "inference-openrouter", state: "not_connected", required: false },
       tools: { registered: ["inference_status", "inference_capabilities", "inference_plan", "inference_extract", "inference_decide"], planned: ["inference_read"] },
-      capabilities: { revision: OPENROUTER_CAPABILITIES.revision, reviewedOn: "2026-11-11", ageDays: 1, stale: false, routes: 5, enabledRoutes: 0 },
+      capabilities: { revision: OPENROUTER_CAPABILITIES.revision, reviewedOn: "2026-11-13", ageDays: 0, stale: false, routes: 5, enabledRoutes: 0 },
       spend: { currency: "USD", requestUsd: "0.05", sessionUsd: "1.00", rolling24hUsd: "5.00", tracking: "none" },
       operations: { tracking: "none" },
     })

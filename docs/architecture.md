@@ -236,13 +236,14 @@ not provider wire schemas: an adapter maps them inside the adapter. Exported as 
 `src/providers/openrouter/capabilities.ts` is data only. Every value was transcribed from OpenRouter's public
 documentation, as summarised in the design handoff, on the date below, with canonical slugs and prices from OpenRouter's
 public catalog. A route is enabled only after its adapter exists and a compatibility canary has passed against the live
-API: its `canary` names the date, the redacted reports (the request and the malformed request) and the wire revision
-they ran against, and a test fails when that revision is no longer the adapter's. A newer catalog entry never enables
-a route by itself.
+API: its `canary` names the date, exactly one request report and one malformed-request report (both from the route's
+endpoint) and the wire revision they ran against. A call on a route whose recorded revision is not its adapter's
+refuses with `ROUTE_NOT_VERIFIED` before anything is read or sent, and a test fails until the fixture records a new
+pass. A newer catalog entry never enables a route by itself.
 
 <!-- generated:routes -->
 
-Fixture `openrouter-2026-11-12.4`, reviewed 2026-11-11, documentation-derived, verified: false.
+Fixture `openrouter-2026-11-13.2`, reviewed 2026-11-13, documentation-derived, verified: false.
 
 | Model | Operation | Route | Status | Enabled | Text | Images | PDF | Field or question types | Price |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

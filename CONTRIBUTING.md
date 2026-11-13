@@ -73,8 +73,9 @@ the spend so far plus that worst case must fit the budget; after it, the reporte
 status, or the worst case when none is reported. `--dry-run` prints what it would send and skip. `--shape` adds each
 answer's structure (paths, types and lengths, never a value or the source text) and, when the adapter refuses an answer,
 the exact refusal: the path, what the contract expects and the type found. It reads only answers already paid for.
-It prints a report and never edits the fixture: record a passed canary in `src/providers/openrouter/capabilities.ts`
-(the route's `canary`, a new `revision`) in its own reviewed change before enabling a route.
+It prints a report, naming the wire revision it checked and the commit it ran from, and never edits the fixture: record
+a passed canary in `src/providers/openrouter/capabilities.ts` (the route's `canary` with its request and
+malformed-request reports and `wireRevision`, and a new `revision`) in its own reviewed change before enabling a route.
 
 The Decisions canary works the same way: `bun scripts/canary-decisions.ts --budget-usd 0.02 --per-call-usd 0.005
 --yes-spend --only catalog,text`.

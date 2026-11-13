@@ -27,7 +27,7 @@ const harness = (route = CLAIRIC) => probeHarness({ route, tool, adapter: extrac
 test("the committed route records its canary: passed on 2026-11-12, both reports, against the adapter's current wire revision", () => {
   expect(CLAIRIC).toMatchObject({
     enabled: true,
-    canary: { status: "passed", on: "2026-11-12", reports: ["extractions-20261112T215014Z.json", "extractions-20261112T225713Z.json"], wireRevision: WIRE_REVISION },
+    canary: { status: "passed", on: "2026-11-12", reports: { request: "extractions-20261112T215014Z.json", malformed: "extractions-20261112T225713Z.json" }, wireRevision: WIRE_REVISION },
     inputs: { text: true, images: null, pdf: null },
     effectiveContextTokens: 65536,
     contextAllowance: null,

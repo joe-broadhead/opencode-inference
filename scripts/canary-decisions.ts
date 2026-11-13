@@ -24,7 +24,7 @@ import { OPENROUTER_CAPABILITIES } from "../src/providers/openrouter/capabilitie
 import { decisionsAdapter } from "../src/providers/openrouter/decisions.js"
 import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
 import { snapshot, type FileAccess } from "../src/runtime/sources.js"
-import { canaryArgs } from "./canary-cli.js"
+import { canaryArgs, provenance } from "./canary-cli.js"
 import { BREAKS, malformedRequest } from "./canary-malformed.js"
 import { failureOf, shapeOf } from "./canary-shape.js"
 
@@ -41,7 +41,8 @@ const QUESTIONS = {
   amount: { type: "score", prompt: "How large is the amount?", levels: [{ id: "small", description: "under 10" }, { id: "medium", description: "10 to 1000" }, { id: "large", description: "over 1000" }] },
 }
 const config = loadConfig({})
-const report: Record<string, unknown> = { at: new Date().toISOString(), origin: OPENROUTER_ORIGIN, budgetUsd: format(budget), perCallUsd: format(perCall), dryRun, shape }
+// Every report names the wire revision it checks and the commit it ran from: a pass is evidence for those only.
+const report: Record<string, unknown> = { at: new Date().toISOString(), wireRevision: decisionsAdapter.revision, ...provenance(), origin: OPENROUTER_ORIGIN, budgetUsd: format(budget), perCallUsd: format(perCall), dryRun, shape }
 
 if (selected.has("catalog")) {
   if (dryRun) report["catalog"] = { would: "GET /api/v1/models?endpoints=/api/alpha/decisions (no key)" }

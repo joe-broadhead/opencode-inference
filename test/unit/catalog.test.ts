@@ -96,20 +96,28 @@ describe("catalog drift is a compatibility status, never an enablement", () => {
     expect(catalogModels({ data: [{ id: "A".repeat(200) }] }).unexpected[0]!.shape).toBe(`a string of 200: "${"A".repeat(96)}..."`)
   })
 
-  test("the fixture refuses an enabled route whose canary has not passed, and records the catalog as not checked", () => {
-    expect(OPENROUTER_CAPABILITIES.catalog).toEqual({ checkedOn: null, status: "not_checked" })
+  test("the fixture refuses an enabled route whose canary has not passed, or whose evidence is not one request and one malformed report from its endpoint", () => {
+    // Checked on 2026-11-13: drift is reported (unlisted reviewed models, new candidates), never acted on.
+    expect(OPENROUTER_CAPABILITIES.catalog).toEqual({ checkedOn: "2026-11-13", status: "drift" })
     // Every route without a passed canary is disabled.
     expect(OPENROUTER_CAPABILITIES.routes.filter((route) => route.canary.status !== "passed" && route.enabled)).toEqual([])
-    const enable = (canary: { status: "not_run" | "passed" | "failed"; on: string | null; reports?: string[]; wireRevision?: string }) =>
-      CapabilityFixture.safeParse({ ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route) => (route.model === "levanto/sage-2" ? { ...route, enabled: true, canary } : route)) }).success
-    const evidence = { reports: ["extractions-20261112T215014Z.json", "extractions-20261112T225713Z.json"], wireRevision: "openrouter-alpha-extractions-2026-11-12.2" }
-    expect(enable({ status: "not_run", on: null, ...evidence })).toBe(false)
-    expect(enable({ status: "failed", on: "2026-11-12", ...evidence })).toBe(false)
-    // A pass without its evidence is refused: both reports (request and malformed request) and the wire revision.
-    expect(enable({ status: "passed", on: "2026-11-12" })).toBe(false)
-    expect(enable({ status: "passed", on: "2026-11-12", reports: [evidence.reports[0]!], wireRevision: evidence.wireRevision })).toBe(false)
-    expect(enable({ status: "passed", on: "2026-11-12", reports: evidence.reports })).toBe(false)
-    expect(enable({ status: "passed", on: "2026-11-12", reports: ["notes.txt", "x.json"], wireRevision: evidence.wireRevision })).toBe(false)
-    expect(enable({ status: "passed", on: "2026-11-12", ...evidence })).toBe(true)
+    const enable = (model: string, canary: Record<string, unknown>) =>
+      CapabilityFixture.safeParse({ ...OPENROUTER_CAPABILITIES, routes: OPENROUTER_CAPABILITIES.routes.map((route) => (route.model === model ? { ...route, enabled: true, canary } : route)) }).success
+    const reports = { request: "extractions-20261112T215014Z.json", malformed: "extractions-20261112T225713Z.json" }
+    const evidence = { reports, wireRevision: "openrouter-alpha-extractions-2026-11-12.2" }
+    expect(enable("levanto/sage-2", { status: "not_run", on: null, ...evidence })).toBe(false)
+    expect(enable("levanto/sage-2", { status: "failed", on: "2026-11-12", ...evidence })).toBe(false)
+    // A pass without its evidence is refused: both reports and the wire revision.
+    expect(enable("levanto/sage-2", { status: "passed", on: "2026-11-12" })).toBe(false)
+    expect(enable("levanto/sage-2", { status: "passed", on: "2026-11-12", reports })).toBe(false)
+    expect(enable("levanto/sage-2", { status: "passed", on: "2026-11-12", reports: { request: reports.request }, wireRevision: evidence.wireRevision })).toBe(false)
+    // Exactly one of each: a list of reports, or an extra key, is not the record.
+    expect(enable("levanto/sage-2", { status: "passed", on: "2026-11-12", reports: [reports.request, reports.malformed], wireRevision: evidence.wireRevision })).toBe(false)
+    expect(enable("levanto/sage-2", { status: "passed", on: "2026-11-12", reports: { ...reports, image: reports.request }, wireRevision: evidence.wireRevision })).toBe(false)
+    expect(enable("levanto/sage-2", { status: "passed", on: "2026-11-12", reports: { request: "notes.txt", malformed: reports.malformed }, wireRevision: evidence.wireRevision })).toBe(false)
+    // The reports come from the route's own endpoint: a decisions report cannot enable an extraction route, or back.
+    expect(enable("levanto/sage-2", { status: "passed", on: "2026-11-12", reports: { request: "decisions-20261112T215015Z.json", malformed: reports.malformed }, wireRevision: evidence.wireRevision })).toBe(false)
+    expect(enable("typesafe/jev-1.14", { status: "passed", on: "2026-11-12", ...evidence })).toBe(false)
+    expect(enable("levanto/sage-2", { status: "passed", on: "2026-11-12", ...evidence })).toBe(true)
   })
 })

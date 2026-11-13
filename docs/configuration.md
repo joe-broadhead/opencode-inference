@@ -168,6 +168,7 @@ asynchronous operations.
 | `RULES_NOT_ADDED` | The default permission rules could not be added. | Restart OpenCode. |
 | `SKILLS_INVALID` | A shipped skill is missing or malformed, so it was skipped. | Reinstall the plugin; the tools still work without the skill. |
 | `INTEGRATION_NOT_REGISTERED` | The OpenRouter key entry could not be added to /connect. | Restart OpenCode. |
+| `ROUTE_NOT_VERIFIED` | The route's compatibility canary passed against another wire revision, so it is not verified for this one. | Re-run the compatibility canary for this revision; a reviewed change records the new pass. |
 | `CAPABILITY_UNSUPPORTED` | The selected route cannot serve this request. | Choose a supported field, modality or profile with inference_plan, or prepare the source explicitly. |
 | `UNSAFE_PATH` | The source path is not a plain regular file this call may read. | Re-select the current regular file by a path without symbolic links or '..'. |
 | `SOURCE_CHANGED` | The source changed between approval and reading, or no longer matches its declaration. | Re-select the current regular file and call the tool again. |

@@ -58,7 +58,7 @@ const fixture = {
   revision: "host-test-decide-1",
   routes: OPENROUTER_CAPABILITIES.routes.map((route) =>
     route.model === "typesafe/jev-1.14"
-      ? { ...route, enabled: true, effectiveContextTokens: 4096, contextAllowance: { tokens: 512, source: "host test" }, canary: { status: "passed" as const, on: "2026-11-12" }, pricing: { revision: "host-test", currency: "USD" as const, perRequest: "0.002", upperBound: true } }
+      ? { ...route, enabled: true, effectiveContextTokens: 4096, contextAllowance: { tokens: 512, source: "host test" }, canary: { status: "passed" as const, on: "2026-11-12", reports: { request: "decisions-20261112T000000Z.json", malformed: "decisions-20261112T000001Z.json" }, wireRevision: WIRE_REVISION }, pricing: { revision: "host-test", currency: "USD" as const, perRequest: "0.002", upperBound: true } }
       : route,
   ),
 }

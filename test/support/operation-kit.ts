@@ -48,7 +48,7 @@ export const probeRoute = (overrides: Partial<RouteCapability> = {}): RouteCapab
   pricing: { revision: "test-1", currency: "USD", perRequest: "0.01", upperBound: true },
   zdr: "unknown",
   // Test routes stand for verified ones.
-  canary: { status: "passed", on: "2026-11-12" },
+  canary: { status: "passed", on: "2026-11-12", reports: { request: "extractions-20261112T000000Z.json", malformed: "extractions-20261112T000001Z.json" }, wireRevision: "probe-adapter-1" },
   notes: [],
   ...overrides,
 })
