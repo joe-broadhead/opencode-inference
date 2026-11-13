@@ -2,7 +2,7 @@
 
 Unofficial OpenCode plugin. Not affiliated with OpenCode or OpenRouter.
 
-**Not released yet.** `@joe-broadhead/opencode-inference` offers typed extraction (`inference.extract`) and bounded
+`@joe-broadhead/opencode-inference` offers typed extraction (`inference.extract`) and bounded
 decisions (`inference.decide`) through OpenRouter's alpha Extractions and Decisions APIs, keeping nulls, evidence,
 probabilities, refusals, coverage and cost in every result. **A route is enabled only after a compatibility canary
 has verified it against the live API**; a disabled route refuses with that reason and nothing is sent.
@@ -25,11 +25,7 @@ has verified it against the live API**; a disabled route refuses with that reaso
   budget before sending, and refuses provider constraints locally (no null threshold on a Clairic list or on ScaleDown,
   Clairic's image limits). On a disabled route it refuses before reading or sending anything.
   - **Enabled on `cloudflare/clairic`, for text only**, after its compatibility canary passed on 2026-11-12. Price
-    (OpenRouter's catalog): USD 0.0000001 per input token, output free; a per-token price is never a ceiling, so each
-    call reserves the whole per-request budget. Known limits: Clairic's images are documented but not enabled (the
-    canary observed text only), and Clairic takes no PDF; only a `number` field was observed live, the other field
-    types follow the API reference; under `review-first-v1` every result goes to review. ScaleDown, Mercury Decide and
-    Sage stay disabled.
+    (OpenRouter's catalog): USD 0.0000001 per input token, output free. See [Known limits](#known-limits).
 - **`inference_decide`** (`send`): noul (the probability a proposition is true), choice and score (the expected,
   possibly fractional, position on an ordered rubric) questions about supplied text, given inline or as a versioned
   question set from the trusted options. Probabilities and distributions come back exactly as reported (never
@@ -39,11 +35,8 @@ has verified it against the live API**; a disabled route refuses with that reaso
   thresholds. An accepted label is never a permission. Box questions are refused, and a request that may not fit the
   route's effective context is refused rather than truncated.
   - **Enabled on `typesafe/jev-1.14`, for noul, choice and score over text**, after its compatibility canary passed on
-    2026-11-12. Price (OpenRouter's catalog): USD 0.000000042 per input token, output free; a per-token price is never a
-    ceiling, so each call reserves the whole per-request budget. Known limits: a request whose state and questions
-    exceed about 32 KB (32000 bytes, TypeSafe's default per-question limit read at its lower value) is refused before
-    anything is sent; under `review-first-v1` every answer goes to review, and no automatic acceptance profile ships;
-    box questions and images are not enabled.
+    2026-11-12. Price (OpenRouter's catalog): USD 0.000000042 per input token, output free. See
+    [Known limits](#known-limits).
 - Two skills, `inference-extract` and `inference-decide`, teach agents when to use each tool and how to read its result
   (nulls, evidence, probabilities, review, cost). Each is registered while its module is on.
 - `/inference-status` in a session, and the **Inference: Status** dialog (`/inference`) in the TUI.
@@ -78,8 +71,21 @@ OpenCode `>=2.2.3 <2.3.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6.
 
 ## Install
 
-Not published. To try a checkout, run `npm ci --ignore-scripts && npm run build`, then point a `plugins` entry in
-`opencode.json` at the repository directory.
+```sh
+opencode plugin add github:joe-broadhead/opencode-inference#v0.0.0
+opencode reload
+```
+
+Or add it to `opencode.json`:
+
+```json
+{
+  "plugins": [{ "package": "github:joe-broadhead/opencode-inference#v0.0.0" }]
+}
+```
+
+Then connect an OpenRouter key (below). The install takes the GitHub release tag. Its commit carries the built `dist/`,
+so the install runs no build. A new release is a new tag: install it with its own `#v<version>` spec.
 
 ## Connect OpenRouter
 
@@ -99,7 +105,7 @@ rules for each `access` value, and the error codes.
 {
   "plugins": [
     {
-      "package": "@joe-broadhead/opencode-inference",
+      "package": "github:joe-broadhead/opencode-inference#v0.0.0",
       "options": { "access": "ask-changes", "limits": { "maxFields": 16 } }
     }
   ]
@@ -123,6 +129,25 @@ still win.
 - [docs/scripting.md](docs/scripting.md): the tools RPC.
 - [docs/jelly.md](docs/jelly.md): the Jelly declaration.
 - [CONTRIBUTING.md](CONTRIBUTING.md): setup and checks.
+
+## Known limits
+
+- **Two routes are enabled**, each after a compatibility canary against the live API on 2026-11-12:
+  - `cloudflare/clairic` extraction, **text only**. Its images are documented but not enabled, and it takes no PDF.
+    Only a `number` field was observed live; the other field types follow OpenRouter's API reference.
+  - `typesafe/jev-1.14` decisions: **noul, choice and score over text**. A request whose state and questions exceed
+    about 32 KB (32000 bytes, TypeSafe's default per-question limit read at its lower value) is refused before anything
+    is sent. Box questions and images are not enabled.
+- **Everything else is disabled.** ScaleDown is listed in OpenRouter's catalog but has no passed canary; Mercury Decide
+  and Sage are no longer in the catalog. A disabled route refuses before reading or sending anything.
+- **Every answer goes to review.** The built-in `review-first-v1` profile accepts nothing: no calibration or evaluated
+  automatic profile ships, and a provider's confidence is its own statistic, not checked accuracy.
+- **Spend.** The defaults are `spend.requestUsd` 0.05 (reserved for each call: a per-token price is
+  never a ceiling), `spend.sessionUsd` 1.00 and `spend.rolling24hUsd` 5.00 (a rolling 24 hours), in USD. They count
+  this machine's journal for one connection, not your whole OpenRouter account: give the key its own credit limit.
+- **Alpha endpoints.** OpenRouter's Extractions and Decisions APIs are alpha and may change. An answer that no longer
+  matches the reviewed contract is refused (`PROVIDER_CONTRACT_CHANGED`), and an adapter change disables its route
+  until a new canary passes for the new revision (`ROUTE_NOT_VERIFIED`).
 
 ## License
 
