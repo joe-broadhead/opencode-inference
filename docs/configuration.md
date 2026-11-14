@@ -182,7 +182,7 @@ asynchronous operations.
 | `CONTEXT_LIMIT` | The request is larger than the route accepts. | Select a smaller range or fewer fields, or use an evaluated chunking strategy. |
 | `AUTH_REQUIRED` | No OpenRouter key is connected for Inference. | Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key. |
 | `AUTH_REJECTED` | OpenRouter did not accept the connected key. | Run /connect and choose OpenRouter key for Inference to replace the key. |
-| `PRICE_UNKNOWN` | No price, or no upper bound, is known for this route, and the spend options require one. | Select a priced, affordable route, or change spend.requirePricedRoute or spend.requireUpperBound in the trusted options. |
+| `PRICE_UNKNOWN` | No price, or no upper bound, is known for this route, and the spend options require one: requirePricedRoute, requireUpperBound, or a session or rolling cap set without a request cap. | Select a priced, affordable route; change spend.requirePricedRoute or spend.requireUpperBound in the trusted options; or, under a session or rolling cap with no request cap, set spend.requestUsd or remove that cap. |
 | `BUDGET_EXCEEDED` | This call would exceed a spend budget. | Select a priced, affordable route, wait for the rolling window, or raise the limit in the trusted spend options. |
 | `JOURNAL_LOCKED` | The operation journal is locked by another process and was not taken over. | Make sure no other OpenCode process is using Inference, then remove the lock file named above and retry. |
 | `JOURNAL_UNREADABLE` | The operation journal could not be read or written. | Check the Inference state folder's permissions and free space; do not delete the journal while operations are unsettled. |

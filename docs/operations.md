@@ -101,7 +101,7 @@ The Extractions and Decisions endpoints are alpha. Each adapter pins a wire revi
 | --- | --- | --- |
 | `CAPABILITY_UNSUPPORTED` | The route is disabled, or the request needs something it does not take. | Read the message; check routes with `inference_capabilities` or `inference_plan`. Do not switch tools to get around it. |
 | `ROUTE_NOT_VERIFIED` | The route's canary passed against another wire revision than this version's adapter. | Nothing was read or sent. Re-run the canary for this revision; a reviewed change records the new pass. |
-| `PRICE_UNKNOWN` | No price is known and the spend options require one. | Wait for a priced route, or change the trusted spend options deliberately. |
+| `PRICE_UNKNOWN` | No price is known and the spend options require one, or a session or rolling cap is set without a request cap. | Wait for a priced route, change the trusted spend options deliberately, or set `spend.requestUsd` (or remove the session or rolling cap). |
 | `BUDGET_EXCEEDED` | The reservation would pass the request, session or 24-hour budget. | Wait for the window, or raise the trusted limit. |
 | `AUTH_REQUIRED` / `AUTH_REJECTED` | No usable OpenRouter key for Inference. | `/connect` and choose OpenRouter key for Inference. |
 | `UNSAFE_PATH` / `SOURCE_CHANGED` / `SOURCE_TYPE` / `SOURCE_LIMIT` | The file is not a plain approved file, changed after approval, is not the type it claims, or is too large. | Re-select the current regular file, or a smaller one. |
