@@ -72,7 +72,7 @@ OpenCode `>=2.2.3 <2.3.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6.
 ## Install
 
 ```sh
-opencode plugin add github:joe-broadhead/opencode-inference#v0.0.2
+opencode plugin add github:joe-broadhead/opencode-inference#v0.0.3
 opencode reload
 ```
 
@@ -80,7 +80,7 @@ Or add it to `opencode.json`:
 
 ```json
 {
-  "plugins": [{ "package": "github:joe-broadhead/opencode-inference#v0.0.2" }]
+  "plugins": [{ "package": "github:joe-broadhead/opencode-inference#v0.0.3" }]
 }
 ```
 
@@ -107,7 +107,7 @@ rules for each `access` value, and the error codes.
 {
   "plugins": [
     {
-      "package": "github:joe-broadhead/opencode-inference#v0.0.2",
+      "package": "github:joe-broadhead/opencode-inference#v0.0.3",
       "options": { "access": "ask-changes", "limits": { "maxFields": 16 } }
     }
   ]
