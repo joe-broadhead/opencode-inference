@@ -19,7 +19,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Jelly: `docs/jelly.md` said the key is never read. It is read for a call on an enabled route, at dispatch, and sent
   only to OpenRouter; the local tools never read it. The source comment that said no registered tool reached it is
   corrected too.
-- `package.json` is `"private": true`: the plugin installs from its GitHub release tag only.
 
 ## [0.0.1] - 2026-11-13
 
