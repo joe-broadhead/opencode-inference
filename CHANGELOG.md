@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Spend caps are opt-in.** `spend.requestUsd`, `spend.sessionUsd` and `spend.rolling24hUsd` now default to `null`:
+  no cap is set, so a call is never refused for its price, and each result still reports what it cost. This reverses
+  the default caps of 0.0.0 and 0.0.1 (USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours), to match
+  the family's default that everything is allowed until you add a limit. A cap you set works exactly as before. With
+  no per-request cap, a call reserves the top of its estimate, and an unpriced call is refused while a session or
+  rolling cap is set. `spend.requirePricedRoute` stays on. Status names only the caps that are set.
+- **The connection is named "OpenRouter key for Inference"**, in `/connect` and in Jelly (its Jelly label was
+  "OpenRouter"), so it can be told apart from OpenCode's OpenRouter model provider and the OpenRouter plugin's
+  "OpenRouter tools" sign-in. Its integration id, `inference-openrouter`, is unchanged, so a connected key stays
+  connected.
+- Jelly: `docs/jelly.md` said the key is never read. It is read for a call on an enabled route, at dispatch, and sent
+  only to OpenRouter; the local tools never read it. The source comment that said no registered tool reached it is
+  corrected too.
+- `package.json` is `"private": true`: the plugin installs from its GitHub release tag only.
+
 ## [0.0.1] - 2026-11-13
 
 ### Added
