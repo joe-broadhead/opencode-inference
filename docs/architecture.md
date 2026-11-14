@@ -9,7 +9,7 @@ This is the design of the shell that later releases build on. The tables marked 
 
 | Surface | Value |
 | --- | --- |
-| npm package | `@joe-broadhead/opencode-inference` |
+| Package name | `@joe-broadhead/opencode-inference` |
 | Plugin | `inference.core` |
 | TUI | `inference.core.tui`, palette "Inference: Status", slash `/inference` |
 | Namespace | `inference` (Code Mode `tools.inference.<name>`) |
