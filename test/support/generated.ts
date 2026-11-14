@@ -3,7 +3,7 @@
 import { CONTRACTS } from "../../src/domain/contracts.js"
 import { DEFAULT_PROFILES, DEFAULTS, OPTIONS_JSON_SCHEMA } from "../../src/domain/config.js"
 import { FAILURES } from "../../src/domain/errors.js"
-import { ACCESS_VALUES, INTEGRATION_ID, NAMESPACE, PLUGIN_ID, type Access } from "../../src/domain/ids.js"
+import { ACCESS_VALUES, INTEGRATION_ID, INTEGRATION_NAME, NAMESPACE, PLUGIN_ID, type Access } from "../../src/domain/ids.js"
 import { actionOf, PLANNED, TOOLS } from "../../src/domain/registry.js"
 import { defaultRules, effectOf } from "../../src/host/permissions.js"
 import { SKILL_IDS } from "../../src/host/skills.js"
@@ -30,7 +30,7 @@ export const jellyDeclaration = () => ({
   signIns: [
     {
       id: "openrouter",
-      label: "OpenRouter",
+      label: INTEGRATION_NAME,
       integration: INTEGRATION_ID,
       required: false,
       help: { url: "https://openrouter.ai/settings/keys", label: "Create an OpenRouter API key" },

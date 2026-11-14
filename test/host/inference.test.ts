@@ -149,9 +149,9 @@ seen.state = status.state`,
     await expect(codemode(host, sessions.build!, "seen.x = await tools.inference.read({})")).rejects.toThrow(/Unknown Code Mode tool: inference\.read/)
   })
 
-  test("/connect lists OpenRouter for Inference; a connected key shows as connected and never appears anywhere", async () => {
+  test("/connect lists OpenRouter key for Inference; a connected key shows as connected and never appears anywhere", async () => {
     const { data: integrations } = await host.client.integration.list({ location: host.location })
-    expect(integrations.find((entry) => entry.id === "inference-openrouter")?.name).toBe("OpenRouter for Inference")
+    expect(integrations.find((entry) => entry.id === "inference-openrouter")?.name).toBe("OpenRouter key for Inference")
     await host.client.integration.connect.key({ integrationID: "inference-openrouter", key: FAKE_KEY, label: "Host test", location: host.location })
     const view = await until("status reports the key as connected", async () => {
       const current = await status(host)

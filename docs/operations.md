@@ -103,7 +103,7 @@ The Extractions and Decisions endpoints are alpha. Each adapter pins a wire revi
 | `ROUTE_NOT_VERIFIED` | The route's canary passed against another wire revision than this version's adapter. | Nothing was read or sent. Re-run the canary for this revision; a reviewed change records the new pass. |
 | `PRICE_UNKNOWN` | No price is known and the spend options require one. | Wait for a priced route, or change the trusted spend options deliberately. |
 | `BUDGET_EXCEEDED` | The reservation would pass the request, session or 24-hour budget. | Wait for the window, or raise the trusted limit. |
-| `AUTH_REQUIRED` / `AUTH_REJECTED` | No usable OpenRouter key for Inference. | `/connect` and choose OpenRouter for Inference. |
+| `AUTH_REQUIRED` / `AUTH_REJECTED` | No usable OpenRouter key for Inference. | `/connect` and choose OpenRouter key for Inference. |
 | `UNSAFE_PATH` / `SOURCE_CHANGED` / `SOURCE_TYPE` / `SOURCE_LIMIT` | The file is not a plain approved file, changed after approval, is not the type it claims, or is too large. | Re-select the current regular file, or a smaller one. |
 | `CONTEXT_LIMIT` | The request may not fit the route. | Shorten or split the source deliberately; nothing is truncated silently. |
 | `SUBMISSION_UNKNOWN` / `DEADLINE_EXCEEDED` / `CANCELLED` after sending | The call may have reached OpenRouter; its reservation is kept. | Do not resubmit blindly; report the operation id. |

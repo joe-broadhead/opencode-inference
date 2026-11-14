@@ -13,9 +13,13 @@ export const COMMANDS = { status: "inference-status" } as const
 /** The TUI's slash command and palette entry. */
 export const TUI_SLASH = "inference"
 
-/** The plugin-owned key integration in /connect. Its key is read only at the transport boundary (a later release). */
+/**
+ * The plugin-owned key integration in /connect. Its key is read only at the transport boundary, for a call on an
+ * enabled route, and sent only to OpenRouter. The name sets it apart from OpenCode's OpenRouter model provider and the
+ * OpenRouter plugin's "OpenRouter tools" sign-in.
+ */
 export const INTEGRATION_ID = "inference-openrouter"
-export const INTEGRATION_NAME = "OpenRouter for Inference"
+export const INTEGRATION_NAME = "OpenRouter key for Inference"
 export const INTEGRATION_KEY_LABEL = "OpenRouter API key"
 
 export const ACCESS_VALUES = ["all", "ask-changes", "read-only"] as const

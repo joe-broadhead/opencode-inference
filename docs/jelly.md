@@ -37,9 +37,14 @@ None: `jelly.views` and `jelly.rpc` are empty.
 
 ## Signing in
 
-Nothing is required. `jelly.signIns` declares one optional sign-in, `openrouter`: the plugin's own key integration
-`inference-openrouter` (`required: false`), with a link to where OpenRouter keys are created. This version never reads
-the key; status shows only whether it is connected.
+Nothing is required. `jelly.signIns` declares one optional sign-in, `openrouter`, labelled "OpenRouter key for
+Inference": the plugin's own key integration `inference-openrouter` (`required: false`), with a link to where
+OpenRouter keys are created. It is a separate key from OpenCode's own OpenRouter model provider and from the OpenRouter
+plugin's "OpenRouter tools" sign-in, and `/connect` shows the same name.
+
+The key is read for a call on an enabled route (`inference.extract` on `cloudflare/clairic`, `inference.decide` on
+`typesafe/jev-1.14`), at dispatch, and sent only to OpenRouter, in one `Authorization` header. The three local tools never
+read it, and status shows only whether it is connected. A key lasts until you remove or replace it in `/connect`.
 
 ## Versions
 

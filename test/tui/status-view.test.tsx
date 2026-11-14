@@ -25,7 +25,7 @@ const view = (version: string, overrides: Partial<StatusView> = {}): StatusView 
   state: "local_only",
   unguardedAgents: ["reviewer"],
   nextStep: AGENT_FIX,
-  connection: { integration: "inference-openrouter", state: "not_connected", required: false, next: "Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key." },
+  connection: { integration: "inference-openrouter", state: "not_connected", required: false, next: "Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key." },
   access: "ask-changes",
   modules: { extractions: { enabled: true }, decisions: { enabled: true }, understanding: { enabled: false } },
   tools: { registered: ["inference_status", "inference_capabilities", "inference_plan"], planned: ["inference_extract", "inference_decide", "inference_read"] },

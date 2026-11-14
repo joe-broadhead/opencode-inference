@@ -16,7 +16,7 @@ const base = (overrides: Partial<Parameters<typeof buildStatus>[0]> = {}) =>
     host,
     config: loadConfig({}),
     fixture: OPENROUTER_CAPABILITIES,
-    connectionState: async () => ({ state: "not_connected", next: "Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key." }),
+    connectionState: async () => ({ state: "not_connected", next: "Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key." }),
     agents: async () => [{ id: "build", permissions: [{ action: "*", resource: "*", effect: "allow" }, ...defaultRules()] }],
     problems: () => [],
     now: () => new Date("2026-11-12T00:00:00Z"),
@@ -61,7 +61,7 @@ const ONE_ENABLED = {
 describe("the view", () => {
   test("with an enabled route and no key: the key is required, and connecting it is the next step", async () => {
     const view = await base({ fixture: ONE_ENABLED })
-    expect(view).toMatchObject({ nextStep: "Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key.", connection: { state: "not_connected", required: true }, capabilities: { enabledRoutes: 1 } })
+    expect(view).toMatchObject({ nextStep: "Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key.", connection: { state: "not_connected", required: true }, capabilities: { enabledRoutes: 1 } })
     expect(keyRequired(loadConfig({}), ONE_ENABLED)).toBe(true)
     // With the module that route serves turned off, the key is not needed again.
     expect(keyRequired(loadConfig({ modules: { extractions: false } }), ONE_ENABLED)).toBe(false)

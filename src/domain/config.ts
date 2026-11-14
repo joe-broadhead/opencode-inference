@@ -124,7 +124,7 @@ export function loadConfig(options: unknown): Config {
     throw new InferenceError(
       "OPTIONS_INVALID",
       `The plugin options contain ${secrets.map((path) => `options.${path}`).join(", ")}, which look like secrets; keys are never plugin options.`,
-      "Remove them from opencode.json and add the OpenRouter key with /connect, choosing OpenRouter for Inference, then restart OpenCode.",
+      "Remove them from opencode.json and add the OpenRouter key with /connect, choosing OpenRouter key for Inference, then restart OpenCode.",
     )
   const parsed = Options.safeParse(options ?? {})
   if (!parsed.success) {

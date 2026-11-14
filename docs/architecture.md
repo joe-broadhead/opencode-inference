@@ -17,7 +17,7 @@ This is the design of the shell that later releases build on. The tables marked 
 | Tools RPC | `inference.core.tools`, `describe` plus one method per tool |
 | Permission prefix | `inference_` |
 | Status command | `/inference-status` |
-| Key integration | `inference-openrouter` ("OpenRouter for Inference" in `/connect`) |
+| Key integration | `inference-openrouter` ("OpenRouter key for Inference" in `/connect`) |
 
 ## Layers
 

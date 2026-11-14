@@ -180,8 +180,8 @@ asynchronous operations.
 | `SOURCE_TYPE` | The source's bytes are not a type this call accepts, or do not match its declared type. | Select a file whose content matches its name, in a type the route accepts (see inference_capabilities). |
 | `SOURCE_LIMIT` | The source is larger than the route accepts. | Select a smaller range or use an evaluated chunking strategy. |
 | `CONTEXT_LIMIT` | The request is larger than the route accepts. | Select a smaller range or fewer fields, or use an evaluated chunking strategy. |
-| `AUTH_REQUIRED` | No OpenRouter key is connected for Inference. | Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key. |
-| `AUTH_REJECTED` | OpenRouter did not accept the connected key. | Run /connect and choose OpenRouter for Inference to replace the key. |
+| `AUTH_REQUIRED` | No OpenRouter key is connected for Inference. | Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key. |
+| `AUTH_REJECTED` | OpenRouter did not accept the connected key. | Run /connect and choose OpenRouter key for Inference to replace the key. |
 | `PRICE_UNKNOWN` | No price, or no upper bound, is known for this route, and the spend options require one. | Select a priced, affordable route, or change spend.requirePricedRoute or spend.requireUpperBound in the trusted options. |
 | `BUDGET_EXCEEDED` | This call would exceed a spend budget. | Select a priced, affordable route, wait for the rolling window, or raise the limit in the trusted spend options. |
 | `JOURNAL_LOCKED` | The operation journal is locked by another process and was not taken over. | Make sure no other OpenCode process is using Inference, then remove the lock file named above and retry. |

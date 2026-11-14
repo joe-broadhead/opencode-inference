@@ -27,7 +27,7 @@ describe("setup", () => {
     const fake = fakeContext({ sessions: { ses_1: { agent: "build" } } })
     const cleanup = await plugin().setup(fake.context)
     expect(fake.live().map((item) => item.kind)).toEqual(["integration", "agent", "tool", `rpc:${PLUGIN_ID}`, `rpc:${TOOLS_RPC_ID}`, "hook:evaluate", "skill", "command"])
-    expect(fake.integrations.get("inference-openrouter")).toEqual({ id: "inference-openrouter", name: "OpenRouter for Inference" })
+    expect(fake.integrations.get("inference-openrouter")).toEqual({ id: "inference-openrouter", name: "OpenRouter key for Inference" })
     expect(fake.methods).toEqual([{ integrationID: "inference-openrouter", method: { type: "key", label: "OpenRouter API key" } }])
     expect(fake.tools.map((tool) => tool.name)).toEqual(["status", "capabilities", "plan", "extract", "decide"])
     expect(fake.commands.map((command) => command.name)).toEqual(["inference-status"])
@@ -53,7 +53,7 @@ describe("setup", () => {
     await fake.commands[0]!.execute({ sessionID: "ses_1", delivery: "now" })
     expect(fake.synthetic[0]!.text).toStartWith("Inference status\nConnection: not connected")
     expect(network.calls).toEqual([])
-    // The key is never read in this version.
+    // Status, describe and a refused call on a disabled route never read the key.
     expect(fake.resolved).toEqual([])
     await (cleanup as () => Promise<void>)()
     expect(fake.live()).toEqual([])
@@ -77,7 +77,7 @@ describe("setup", () => {
     await cleanup()
   })
 
-  test("a connected key is reported as connected, and still never read", async () => {
+  test("a connected key is reported as connected, and status never reads it", async () => {
     const fake = fakeContext({ connection: { type: "credential" } })
     const cleanup = (await plugin().setup(fake.context)) as () => Promise<void>
     const status = (await fake.call(PLUGIN_ID, "status", {})) as { connection: unknown; state: string; nextStep: string }

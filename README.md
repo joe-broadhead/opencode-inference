@@ -91,9 +91,9 @@ add the new tag with `opencode plugin add github:joe-broadhead/opencode-inferenc
 
 ## Connect OpenRouter
 
-Run `/connect` and choose **OpenRouter for Inference**, then enter an OpenRouter API key, or run
-`opencode auth login inference-openrouter`. This entry belongs to the plugin and is separate from OpenCode's own
-OpenRouter model provider. The plugin stores no key itself: the transport reads it at dispatch, only for an enabled
+Run `/connect` and choose **OpenRouter key for Inference**, then enter an OpenRouter API key, or run
+`opencode auth login inference-openrouter`. This entry belongs to the plugin and is a separate key from OpenCode's
+own OpenRouter model provider and from the OpenRouter plugin's "OpenRouter tools" sign-in. The plugin stores no key itself: the transport reads it at dispatch, only for an enabled
 route, and sends it only to OpenRouter in the `Authorization` header. Status shows only connected or not connected. The
 key is needed only for an enabled route; the three local tools never need it.
 

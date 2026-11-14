@@ -138,7 +138,7 @@ for (const version of STOCK_VERSIONS)
       expect(status.value).toMatchObject({
         version: manifest.version,
         state: required ? "sign_in_required" : "local_only",
-        nextStep: required ? "Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key." : "Nothing to do.",
+        nextStep: required ? "Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key." : "Nothing to do.",
         host: { version, range: ">=2.2.3 <2.3.0", tested: true },
         connection: { state: "not_connected", required },
       })
@@ -148,7 +148,7 @@ for (const version of STOCK_VERSIONS)
       const { data: skills } = await host.client.skill.list({ location: host.location })
       expect(skills.map((skill: { name: string }) => skill.name).filter((name: string) => name.startsWith("inference-")).sort()).toEqual(["inference-decide", "inference-extract"])
       const { data: integrations } = await host.client.integration.list({ location: host.location })
-      expect(integrations.find((entry) => entry.id === "inference-openrouter")?.name).toBe("OpenRouter for Inference")
+      expect(integrations.find((entry) => entry.id === "inference-openrouter")?.name).toBe("OpenRouter key for Inference")
       const { data: agents } = await host.client.agent.list({ location: host.location })
       const build = agents.find((agent) => agent.id === "build")!.permissions
       expect(build.slice(0, 1 + defaultRules().length)).toEqual([{ action: "*", resource: "*", effect: "allow" }, ...defaultRules()])
