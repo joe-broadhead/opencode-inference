@@ -45,7 +45,7 @@ test("the catalog price reproduces the canary's reported cost exactly: 125 input
   expect(format({ currency: "USD", units: exact / 1_000_000n })).toBe("0.0000125")
 })
 
-test("the enabled route plans and sends: one request to the reviewed path, an estimate that reserves the whole per-request budget, settled at the reported charge", async () => {
+test("the enabled route plans and sends: one request to the reviewed path, with no cap set an estimate that reserves its own top, settled at the reported charge", async () => {
   const planned = plan(PlanInput.parse({ task: "extract", input: { profile: "extract-typed", source: { kind: "text", text: STATE }, fields: FIELDS } }), { config: loadConfig({}), fixture: OPENROUTER_CAPABILITIES, implemented, now: new Date("2026-11-12T00:00:00Z") })
   expect(planned).toMatchObject({ route: { status: "eligible", selected: { route: { model: "cloudflare/clairic" }, exclusions: [] } }, execution: { available: true }, quote: { kind: "estimate" } })
   const probe = await harness()
@@ -55,7 +55,7 @@ test("the enabled route plans and sends: one request to the reviewed path, an es
   expect(probe.sent.map((request) => request.path)).toEqual(["/api/alpha/extractions"])
   expect(JSON.parse(new TextDecoder().decode(probe.sent[0]!.body))).toMatchObject({ model: "cloudflare/clairic", state: STATE, provider: { allow_fallbacks: false } })
   const [record] = await probe.journal.list()
-  expect(record!.reservation).toMatchObject({ amount: "0.05", basis: "admission_budget", status: "settled" })
+  expect(record!.reservation).toMatchObject({ amount: "0.0000322", basis: "admission_budget", status: "settled" })
   expect(record!.charges[0]!.amount).toBe("0.000012345679")
 })
 

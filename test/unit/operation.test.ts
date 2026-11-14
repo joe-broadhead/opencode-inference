@@ -332,8 +332,18 @@ describe("spend and the journal", () => {
     expect(strict.sent).toEqual([])
   })
 
-  test("an estimate is not a cap: it reserves the whole per-request budget; a tool input can only lower that budget", async () => {
+  test("with no cap set (the default), an estimate reserves its own top; a tool input's budget still caps the call", async () => {
     const harness = await probeHarness({ adapter: probeAdapter(() => ({ kind: "estimate", amount: "0.001" })) })
+    await harness.model(textInput())
+    expect((await harness.journal.list())[0]!.reservation).toMatchObject({ amount: "0.001", basis: "admission_budget" })
+    await harness.model({ ...textInput(), limits: { maxEstimatedCostUsd: "0.002" } })
+    expect((await harness.journal.list())[1]!.reservation).toMatchObject({ amount: "0.002" })
+    expect((await failure(harness.model({ ...textInput(), limits: { maxEstimatedCostUsd: "0.0005" } }))).message).toMatch(/^BUDGET_EXCEEDED:/)
+    expect(harness.sent).toHaveLength(2)
+  })
+
+  test("an estimate is not a cap: under a per-request budget you set, it reserves that whole budget; a tool input can only lower it", async () => {
+    const harness = await probeHarness({ options: { spend: { requestUsd: "0.05" } }, adapter: probeAdapter(() => ({ kind: "estimate", amount: "0.001" })) })
     await harness.model(textInput())
     expect((await harness.journal.list())[0]!.reservation).toMatchObject({ amount: "0.05", basis: "admission_budget" })
     await harness.model({ ...textInput(), limits: { maxEstimatedCostUsd: "0.002" } })

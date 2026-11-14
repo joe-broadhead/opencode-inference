@@ -94,24 +94,23 @@ describe("operations.md keeps the no-retry and privacy lists complete", () => {
   })
 })
 
-describe("the spend defaults are stated as confirmed, and as the values the options actually default to", () => {
-  test("configuration.md, operations.md and AGENTS.md give the defaults loadConfig returns; nothing calls them a proposal, and no user doc speaks of the owner", () => {
+describe("the spend caps are opt-in, and every doc says so", () => {
+  test("loadConfig sets no cap; configuration.md, operations.md, README and AGENTS.md say none is set by default, and none states the old caps as defaults", () => {
     const { spend } = loadConfig(undefined)
-    const stated = `USD ${spend.requestUsd} per request, ${spend.sessionUsd} per session,`
-    for (const file of ["docs/configuration.md", "docs/operations.md", "AGENTS.md"]) {
-      const content = text(file).replace(/\s+/g, " ")
-      expect({ file, stated: content.includes(stated) && content.includes(`${spend.rolling24hUsd} per rolling 24 hours`) }).toEqual({ file, stated: true })
-    }
-    // The maintainers' guide records the decision; what users read states the defaults without the process behind them.
-    expect(text("AGENTS.md").replace(/\s+/g, " ")).toContain("confirmed by the owner")
-    for (const file of ["README.md", "CHANGELOG.md", "docs/configuration.md", "docs/operations.md"]) expect({ file, owner: /owner-confirmed|by the owner/i.test(text(file)) }).toEqual({ file, owner: false })
+    expect({ requestUsd: spend.requestUsd, sessionUsd: spend.sessionUsd, rolling24hUsd: spend.rolling24hUsd }).toEqual({ requestUsd: null, sessionUsd: null, rolling24hUsd: null })
+    // requirePricedRoute is a truthful-cost guard, not a limit, so it stays on.
+    expect(spend.requirePricedRoute).toBe(true)
+    for (const file of ["docs/configuration.md", "docs/operations.md", "README.md", "docs/jelly.md"]) expect({ file, stated: /no (?:spend )?cap is set by default/i.test(text(file).replace(/\s+/g, " ")) }).toEqual({ file, stated: true })
+    expect(text("AGENTS.md").replace(/\s+/g, " ")).toContain("Every spend cap is opt-in")
     // The configuration table gives the same values.
-    for (const [key, value] of Object.entries({ requestUsd: spend.requestUsd, sessionUsd: spend.sessionUsd, rolling24hUsd: spend.rolling24hUsd }))
-      expect(text("docs/configuration.md")).toContain(`| \`spend.${key}\` | \`"${value}"\` |`)
-    // No doc, guide or source comment still calls them proposed, under review or unconfirmed.
+    for (const key of ["requestUsd", "sessionUsd", "rolling24hUsd"]) expect(text("docs/configuration.md")).toContain(`| \`spend.${key}\` | \`null\` |`)
+    // No user doc or guide still states the earlier default caps, and none speaks of the owner.
+    for (const file of [...FILES, "AGENTS.md", "src/runtime/budget.ts", "src/domain/config.ts"]) expect({ file, old: /0\.05 per request|USD 0\.05, 1\.00|\.requestUsd`? 0\.05/.test(text(file).replace(/\s+/g, " ")) }).toEqual({ file, old: false })
+    for (const file of ["README.md", "docs/configuration.md", "docs/operations.md"]) expect({ file, owner: /owner-confirmed|by the owner/i.test(text(file)) }).toEqual({ file, owner: false })
+    // No doc, guide or source comment calls them proposed, under review or unconfirmed.
     const stale = /(?:proposed|proposals?|awaiting review|under review|not confirmed|has not confirmed)/i
     for (const file of [...FILES, "AGENTS.md", "src/runtime/budget.ts", "src/domain/config.ts", "src/host/status.ts"])
-      for (const line of text(file).split("\n")) if (/spend|budget|0\.05|5\.00/i.test(line) || /defaults/i.test(line)) expect({ file, line, stale: stale.test(line) }).toEqual({ file, line, stale: false })
+      for (const line of text(file).split("\n")) if (/spend|budget|cap\b/i.test(line) || /defaults/i.test(line)) expect({ file, line, stale: stale.test(line) }).toEqual({ file, line, stale: false })
   })
 })
 
@@ -143,9 +142,8 @@ describe("the release", () => {
     // The known limits name both enabled routes and what each covers, and the spend defaults the options actually have.
     const limits = readme.slice(readme.indexOf("## Known limits"), readme.indexOf("## License"))
     for (const route of OPENROUTER_CAPABILITIES.routes.filter((item) => item.enabled)) expect(limits).toContain(`\`${route.model}\``)
-    const { spend } = loadConfig(undefined)
-    for (const [key, value] of Object.entries({ requestUsd: spend.requestUsd, sessionUsd: spend.sessionUsd, rolling24hUsd: spend.rolling24hUsd })) expect(limits).toContain(`\`spend.${key}\` ${value}`)
-    for (const phrase of ["text only", "noul, choice and score over text", "32 KB", "`review-first-v1`", "`ROUTE_NOT_VERIFIED`", "The defaults are"]) expect(limits).toContain(phrase)
+    for (const key of ["requestUsd", "sessionUsd", "rolling24hUsd"]) expect(limits).toContain(`\`spend.${key}\``)
+    for (const phrase of ["text only", "noul, choice and score over text", "32 KB", "`review-first-v1`", "`ROUTE_NOT_VERIFIED`", "No cap is set by default"]) expect(limits).toContain(phrase)
   })
 })
 

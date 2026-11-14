@@ -50,7 +50,7 @@ test("the catalog price reproduces the canary's reported cost exactly: 399 input
   expect(format({ currency: "USD", units: exact / 1_000_000n })).toBe("0.000016758")
 })
 
-test("the enabled route plans and sends: one request to the reviewed path, the whole per-request budget reserved, settled at the reported charge; every answer goes to review", async () => {
+test("the enabled route plans and sends: one request to the reviewed path, with no cap set the estimate's top reserved, settled at the reported charge; every answer goes to review", async () => {
   const planned = plan(PlanInput.parse({ task: "decide", input: { profile: "decide-text", source: { kind: "text", text: STATE }, questions: QUESTIONS } }), { config: loadConfig({}), fixture: OPENROUTER_CAPABILITIES, implemented, now: new Date("2026-11-12T00:00:00Z") })
   expect(planned).toMatchObject({ route: { status: "eligible", selected: { route: { model: "typesafe/jev-1.14" }, exclusions: [] } }, execution: { available: true }, quote: { kind: "estimate" } })
   const probe = await probeHarness({ route: JEV, tool: decide, adapter: decisionsAdapter, options: { profiles: { probe: { model: JEV.model } } } })
@@ -61,7 +61,7 @@ test("the enabled route plans and sends: one request to the reviewed path, the w
   expect(Object.values(result.output.data.answers).map((item) => item.acceptance.disposition).sort()).toEqual(["refused", "review", "review", "review"])
   expect(probe.sent.map((request) => request.path)).toEqual(["/api/alpha/decisions"])
   const [record] = await probe.journal.list()
-  expect(record!.reservation).toMatchObject({ amount: "0.05", basis: "admission_budget", status: "settled" })
+  expect(record!.reservation).toMatchObject({ amount: "0.000023142", basis: "admission_budget", status: "settled" })
   expect(record!.charges[0]!.amount).toBe("0.000042000001")
 })
 

@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-inference",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Unofficial OpenCode plugin: typed extraction and bounded decisions with evidence, planned locally",
   "keywords": [
     "opencode",
@@ -138,7 +138,7 @@
     "signIns": [
       {
         "id": "openrouter",
-        "label": "OpenRouter",
+        "label": "OpenRouter key for Inference",
         "integration": "inference-openrouter",
         "required": false,
         "help": {

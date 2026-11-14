@@ -35,16 +35,20 @@ anything. Enabling a route is a reviewed change, one route at a time (see [Refre
 
 ## Cost scope
 
-- Each call reserves before it sends: the route's documented ceiling when one exists, otherwise the whole per-request
-  budget (an estimate is never a ceiling). Session and rolling 24-hour budgets count settled charges, reservations in
-  flight, and reservations kept for unknown costs. Details: [configuration.md](configuration.md#spend).
+- No spend cap is set by default: a call runs at whatever it costs, and each result reports that cost. Every cap is
+  opt-in. Each call reserves before it sends: the route's documented ceiling when one exists, otherwise the whole
+  per-request budget when you set one, or the top of the estimate when you did not (an estimate is never a ceiling).
+  Session and rolling 24-hour caps, when set, count settled charges, reservations in flight, and reservations kept for
+  unknown costs. Without a request cap, a call reserves only its estimate's top, so an estimate that runs low lets a
+  session or rolling cap be overrun by that error: set `spend.requestUsd` alongside them. Details:
+  [configuration.md](configuration.md#spend).
 - **Unknown is not free.** A call that may have been sent and has no reported cost keeps its reservation. Do not retry
   it blindly: `SUBMISSION_UNKNOWN`, and a deadline or a cancellation after sending, mean the provider may have run and
   charged it.
-- The budgets cover this machine's journal for one OpenRouter connection. They are not account-wide; OpenRouter's own
+- A cap you set covers this machine's journal for one OpenRouter connection. They are not account-wide; OpenRouter's own
   key limits are the stronger, independent cap. Give the key a credit limit.
-- The spend defaults are USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours.
-  They are budgets, not prices: what a call costs is the provider's reported charge.
+- The spend caps default to none (`null`). A cap you set is a budget, not a price: what a call costs is the provider's
+  reported charge.
 
 ## Privacy
 
@@ -99,9 +103,9 @@ The Extractions and Decisions endpoints are alpha. Each adapter pins a wire revi
 | --- | --- | --- |
 | `CAPABILITY_UNSUPPORTED` | The route is disabled, or the request needs something it does not take. | Read the message; check routes with `inference_capabilities` or `inference_plan`. Do not switch tools to get around it. |
 | `ROUTE_NOT_VERIFIED` | The route's canary passed against another wire revision than this version's adapter. | Nothing was read or sent. Re-run the canary for this revision; a reviewed change records the new pass. |
-| `PRICE_UNKNOWN` | No price is known and the spend options require one. | Wait for a priced route, or change the trusted spend options deliberately. |
+| `PRICE_UNKNOWN` | No price is known and the spend options require one, or a session or rolling cap is set without a request cap. | Wait for a priced route, change the trusted spend options deliberately, or set `spend.requestUsd` (or remove the session or rolling cap). |
 | `BUDGET_EXCEEDED` | The reservation would pass the request, session or 24-hour budget. | Wait for the window, or raise the trusted limit. |
-| `AUTH_REQUIRED` / `AUTH_REJECTED` | No usable OpenRouter key for Inference. | `/connect` and choose OpenRouter for Inference. |
+| `AUTH_REQUIRED` / `AUTH_REJECTED` | No usable OpenRouter key for Inference. | `/connect` and choose OpenRouter key for Inference. |
 | `UNSAFE_PATH` / `SOURCE_CHANGED` / `SOURCE_TYPE` / `SOURCE_LIMIT` | The file is not a plain approved file, changed after approval, is not the type it claims, or is too large. | Re-select the current regular file, or a smaller one. |
 | `CONTEXT_LIMIT` | The request may not fit the route. | Shorten or split the source deliberately; nothing is truncated silently. |
 | `SUBMISSION_UNKNOWN` / `DEADLINE_EXCEEDED` / `CANCELLED` after sending | The call may have reached OpenRouter; its reservation is kept. | Do not resubmit blindly; report the operation id. |

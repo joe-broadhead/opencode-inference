@@ -38,7 +38,7 @@ export const CapabilitiesResult = z.strictObject({
     concurrency: z.number().int().positive(),
     maxFields: z.number().int().positive(),
     deadlineMs: z.number().int().positive(),
-    spend: z.strictObject({ requestUsd: z.string(), sessionUsd: z.string(), rolling24hUsd: z.string(), requirePricedRoute: z.boolean(), requireUpperBound: z.boolean() }),
+    spend: z.strictObject({ requestUsd: z.string().nullable(), sessionUsd: z.string().nullable(), rolling24hUsd: z.string().nullable(), requirePricedRoute: z.boolean(), requireUpperBound: z.boolean() }),
     requireZdr: z.boolean(),
   }),
   routing: z.strictObject({ mode: z.literal("explicit"), fallbacks: z.array(z.string()).max(0) }),

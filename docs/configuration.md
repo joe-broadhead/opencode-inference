@@ -25,9 +25,9 @@ by value: the OpenRouter key goes in `/connect`.
 | `limits.concurrency` | `2` |
 | `limits.maxFields` | `32` |
 | `limits.deadlineMs` | `60000` |
-| `spend.requestUsd` | `"0.05"` |
-| `spend.sessionUsd` | `"1.00"` |
-| `spend.rolling24hUsd` | `"5.00"` |
+| `spend.requestUsd` | `null` |
+| `spend.sessionUsd` | `null` |
+| `spend.rolling24hUsd` | `null` |
 | `spend.requirePricedRoute` | `true` |
 | `spend.requireUpperBound` | `false` |
 | `data.requireZdr` | `false` |
@@ -50,8 +50,9 @@ by value: the OpenRouter key goes in `/connect`.
 - `limits.concurrency` caps requests in flight in one process; more wait their turn. `limits.deadlineMs` bounds the
   provider request.
 - `spend`: exact decimal USD strings, never floats. `requirePricedRoute` makes a route with no known price ineligible;
-  `requireUpperBound` requires a genuine ceiling. The three budgets' defaults (USD 0.05 per request, 1.00 per session,
-  5.00 per rolling 24 hours) are budgets, not prices. See [Spend](#spend). Only
+  `requireUpperBound` requires a genuine ceiling. The three caps, `requestUsd`, `sessionUsd` and `rolling24hUsd`,
+  default to `null`: no cap is set, and a call runs at whatever it costs, each result reporting that cost. A cap you set
+  is a budget, not a price. See [Spend](#spend). Only
   `inference_extract` and `inference_decide` can spend, and only on an enabled route (see `inference_capabilities`).
 - `data.requireZdr`: `true` makes a route without documented zero data retention ineligible. `false` means you have not
   asked for that restriction; it does not claim a provider retains nothing.
@@ -70,14 +71,21 @@ by value: the OpenRouter key goes in `/connect`.
 
 ## Spend
 
-`inference_extract` reserves before it sends (on an enabled route):
+No spend cap is set by default, so a call is never refused for its price (only `requirePricedRoute` refuses a route with
+no known price), and each result reports what it cost. Every cap is opt-in, and one you set works as below.
+`inference_extract` and `inference_decide` reserve before they send (on an enabled route):
 
 - **Request.** The reservation is the route's upper bound when one is known. An estimate is not a cap, so with only an
   estimate, or with no price when `requirePricedRoute` is off, the call reserves the whole per-request budget
   (`spend.requestUsd`, or a lower `limits.maxEstimatedCostUsd` from the tool input). That budget is an admission limit,
-  not a spend ceiling: OpenRouter does not enforce it.
-- **Session and rolling 24 hours.** A call is admitted only if its reservation, plus everything already counted, fits
-  `spend.sessionUsd` for its session and `spend.rolling24hUsd` for the last 24 hours. Counted are settled charges,
+  not a spend ceiling: OpenRouter does not enforce it. With no per-request budget, the call reserves the top of its
+  estimate, and an unpriced call reserves nothing, unless a session or rolling cap is set, which refuses it
+  (`PRICE_UNKNOWN`) because nothing could count it against that cap.
+- **Session and rolling 24 hours.** When set, a call is admitted only if its reservation, plus everything already
+  counted, fits `spend.sessionUsd` for its session and `spend.rolling24hUsd` for the last 24 hours. Without a request
+  cap, a call reserves only the top of its estimate, and an estimate is not a ceiling: the reported charge can be
+  higher, so the session or rolling cap can be overrun by the estimate's error. Set `spend.requestUsd` alongside them;
+  the call then reserves that whole per-request budget, as above. Counted are settled charges,
   reservations in flight, and reservations kept for calls whose cost is unknown.
 - **Settlement.** Reported charges replace the reservation, platform and upstream charges kept separate. A call that
   failed after it may have been sent, timed out, was cancelled mid-request or got a malformed answer keeps its
@@ -175,9 +183,9 @@ asynchronous operations.
 | `SOURCE_TYPE` | The source's bytes are not a type this call accepts, or do not match its declared type. | Select a file whose content matches its name, in a type the route accepts (see inference_capabilities). |
 | `SOURCE_LIMIT` | The source is larger than the route accepts. | Select a smaller range or use an evaluated chunking strategy. |
 | `CONTEXT_LIMIT` | The request is larger than the route accepts. | Select a smaller range or fewer fields, or use an evaluated chunking strategy. |
-| `AUTH_REQUIRED` | No OpenRouter key is connected for Inference. | Run /connect and choose OpenRouter for Inference, then enter an OpenRouter API key. |
-| `AUTH_REJECTED` | OpenRouter did not accept the connected key. | Run /connect and choose OpenRouter for Inference to replace the key. |
-| `PRICE_UNKNOWN` | No price, or no upper bound, is known for this route, and the spend options require one. | Select a priced, affordable route, or change spend.requirePricedRoute or spend.requireUpperBound in the trusted options. |
+| `AUTH_REQUIRED` | No OpenRouter key is connected for Inference. | Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key. |
+| `AUTH_REJECTED` | OpenRouter did not accept the connected key. | Run /connect and choose OpenRouter key for Inference to replace the key. |
+| `PRICE_UNKNOWN` | No price, or no upper bound, is known for this route, and the spend options require one: requirePricedRoute, requireUpperBound, or a session or rolling cap set without a request cap. | Select a priced, affordable route; change spend.requirePricedRoute or spend.requireUpperBound in the trusted options; or, under a session or rolling cap with no request cap, set spend.requestUsd or remove that cap. |
 | `BUDGET_EXCEEDED` | This call would exceed a spend budget. | Select a priced, affordable route, wait for the rolling window, or raise the limit in the trusted spend options. |
 | `JOURNAL_LOCKED` | The operation journal is locked by another process and was not taken over. | Make sure no other OpenCode process is using Inference, then remove the lock file named above and retry. |
 | `JOURNAL_UNREADABLE` | The operation journal could not be read or written. | Check the Inference state folder's permissions and free space; do not delete the journal while operations are unsettled. |
