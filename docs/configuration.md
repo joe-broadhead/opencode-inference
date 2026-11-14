@@ -82,7 +82,10 @@ no known price), and each result reports what it cost. Every cap is opt-in, and 
   estimate, and an unpriced call reserves nothing, unless a session or rolling cap is set, which refuses it
   (`PRICE_UNKNOWN`) because nothing could count it against that cap.
 - **Session and rolling 24 hours.** When set, a call is admitted only if its reservation, plus everything already
-  counted, fits `spend.sessionUsd` for its session and `spend.rolling24hUsd` for the last 24 hours. Counted are settled charges,
+  counted, fits `spend.sessionUsd` for its session and `spend.rolling24hUsd` for the last 24 hours. Without a request
+  cap, a call reserves only the top of its estimate, and an estimate is not a ceiling: the reported charge can be
+  higher, so the session or rolling cap can be overrun by the estimate's error. Set `spend.requestUsd` alongside them;
+  the call then reserves that whole per-request budget, as above. Counted are settled charges,
   reservations in flight, and reservations kept for calls whose cost is unknown.
 - **Settlement.** Reported charges replace the reservation, platform and upstream charges kept separate. A call that
   failed after it may have been sent, timed out, was cancelled mid-request or got a malformed answer keeps its

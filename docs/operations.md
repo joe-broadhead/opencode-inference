@@ -39,7 +39,9 @@ anything. Enabling a route is a reviewed change, one route at a time (see [Refre
   opt-in. Each call reserves before it sends: the route's documented ceiling when one exists, otherwise the whole
   per-request budget when you set one, or the top of the estimate when you did not (an estimate is never a ceiling).
   Session and rolling 24-hour caps, when set, count settled charges, reservations in flight, and reservations kept for
-  unknown costs. Details: [configuration.md](configuration.md#spend).
+  unknown costs. Without a request cap, a call reserves only its estimate's top, so an estimate that runs low lets a
+  session or rolling cap be overrun by that error: set `spend.requestUsd` alongside them. Details:
+  [configuration.md](configuration.md#spend).
 - **Unknown is not free.** A call that may have been sent and has no reported cost keeps its reservation. Do not retry
   it blindly: `SUBMISSION_UNKNOWN`, and a deadline or a cancellation after sending, mean the provider may have run and
   charged it.

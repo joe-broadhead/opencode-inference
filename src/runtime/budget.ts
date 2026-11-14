@@ -12,8 +12,9 @@ import type { OperationRecord } from "./journal.js"
 // - The amount is the route's upper bound when one is known. An estimate is not a cap, so with only an estimate (or no
 //   price, when the options allow that) the operation reserves the whole effective per-request budget when one is set,
 //   which is then an admission limit, not a spend ceiling: the provider enforces no ceiling of ours. With no
-//   per-request budget, it reserves the top of the estimate; an unpriced call is refused while a session or rolling cap
-//   is set, because nothing could count it against that cap, and reserves nothing otherwise.
+//   per-request budget, it reserves the top of the estimate, so a session or rolling cap can be overrun by the
+//   estimate's error (the docs recommend a request cap alongside); an unpriced call is refused while a session or
+//   rolling cap is set, because nothing could count it against that cap, and reserves nothing otherwise.
 // - Settlement replaces the reservation with the reported charges. A call whose cost cannot be determined keeps its
 //   reservation ("retained"): failure does not mean zero cost. Only a call that certainly never left releases it.
 //

@@ -147,7 +147,8 @@ still win.
 - **Spend.** No cap is set by default: `spend.requestUsd`, `spend.sessionUsd` and `spend.rolling24hUsd` are `null`,
   so a call runs at whatever it costs, and each result reports that cost. Set any of them (USD) to cap a request, a
   session or a rolling 24 hours; a cap you set counts this machine's journal for one connection, not your whole
-  OpenRouter account, so give the key its own credit limit too. `spend.requirePricedRoute` stays on: a route with no
+  OpenRouter account, so give the key its own credit limit too. A session or rolling cap without a request cap
+  reserves only each call's estimate, which the real charge can pass: set `spend.requestUsd` with it. `spend.requirePricedRoute` stays on: a route with no
   known price is refused.
 - **Alpha endpoints.** OpenRouter's Extractions and Decisions APIs are alpha and may change. An answer that no longer
   matches the reviewed contract is refused (`PROVIDER_CONTRACT_CHANGED`), and an adapter change disables its route
