@@ -69,7 +69,6 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "node scripts/build.mjs",
     "test": "bun test test/unit",
     "test:kit": "node --test scripts/release-kit.test.mjs",
     "test:tui": "bun test --preload @opentui/solid/preload test/tui",
