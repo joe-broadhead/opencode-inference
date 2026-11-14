@@ -19,7 +19,9 @@ export const DEFAULTS = {
   modules: { extractions: true, decisions: true, understanding: false },
   routing: { mode: "explicit", fallbacks: [] as string[] },
   limits: { concurrency: 2, maxFields: 32, deadlineMs: 60_000 },
-  spend: { requestUsd: "0.05", sessionUsd: "1.00", rolling24hUsd: "5.00", requirePricedRoute: true, requireUpperBound: false },
+  // No spend cap unless one is set: each call still reports its cost. requirePricedRoute is a truthful-cost guard, not a
+  // limit, so it stays on.
+  spend: { requestUsd: null, sessionUsd: null, rolling24hUsd: null, requirePricedRoute: true, requireUpperBound: false },
   data: { requireZdr: false },
   cache: { enabled: false },
   allowUntestedHost: false,
@@ -53,9 +55,10 @@ const Options = z.strictObject({
     .optional(),
   spend: z
     .strictObject({
-      requestUsd: Decimal.optional(),
-      sessionUsd: Decimal.optional(),
-      rolling24hUsd: Decimal.optional(),
+      // A cap, or null (the default) for none.
+      requestUsd: Decimal.nullable().optional(),
+      sessionUsd: Decimal.nullable().optional(),
+      rolling24hUsd: Decimal.nullable().optional(),
       requirePricedRoute: z.boolean().optional(),
       requireUpperBound: z.boolean().optional(),
     })
@@ -83,10 +86,11 @@ export interface Config {
   readonly profiles: Readonly<Record<string, { readonly model: string }>>
   readonly routing: { readonly mode: "explicit"; readonly fallbacks: readonly string[] }
   readonly limits: { readonly concurrency: number; readonly maxFields: number; readonly deadlineMs: number }
+  /** The spend caps: `null` is no cap (the default). */
   readonly spend: {
-    readonly requestUsd: string
-    readonly sessionUsd: string
-    readonly rolling24hUsd: string
+    readonly requestUsd: string | null
+    readonly sessionUsd: string | null
+    readonly rolling24hUsd: string | null
     readonly requirePricedRoute: boolean
     readonly requireUpperBound: boolean
   }

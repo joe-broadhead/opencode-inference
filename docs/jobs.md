@@ -58,7 +58,8 @@ under its own access rules, and runs it in a session whose agent allows exactly 
 - **Review stays attached.** `review` and `operationId` travel with the draft: under `review-first-v1` every extraction
   is reviewed, so a person or a later step checks the draft before anything uses it.
 - **Absent stays absent.** A null field ends the script with the missing keys; nothing is guessed.
-- **Spend.** Each run sends the text to OpenRouter and reserves budget first, under the plugin's spend options. Pass
+- **Spend.** Each run sends the text to OpenRouter and is charged for it. No spend cap is set by default; set the
+  plugin's `spend` options to cap a session or a rolling 24 hours, and each run reserves against them first. Pass
   identifiers and compact results between steps, not file contents.
 - **No blind retry.** A `SUBMISSION_UNKNOWN` or deadline failure means the call may have been charged: the next
   scheduled run is a new operation, so do not schedule tighter than the work needs.

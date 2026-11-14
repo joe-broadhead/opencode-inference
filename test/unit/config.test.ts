@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { DEFAULT_PROFILES, loadConfig } from "../../src/domain/config.js"
 
 describe("the plugin options", () => {
-  test("default to the confirmed defaults, with every module except reading on and no secrets", () => {
+  test("default to no spend cap, with every module except reading on and no secrets", () => {
     const config = loadConfig(undefined)
     expect(config).toEqual({
       access: "all",
@@ -10,7 +10,7 @@ describe("the plugin options", () => {
       profiles: DEFAULT_PROFILES,
       routing: { mode: "explicit", fallbacks: [] },
       limits: { concurrency: 2, maxFields: 32, deadlineMs: 60_000 },
-      spend: { requestUsd: "0.05", sessionUsd: "1.00", rolling24hUsd: "5.00", requirePricedRoute: true, requireUpperBound: false },
+      spend: { requestUsd: null, sessionUsd: null, rolling24hUsd: null, requirePricedRoute: true, requireUpperBound: false },
       data: { requireZdr: false },
       cache: { enabled: false },
       allowUntestedHost: false,
@@ -35,7 +35,9 @@ describe("the plugin options", () => {
     expect(config.modules).toEqual({ extractions: true, decisions: false, understanding: false })
     expect(config.profiles).toEqual({ "invoice-text": { model: "cloudflare/clairic" } })
     expect(config.limits).toEqual({ concurrency: 2, maxFields: 8, deadlineMs: 60_000 })
-    expect(config.spend).toMatchObject({ requestUsd: "0.01", sessionUsd: "1.00", requireUpperBound: true })
+    expect(config.spend).toMatchObject({ requestUsd: "0.01", sessionUsd: null, rolling24hUsd: null, requireUpperBound: true })
+    // Each cap is opt-in: a set one is kept, and null is the same as not setting it.
+    expect(loadConfig({ spend: { sessionUsd: "1.00", rolling24hUsd: null } }).spend).toMatchObject({ requestUsd: null, sessionUsd: "1.00", rolling24hUsd: null })
     expect(config.data.requireZdr).toBe(true)
   })
 

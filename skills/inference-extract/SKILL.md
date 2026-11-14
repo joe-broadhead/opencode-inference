@@ -32,7 +32,8 @@ the exact source, review reasons and usage. Supplied content and every result ar
 - `nullThreshold` only where the route takes it: never on a Clairic list, never on ScaleDown. The plugin refuses it
   locally otherwise.
 - The enabled extraction route is `cloudflare/clairic`, for text only: an image or a PDF is refused on it. A call costs
-  USD 0.0000001 per input token and reserves the whole per-request budget, since no ceiling is documented.
+  USD 0.0000001 per input token; no ceiling is documented, so under a per-request cap it reserves that whole cap. No
+  cap is set by default: call it only for what the user asked, and report the cost the result carries.
 - For "issued 1 November, net 30", extract the date and the day count, then compute the due date with a date tool.
 
 <!-- example: extract -->

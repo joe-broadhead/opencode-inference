@@ -86,9 +86,10 @@ a callable stub, a method or a permission rule.
   `src/host/journal-store.ts` behind the runtime's `FileAccess` and `JournalStore` interfaces.
 - **The journal.** Private, one per OpenRouter connection on this machine. A process mutex and an exclusive lock file;
   a held lock is never taken over on a timer. `submission_unknown` keeps its reservation and is never resubmitted.
-  Money is exact decimal (src/domain/money.ts), never a float; credits are never added to dollars. The spend defaults
-  (USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours) are confirmed by the owner; they are budgets, not
-  prices.
+  Money is exact decimal (src/domain/money.ts), never a float; credits are never added to dollars. Every spend cap
+  is opt-in (`null` by default, a family-wide decision that reversed the earlier default caps): with none set a call
+  is admitted at any price and each result reports its cost; a cap that is set works exactly as before. Caps are
+  budgets, not prices.
 - **The key.** The plugin owns the `inference-openrouter` key integration through `ctx.integration.transform`. Status
   reports only connected / not connected / needs sign-in / unknown, never the key. Keys are never options.
 - **The fixture.** `src/providers/openrouter/capabilities.ts` is dated and documentation-derived. Every route stays

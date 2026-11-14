@@ -68,6 +68,28 @@ describe("reservations", () => {
     expect(reservationFor({ kind: "estimate", amount: "0.001" }, { ...spend, requestUsd: "0.05" }, "0.01").amount).toEqual(money("0.01"))
     expect(reservationFor({ kind: "estimate", amount: "0.001" }, { ...spend, requestUsd: "0.05" }, "9").amount).toEqual(money("0.05"))
   })
+  test("with no cap set, nothing is refused for its price: an estimate reserves its top, an unpriced call reserves nothing", () => {
+    const open = { requestUsd: null, sessionUsd: null, rolling24hUsd: null, requirePricedRoute: false, requireUpperBound: false }
+    expect(reservationFor({ kind: "upper_bound", amount: "9" }, open)).toEqual({ amount: money("9"), basis: "upper_bound" })
+    expect(reservationFor({ kind: "estimate", amount: "0.02" }, open)).toEqual({ amount: money("0.02"), basis: "admission_budget" })
+    expect(reservationFor({ kind: "unavailable" }, open)).toEqual({ amount: money("0"), basis: "admission_budget" })
+    // A tool input's budget is the call's cap when no per-request cap is set.
+    expect(reservationFor({ kind: "estimate", amount: "0.001" }, open, "0.01").amount).toEqual(money("0.01"))
+    expect(() => reservationFor({ kind: "upper_bound", amount: "0.02" }, open, "0.01")).toThrow(/^BUDGET_EXCEEDED:/)
+    // An unpriced call cannot be counted against a session or rolling cap you set, so it is refused.
+    expect(() => reservationFor({ kind: "unavailable" }, { ...open, sessionUsd: "1" })).toThrow(/^PRICE_UNKNOWN: .*spend\.requestUsd/)
+    expect(() => reservationFor({ kind: "unavailable" }, { ...open, rolling24hUsd: "1" })).toThrow(/^PRICE_UNKNOWN:/)
+    // requirePricedRoute, on by default, still refuses an unpriced call.
+    expect(() => reservationFor({ kind: "unavailable" }, { ...open, requirePricedRoute: true })).toThrow(/^PRICE_UNKNOWN:/)
+  })
+
+  test("with no session or rolling cap set, admission admits every call", () => {
+    const open = { requestUsd: null, sessionUsd: null, rolling24hUsd: null, requirePricedRoute: true, requireUpperBound: false }
+    expect(() => admit([], { sessionId: "ses_a", amount: money("1000000") }, open, new Date())).not.toThrow()
+    expect(() => admit([], { sessionId: "ses_a", amount: money("2") }, { ...open, sessionUsd: "1" }, new Date())).toThrow(/^BUDGET_EXCEEDED: .*session budget/)
+    expect(() => admit([], { sessionId: "ses_a", amount: money("2") }, { ...open, rolling24hUsd: "1" }, new Date())).toThrow(/^BUDGET_EXCEEDED: .*rolling 24-hour budget/)
+  })
+
   test("strict modes refuse unknown bounds; a bound over the request budget is refused", () => {
     expect(() => reservationFor({ kind: "unavailable" }, spend)).toThrow(/^PRICE_UNKNOWN:/)
     expect(() => reservationFor({ kind: "estimate", amount: "0.01" }, { ...spend, requireUpperBound: true })).toThrow(/^PRICE_UNKNOWN:/)

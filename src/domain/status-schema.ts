@@ -28,7 +28,7 @@ export const StatusSchema = z.strictObject({
     routes: z.number().int().nonnegative(),
     enabledRoutes: z.number().int().nonnegative(),
   }),
-  spend: z.strictObject({ currency: z.literal("USD"), requestUsd: text(32), sessionUsd: text(32), rolling24hUsd: text(32), tracking: z.literal("none") }),
+  spend: z.strictObject({ currency: z.literal("USD"), requestUsd: text(32).nullable(), sessionUsd: text(32).nullable(), rolling24hUsd: text(32).nullable(), tracking: z.literal("none") }),
   operations: z.strictObject({ tracking: z.literal("none") }),
   permissions: z.strictObject({ block: z.array(rule).max(64) }),
   problems: z.array(text(1024)).max(8),

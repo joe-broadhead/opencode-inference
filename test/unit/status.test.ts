@@ -75,10 +75,17 @@ describe("the view", () => {
       connection: { integration: "inference-openrouter", state: "not_connected", required: false },
       tools: { registered: ["inference_status", "inference_capabilities", "inference_plan", "inference_extract", "inference_decide"], planned: ["inference_read"] },
       capabilities: { revision: OPENROUTER_CAPABILITIES.revision, reviewedOn: "2026-11-13", ageDays: 0, stale: false, routes: 5, enabledRoutes: 0 },
-      spend: { currency: "USD", requestUsd: "0.05", sessionUsd: "1.00", rolling24hUsd: "5.00", tracking: "none" },
+      spend: { currency: "USD", requestUsd: null, sessionUsd: null, rolling24hUsd: null, tracking: "none" },
       operations: { tracking: "none" },
     })
     expect(keyRequired(loadConfig({}), DISABLED)).toBe(false)
+    expect(formatStatus(view)).toContain("no spend cap set; each call's result reports its cost")
+  })
+
+  test("the spend line names only the caps that are set", async () => {
+    const view = await base({ config: loadConfig({ spend: { requestUsd: "0.05", rolling24hUsd: "5.00" } }) })
+    expect(view.spend).toEqual({ currency: "USD", requestUsd: "0.05", sessionUsd: null, rolling24hUsd: "5.00", tracking: "none" })
+    expect(formatStatus(view)).toContain("caps USD 0.05 per request, USD 5.00 per rolling 24 hours; each call's result reports its cost")
   })
 
   test("every module off is disabled", async () => {

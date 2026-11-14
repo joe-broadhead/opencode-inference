@@ -30,7 +30,7 @@ const view = (version: string, overrides: Partial<StatusView> = {}): StatusView 
   modules: { extractions: { enabled: true }, decisions: { enabled: true }, understanding: { enabled: false } },
   tools: { registered: ["inference_status", "inference_capabilities", "inference_plan"], planned: ["inference_extract", "inference_decide", "inference_read"] },
   capabilities: { revision: "openrouter-2026-11-11.1", reviewedOn: "2026-11-11", ageDays: 1, stale: false, basis: "documentation", routes: 5, enabledRoutes: 0 },
-  spend: { currency: "USD", requestUsd: "0.05", sessionUsd: "1.00", rolling24hUsd: "5.00", tracking: "none" },
+  spend: { currency: "USD", requestUsd: null, sessionUsd: null, rolling24hUsd: null, tracking: "none" },
   operations: { tracking: "none" },
   permissions: { block: [{ action: "inference_*", resource: "*", effect: "ask" }, { action: "inference_status", resource: "*", effect: "allow" }] },
   problems: [],

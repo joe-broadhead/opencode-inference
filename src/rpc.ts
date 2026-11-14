@@ -14,6 +14,7 @@ const list = <T extends object>(items: T, maxItems: number) => ({ type: "array",
 const object = <P extends Record<string, object>, R extends readonly (keyof P & string)[]>(properties: P, required: R) =>
   ({ type: "object", properties, required, additionalProperties: false }) as const
 const next = text(4096)
+const cap = { anyOf: [text(32), { type: "null" }] } as const
 const module = object({ enabled: bool }, ["enabled"])
 const rule = object({ action: text(128), resource: text(128), effect: choice(["allow", "ask", "deny"]) }, ["action", "resource", "effect"])
 
@@ -33,7 +34,7 @@ export const STATUS_JSON_SCHEMA = object(
       ["revision", "reviewedOn", "ageDays", "stale", "basis", "routes", "enabledRoutes"],
     ),
     spend: object(
-      { currency: { type: "string", const: "USD" }, requestUsd: text(32), sessionUsd: text(32), rolling24hUsd: text(32), tracking: { type: "string", const: "none" } },
+      { currency: { type: "string", const: "USD" }, requestUsd: cap, sessionUsd: cap, rolling24hUsd: cap, tracking: { type: "string", const: "none" } },
       ["currency", "requestUsd", "sessionUsd", "rolling24hUsd", "tracking"],
     ),
     operations: object({ tracking: { type: "string", const: "none" } }, ["tracking"]),
@@ -118,6 +119,16 @@ const CONNECTION_TEXT = {
  * Agents without default rules (with the block when `paste`), OpenCode, Next step. `agents` replaces the agents row's
  * text for the compact tool output.
  */
+/** The caps that are set, or that none is: every cap is opt-in. */
+export function spendText(spend: StatusView["spend"]) {
+  const caps = [
+    [spend.requestUsd, "per request"],
+    [spend.sessionUsd, "per session"],
+    [spend.rolling24hUsd, "per rolling 24 hours"],
+  ].flatMap(([amount, scope]) => (amount === null ? [] : [`USD ${amount} ${scope}`]))
+  return caps.length ? `caps ${caps.join(", ")}` : "no spend cap set"
+}
+
 export function statusLines(view: StatusView, { paste, agents }: { readonly paste: boolean; readonly agents?: string }): StatusLine[] {
   const unguarded = view.unguardedAgents
   const caps = view.capabilities
@@ -131,7 +142,7 @@ export function statusLines(view: StatusView, { paste, agents }: { readonly past
     line("Access", `${view.access}. Reads always run; sends ${view.access === "all" ? "run" : view.access === "ask-changes" ? "ask first" : "are denied"}`, true),
     ...MODULES.map((name) => line(MODULE_TEXT[name], view.modules[name].enabled ? (view.tools.registered.includes(MODULE_TOOL[name]) ? "on" : "on (not implemented in this version)") : "off", true)),
     line("Capabilities", `${caps.basis}-derived fixture ${caps.revision}, reviewed ${caps.reviewedOn} (${caps.ageDays} days ago${caps.stale ? ", stale" : ""}); ${caps.enabledRoutes} of ${caps.routes} routes enabled`, !caps.stale),
-    line("Spend", `limits ${view.spend.requestUsd} per request, ${view.spend.sessionUsd} per session, ${view.spend.rolling24hUsd} per 24 hours (USD); nothing is tracked because nothing is sent`, true),
+    line("Spend", `${spendText(view.spend)}; each call's result reports its cost, and status does not total it`, true),
     line("Tools", `${view.tools.registered.length} registered (${view.tools.registered.join(", ")}); planned: ${view.tools.planned.join(", ")}`, true),
     ...view.problems.map((problem) => line("Problem", problem, false)),
     line("Agents without default rules", agents ?? (unguarded.length ? `${unguarded.join(", ")}${paste ? `\n${rulesToPaste(view)}` : ""}` : "none"), agents ? agents === "none" : unguarded.length === 0),

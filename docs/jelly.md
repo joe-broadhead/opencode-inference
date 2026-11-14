@@ -18,8 +18,12 @@ so this plugin's own default rules never reach them; every declared tool's effec
 - Ask: none.
 - Off: none.
 
+No spend cap is set by default either: `inference.extract` and `inference.decide` run at whatever a call costs, and each
+result reports that cost. The `spend` options set opt-in caps.
+
 The declaration is generated from the registry (`src/domain/registry.ts`) and checked by `test/unit/registry.test.ts`.
-`inference.read` is not declared until it exists.
+`inference.read` is not declared until it exists. Every tool is the plugin's own, so there is no provider tool list to
+capture: the registry is the served list, and the test fails if the declaration and the registry disagree.
 
 ## Skills
 

@@ -11,7 +11,7 @@ has verified it against the live API**; a disabled route refuses with that reaso
 ## What works in this version
 
 - **`inference_status`**: whether the OpenRouter key is connected (never the key), which modules are on, the capability
-  fixture's date, the spend limits, which actions ask for permission, and one next step.
+  fixture's date, the spend caps you set (none by default), which actions ask for permission, and one next step.
 - **`inference_capabilities`**: what this version implements, and what each reviewed route documents (inputs, field and
   question types, limits, price if known) with every reason it cannot run.
 - **`inference_plan`**: given `{ task, input }` for an extract, decide or read call, the route and its exclusion reasons,
@@ -144,9 +144,11 @@ still win.
   and Sage are no longer in the catalog. A disabled route refuses before reading or sending anything.
 - **Every answer goes to review.** The built-in `review-first-v1` profile accepts nothing: no calibration or evaluated
   automatic profile ships, and a provider's confidence is its own statistic, not checked accuracy.
-- **Spend.** The defaults are `spend.requestUsd` 0.05 (reserved for each call: a per-token price is
-  never a ceiling), `spend.sessionUsd` 1.00 and `spend.rolling24hUsd` 5.00 (a rolling 24 hours), in USD. They count
-  this machine's journal for one connection, not your whole OpenRouter account: give the key its own credit limit.
+- **Spend.** No cap is set by default: `spend.requestUsd`, `spend.sessionUsd` and `spend.rolling24hUsd` are `null`,
+  so a call runs at whatever it costs, and each result reports that cost. Set any of them (USD) to cap a request, a
+  session or a rolling 24 hours; a cap you set counts this machine's journal for one connection, not your whole
+  OpenRouter account, so give the key its own credit limit too. `spend.requirePricedRoute` stays on: a route with no
+  known price is refused.
 - **Alpha endpoints.** OpenRouter's Extractions and Decisions APIs are alpha and may change. An answer that no longer
   matches the reviewed contract is refused (`PROVIDER_CONTRACT_CHANGED`), and an adapter change disables its route
   until a new canary passes for the new revision (`ROUTE_NOT_VERIFIED`).

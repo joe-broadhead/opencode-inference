@@ -76,9 +76,10 @@ export interface StatusView {
   }
   readonly spend: {
     readonly currency: "USD"
-    readonly requestUsd: string
-    readonly sessionUsd: string
-    readonly rolling24hUsd: string
+    /** A cap in USD, or null: no cap is set. */
+    readonly requestUsd: string | null
+    readonly sessionUsd: string | null
+    readonly rolling24hUsd: string | null
     /** `none`: no journal exists yet, so nothing is committed, reserved or unknown. */
     readonly tracking: "none"
   }

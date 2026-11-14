@@ -346,12 +346,12 @@ describe("duration is not adopted", () => {
 })
 
 describe("reservations for per-token prices", () => {
-  test("a per-token-priced route without a documented ceiling reserves the whole per-request budget, as an estimate", async () => {
+  test("a per-token-priced route without a documented ceiling reserves the whole per-request budget you set, as an estimate", async () => {
     const { probeHarness, probeRoute } = await import("../support/operation-kit.js")
     const { ExtractResult } = await import("../../src/domain/contracts.js")
     const tool = { name: "extract", class: "send" as const, operation: "extract" as const, module: "extractions" as const, effects: { network: true, uploadsSource: true, billable: true, readsFiles: true }, description: "extract", input: ExtractInput, output: ExtractResult }
     const run = async (pricing: RouteCapability["pricing"]) => {
-      const harness = await probeHarness({ route: probeRoute({ ...CLAIRIC, enabled: true, pricing }), tool, adapter: extractionsAdapter, options: { profiles: { probe: { model: "cloudflare/clairic" } } } })
+      const harness = await probeHarness({ route: probeRoute({ ...CLAIRIC, enabled: true, pricing }), tool, adapter: extractionsAdapter, options: { profiles: { probe: { model: "cloudflare/clairic" } }, spend: { requestUsd: "0.05" } } })
       harness.replies.push(answer(FIXTURE))
       await harness.model({ profile: "probe", source: { kind: "text", text: STATE }, fields: FIELDS })
       return (await harness.journal.list())[0]!.reservation

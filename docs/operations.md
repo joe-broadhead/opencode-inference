@@ -35,16 +35,18 @@ anything. Enabling a route is a reviewed change, one route at a time (see [Refre
 
 ## Cost scope
 
-- Each call reserves before it sends: the route's documented ceiling when one exists, otherwise the whole per-request
-  budget (an estimate is never a ceiling). Session and rolling 24-hour budgets count settled charges, reservations in
-  flight, and reservations kept for unknown costs. Details: [configuration.md](configuration.md#spend).
+- No spend cap is set by default: a call runs at whatever it costs, and each result reports that cost. Every cap is
+  opt-in. Each call reserves before it sends: the route's documented ceiling when one exists, otherwise the whole
+  per-request budget when you set one, or the top of the estimate when you did not (an estimate is never a ceiling).
+  Session and rolling 24-hour caps, when set, count settled charges, reservations in flight, and reservations kept for
+  unknown costs. Details: [configuration.md](configuration.md#spend).
 - **Unknown is not free.** A call that may have been sent and has no reported cost keeps its reservation. Do not retry
   it blindly: `SUBMISSION_UNKNOWN`, and a deadline or a cancellation after sending, mean the provider may have run and
   charged it.
-- The budgets cover this machine's journal for one OpenRouter connection. They are not account-wide; OpenRouter's own
+- A cap you set covers this machine's journal for one OpenRouter connection. They are not account-wide; OpenRouter's own
   key limits are the stronger, independent cap. Give the key a credit limit.
-- The spend defaults are USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours.
-  They are budgets, not prices: what a call costs is the provider's reported charge.
+- The spend caps default to none (`null`). A cap you set is a budget, not a price: what a call costs is the provider's
+  reported charge.
 
 ## Privacy
 
