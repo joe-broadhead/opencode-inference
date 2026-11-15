@@ -65,7 +65,7 @@ against it; `inference_capabilities` lists the enabled routes. A disabled route 
 
 <!-- generated:hosts -->
 
-OpenCode `>=2.2.3 <2.3.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6.
+OpenCode `>=2.2.3 <2.4.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0.
 
 <!-- /generated:hosts -->
 

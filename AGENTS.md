@@ -39,7 +39,7 @@ a callable stub, a method or a permission rule.
 
 ## Design
 
-- **Host.** Public `@opencode/plugin` APIs only. The host range is exactly `>=2.2.3 <2.3.0`, in `package.json`
+- **Host.** Public `@opencode/plugin` APIs only. The host range is exactly `>=2.2.3 <2.4.0`, in `package.json`
   `opencode.host` and in the startup check; never `^2.2.3`.
 - **Stable IDs.** Plugin `inference.core`, TUI `inference.core.tui`, namespace `inference`, status RPC `inference.core`,
   tools RPC `inference.core.tools`, permission prefix `inference_`, command `/inference-status`, key integration

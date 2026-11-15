@@ -67,7 +67,7 @@ by value: the OpenRouter key goes in `/connect`.
   the maximum; otherwise setup fails with `OPTIONS_INVALID`. Thresholds belong to the task and its consequences: there
   is no universal one. A report is unauthenticated JSON, and its dataset hash is not re-checked by the plugin (see
   docs/architecture.md): review changes to `acceptanceProfiles` like code.
-- `allowUntestedHost`: run on an OpenCode outside `>=2.2.3 <2.3.0`, with a warning as the next step.
+- `allowUntestedHost`: run on an OpenCode outside `>=2.2.3 <2.4.0`, with a warning as the next step.
 
 ## Spend
 

@@ -9,7 +9,7 @@ import { buildStatus, keyRequired } from "../../src/host/status.js"
 import { OPENROUTER_CAPABILITIES, type CapabilityFixture } from "../../src/providers/openrouter/capabilities.js"
 import { AGENT_FIX, compactStatus, formatStatus, formatSummary, isStatus, NOTHING_TO_DO, STATUS_JSON_SCHEMA, statusLines } from "../../src/rpc.js"
 
-const host = { version: "2.2.3", range: ">=2.2.3 <2.3.0", tested: true }
+const host = { version: "2.2.3", range: ">=2.2.3 <2.4.0", tested: true }
 const base = (overrides: Partial<Parameters<typeof buildStatus>[0]> = {}) =>
   buildStatus({
     version: "0.0.0",
@@ -103,7 +103,7 @@ describe("the view", () => {
   test("a problem comes before agents; the host's next step comes first of all", async () => {
     const problem = "RULES_NOT_ADDED: The default permission rules could not be added. Next step: Restart OpenCode."
     expect((await base({ problems: () => [problem] })).nextStep).toBe(problem)
-    const outside = { ...host, version: "2.3.0", tested: false, next: "Outside the range." }
+    const outside = { ...host, version: "2.4.0", tested: false, next: "Outside the range." }
     expect((await base({ host: outside, problems: () => [problem] })).nextStep).toBe("Outside the range.")
   })
 
