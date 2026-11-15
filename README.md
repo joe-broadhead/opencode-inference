@@ -1,6 +1,8 @@
 # OpenCode Inference
 
-Unofficial OpenCode plugin. Not affiliated with OpenCode or OpenRouter.
+Unofficial OpenCode plugin. Not affiliated with OpenCode, and not affiliated with OpenRouter.
+
+OpenRouter is a trademark of OpenRouter, Inc.; this unofficial plugin is not endorsed by them.
 
 `@joe-broadhead/opencode-inference` offers typed extraction (`inference.extract`) and bounded
 decisions (`inference.decide`) through OpenRouter's alpha Extractions and Decisions APIs, keeping nulls, evidence,
