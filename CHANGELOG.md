@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **For jelly:** `jelly.cost`, the line jelly shows on the plugin's review before it installs: "Extract and decide calls
+  are charged by OpenRouter to the key you add, per input token (output is free on both enabled routes), and each result
+  reports its cost. No spend cap is set unless you set one."
+- **For jelly:** `jelly.summary` is now "Typed extraction and bounded decisions. The text, files and artifacts you give
+  it go to OpenRouter.", and the sign-in's `help.label` "Create an OpenRouter API key. Inference sends the text, files
+  and artifacts you give it to OpenRouter." The sign-in's `label` stays "OpenRouter key for Inference", the name
+  `/connect` shows.
+
+### Changed
+
+- `/connect`'s key prompt reads "OpenRouter API key (text, files and artifacts go to OpenRouter)", and the README and
+  `docs/jelly.md` name the text, files and artifacts that go to OpenRouter.
+
 ## [0.0.5] - 2026-11-15
 
 ### Changed

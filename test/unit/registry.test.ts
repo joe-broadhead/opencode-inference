@@ -5,9 +5,11 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync, writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { loadConfig } from "../../src/domain/config.js"
-import { ACCESS_VALUES, NAMESPACE, PLUGIN_ID } from "../../src/domain/ids.js"
+import { FAILURES } from "../../src/domain/errors.js"
+import { ACCESS_VALUES, INTEGRATION_KEY_LABEL, INTEGRATION_NAME, NAMESPACE, PLUGIN_ID } from "../../src/domain/ids.js"
 import { actionOf, jsonSchemaOf, NAMESPACE_DESCRIPTION, PLANNED, TOOL_NAMES, TOOLS, type ToolSpec } from "../../src/domain/registry.js"
 import { ADAPTERS, createPlugin } from "../../src/host/plugin.js"
+import { CONNECT_STEP } from "../../src/host/integration.js"
 import { defaultRules } from "../../src/host/permissions.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { fakeContext } from "../support/fake-context.js"
@@ -123,6 +125,19 @@ describe("the Jelly declaration", () => {
   test("follows the plugin authors' standard, with the effects the plugin's own default rules give", () => {
     expect(declarationProblems(ROOT_URL, { effectOf: effectFromRules(defaultRules("all")), registered: TOOLS.map((tool) => actionOf(tool.name)) })).toEqual([])
     expect(docProblems(ROOT_URL)).toEqual([])
+  })
+
+  test("says that the text, files and artifacts go to OpenRouter, and keeps the sign-in's /connect name", () => {
+    const jelly = readPackage(ROOT_URL).jelly as unknown as { summary: string; signIns: Array<{ label: string; help: { label: string } }> }
+    const signIn = jelly.signIns[0]!
+    expect(jelly.summary.length).toBeLessThanOrEqual(120)
+    expect(signIn.help.label.length).toBeLessThanOrEqual(200)
+    expect(signIn.label.length).toBeLessThanOrEqual(200)
+    for (const words of [jelly.summary, signIn.help.label, INTEGRATION_KEY_LABEL]) expect(words).toMatch(/text, files and artifacts .*OpenRouter/)
+    // The label is the name /connect shows, so "Run /connect and choose <label>" still finds the card.
+    expect(signIn.label).toBe(INTEGRATION_NAME)
+    expect(CONNECT_STEP).toStartWith("Run /connect and choose OpenRouter key for Inference")
+    expect(FAILURES.AUTH_REQUIRED[1]).toStartWith("Run /connect and choose OpenRouter key for Inference")
   })
 })
 

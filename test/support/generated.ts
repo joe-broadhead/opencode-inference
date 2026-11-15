@@ -18,11 +18,21 @@ const ACCESS_WORDS: Record<Access, { label: string; description: string }> = {
   "read-only": { label: "Read only", description: "Reads run. Changes never run." },
 }
 
+/** The sign-in's link text in Jelly (`jelly.signIns[].help.label`, at most 200 characters): it says where the content goes. */
+export const SIGN_IN_HELP =
+  "Create an OpenRouter API key. Inference sends the text, files and artifacts you give it to OpenRouter."
+/** The one line under the name in Jelly (`jelly.summary`, at most 120 characters). */
+export const JELLY_SUMMARY = "Typed extraction and bounded decisions. The text, files and artifacts you give it go to OpenRouter."
+/** What it costs with OpenRouter, shown on Jelly's review (`jelly.cost`, at most 300 characters). */
+export const JELLY_COST =
+  "Extract and decide calls are charged by OpenRouter to the key you add, per input token (output is free on both enabled routes), and each result reports its cost. No spend cap is set unless you set one."
+
 /** The `jelly` section of package.json. */
 export const jellyDeclaration = () => ({
   title: "Inference",
-  summary: "Typed extraction and bounded decisions over supplied content, planned locally.",
+  summary: JELLY_SUMMARY,
   icon: "assets/icon.svg",
+  cost: JELLY_COST,
   tools: TOOLS.map((tool) => ({ name: `${NAMESPACE}.${tool.name}`, permission: actionOf(tool.name), effect: effectOf(tool.class, "all"), readOnly: tool.class === "read" })),
   skills: [...SKILL_IDS],
   rpc: [] as unknown[],
@@ -33,7 +43,7 @@ export const jellyDeclaration = () => ({
       label: INTEGRATION_NAME,
       integration: INTEGRATION_ID,
       required: false,
-      help: { url: "https://openrouter.ai/settings/keys", label: "Create an OpenRouter API key" },
+      help: { url: "https://openrouter.ai/settings/keys", label: SIGN_IN_HELP },
     },
   ],
   contributes: {
