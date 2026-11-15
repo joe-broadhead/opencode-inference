@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-inference",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "description": "Unofficial OpenCode plugin: typed extraction and bounded decisions with evidence, planned locally",
   "keywords": [
@@ -38,7 +38,7 @@
     "CHANGELOG.md"
   ],
   "opencode": {
-    "host": ">=2.2.3 <2.3.0",
+    "host": ">=2.2.3 <2.4.0",
     "icons": [
       {
         "src": "assets/icon.svg",

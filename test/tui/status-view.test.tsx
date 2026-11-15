@@ -21,7 +21,7 @@ interface Deferred { resolve(view: StatusView): void; reject(error: Error): void
 
 const view = (version: string, overrides: Partial<StatusView> = {}): StatusView => ({
   version,
-  host: { version: "2.2.3", range: ">=2.2.3 <2.3.0", tested: true },
+  host: { version: "2.2.3", range: ">=2.2.3 <2.4.0", tested: true },
   state: "local_only",
   unguardedAgents: ["reviewer"],
   nextStep: AGENT_FIX,

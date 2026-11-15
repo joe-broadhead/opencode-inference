@@ -65,14 +65,14 @@ against it; `inference_capabilities` lists the enabled routes. A disabled route 
 
 <!-- generated:hosts -->
 
-OpenCode `>=2.2.3 <2.3.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6.
+OpenCode `>=2.2.3 <2.4.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0.
 
 <!-- /generated:hosts -->
 
 ## Install
 
 ```sh
-opencode plugin add github:joe-broadhead/opencode-inference#v0.0.3
+opencode plugin add github:joe-broadhead/opencode-inference#v0.0.4
 opencode reload
 ```
 
@@ -80,13 +80,13 @@ Or add it to `opencode.json`:
 
 ```json
 {
-  "plugins": [{ "package": "github:joe-broadhead/opencode-inference#v0.0.3" }]
+  "plugins": [{ "package": "github:joe-broadhead/opencode-inference#v0.0.4" }]
 }
 ```
 
 Then connect an OpenRouter key (below). The install takes the GitHub release tag. Its commit carries the built `dist/`,
 so the install runs no build. A new release is a new tag, and a Git install does not update by itself: to move to a
-newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-inference#v0.0.1`, then
+newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-inference#v0.0.3`, then
 add the new tag with `opencode plugin add github:joe-broadhead/opencode-inference#v<version>`.
 
 ## Connect OpenRouter
@@ -107,7 +107,7 @@ rules for each `access` value, and the error codes.
 {
   "plugins": [
     {
-      "package": "github:joe-broadhead/opencode-inference#v0.0.3",
+      "package": "github:joe-broadhead/opencode-inference#v0.0.4",
       "options": { "access": "ask-changes", "limits": { "maxFields": 16 } }
     }
   ]

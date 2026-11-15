@@ -17,7 +17,7 @@ import { OpenCode as Client, type OpenCodeClient } from "@opencode/client"
 import { Plugin, type PluginOptions } from "@opencode/plugin"
 import plugin from "../../src/index.js"
 import { familyProblems } from "../support/family.js"
-import { TESTED_HOSTS } from "../../src/host/versions.js"
+import { inRange, TESTED_HOSTS } from "../../src/host/versions.js"
 
 export const REPO = fileURLToPath(new URL("../../", import.meta.url))
 export const root = realpathSync(mkdtempSync(join(existsSync("/private/tmp") ? "/private/tmp" : "/tmp", "inference-host-")))
@@ -304,5 +304,11 @@ export async function familyPlugin(name: "jobs" | "utilities"): Promise<Plugin.P
     cpSync(dir, target, { recursive: true })
     symlinkSync(join(REPO, "node_modules", "@opencode"), join(staged, "node_modules", "@opencode"), "dir")
   }
-  return ((await import(pathToFileURL(join(target, "dist", "index.js")).href)) as { default: Plugin.Plugin }).default
+  const released = ((await import(pathToFileURL(join(target, "dist", "index.js")).href)) as { default: Plugin.Plugin }).default
+  // A released copy states its own host range. On a host this plugin is tested on but that copy's range leaves out (a
+  // newer OpenCode than it was released for), it runs with its own allowUntestedHost override, as a user would set it;
+  // the vendored bytes stay as released.
+  const range = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { opencode: { host: string } }).opencode.host
+  if (inRange(HOST_VERSION, range)) return released
+  return Plugin.define({ id: released.id, setup: (ctx) => released.setup({ ...ctx, options: { ...(ctx.options as Record<string, unknown> | undefined), allowUntestedHost: true } }) })
 }

@@ -84,7 +84,7 @@ describe(`defaults on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
   test("the status RPC answers the shared fields first, local only, with nothing to do and no key", async () => {
     const view = await status(host)
     expect(Object.keys(view).slice(0, 5)).toEqual(["version", "host", "state", "unguardedAgents", "nextStep"])
-    expect(view).toMatchObject({ state: "local_only", nextStep: "Nothing to do.", host: { version: HOST_VERSION, range: ">=2.2.3 <2.3.0", tested: true }, connection: { state: "not_connected", required: false } })
+    expect(view).toMatchObject({ state: "local_only", nextStep: "Nothing to do.", host: { version: HOST_VERSION, range: ">=2.2.3 <2.4.0", tested: true }, connection: { state: "not_connected", required: false } })
   })
 
   test("/inference-status posts the status into the session", async () => {

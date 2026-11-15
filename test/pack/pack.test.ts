@@ -61,7 +61,7 @@ describe("the tarball", () => {
     for (const field of ["dependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta", "bundleDependencies", "bundledDependencies", "overrides"]) expect(manifest[field]).toBeUndefined()
     expect(Object.keys(manifest.scripts ?? {}).filter((script) => LIFECYCLE.includes(script))).toEqual([])
     expect(manifest.type).toBe("module")
-    expect(manifest.opencode.host).toBe(">=2.2.3 <2.3.0")
+    expect(manifest.opencode.host).toBe(">=2.2.3 <2.4.0")
     expect(manifest.exports).toEqual({ ".": "./dist/index.js", "./tui": "./dist/tui.js", "./icon.svg": "./assets/icon.svg", "./icon-128.png": "./assets/icon-128.png", "./icon-256.png": "./assets/icon-256.png" })
     for (const target of Object.values(manifest.exports as Record<string, string>)) expect(existsSync(join(installed, target))).toBe(true)
   })
@@ -139,7 +139,7 @@ for (const version of STOCK_VERSIONS)
         version: manifest.version,
         state: required ? "sign_in_required" : "local_only",
         nextStep: required ? "Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key." : "Nothing to do.",
-        host: { version, range: ">=2.2.3 <2.3.0", tested: true },
+        host: { version, range: ">=2.2.3 <2.4.0", tested: true },
         connection: { state: "not_connected", required },
       })
       const { data: commands } = await host.client.command.list({ location: host.location })
