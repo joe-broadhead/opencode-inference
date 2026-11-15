@@ -20,7 +20,7 @@ export const TUI_SLASH = "inference"
  */
 export const INTEGRATION_ID = "inference-openrouter"
 export const INTEGRATION_NAME = "OpenRouter key for Inference"
-export const INTEGRATION_KEY_LABEL = "OpenRouter API key"
+export const INTEGRATION_KEY_LABEL = "OpenRouter API key (text, files and artifacts go to OpenRouter)"
 
 export const ACCESS_VALUES = ["all", "ask-changes", "read-only"] as const
 export type Access = (typeof ACCESS_VALUES)[number]

@@ -8,7 +8,8 @@ OpenRouter is a trademark of OpenRouter, Inc.; this unofficial plugin is not end
 decisions (`inference.decide`) through OpenRouter's alpha Extractions and Decisions APIs, keeping nulls, evidence,
 probabilities, refusals, coverage and cost in every result. **A route is enabled only after a compatibility canary
 has verified it against the live API**; a disabled route refuses with that reason and nothing is sent.
-`inference_capabilities` lists the enabled routes and what each takes.
+`inference_capabilities` lists the enabled routes and what each takes. The text, files and artifacts you give
+`inference_extract` and `inference_decide` go to OpenRouter; the three local tools send nothing.
 
 ## What works in this version
 
@@ -74,7 +75,7 @@ OpenCode `>=2.2.3 <2.4.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0.
 ## Install
 
 ```sh
-opencode plugin add github:joe-broadhead/opencode-inference#v0.0.5
+opencode plugin add github:joe-broadhead/opencode-inference#v0.0.6
 opencode reload
 ```
 
@@ -82,18 +83,19 @@ Or add it to `opencode.json`:
 
 ```json
 {
-  "plugins": [{ "package": "github:joe-broadhead/opencode-inference#v0.0.5" }]
+  "plugins": [{ "package": "github:joe-broadhead/opencode-inference#v0.0.6" }]
 }
 ```
 
 Then connect an OpenRouter key (below). The install takes the GitHub release tag. Its commit carries the built `dist/`,
 so the install runs no build. A new release is a new tag, and a Git install does not update by itself: to move to a
-newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-inference#v0.0.4`, then
+newer release, remove the old entry with `opencode plugin remove github:joe-broadhead/opencode-inference#v0.0.5`, then
 add the new tag with `opencode plugin add github:joe-broadhead/opencode-inference#v<version>`.
 
 ## Connect OpenRouter
 
-Run `/connect` and choose **OpenRouter key for Inference**, then enter an OpenRouter API key, or run
+Run `/connect` and choose **OpenRouter key for Inference**, then enter an OpenRouter API key (the prompt reads
+"OpenRouter API key (text, files and artifacts go to OpenRouter)"), or run
 `opencode auth login inference-openrouter`. This entry belongs to the plugin and is a separate key from OpenCode's
 own OpenRouter model provider and from the OpenRouter plugin's "OpenRouter tools" sign-in. The plugin stores no key itself: the transport reads it at dispatch, only for an enabled
 route, and sends it only to OpenRouter in the `Authorization` header. Status shows only connected or not connected. The
@@ -109,7 +111,7 @@ rules for each `access` value, and the error codes.
 {
   "plugins": [
     {
-      "package": "github:joe-broadhead/opencode-inference#v0.0.5",
+      "package": "github:joe-broadhead/opencode-inference#v0.0.6",
       "options": { "access": "ask-changes", "limits": { "maxFields": 16 } }
     }
   ]

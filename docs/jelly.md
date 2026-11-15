@@ -4,13 +4,19 @@
 JSON, without loading the plugin, when a person reviews the exact version, and uses it as follows.
 
 Jelly names the plugin **Inference** (`jelly.title`), with the package name and version beneath, the one line in
-`jelly.summary`, and the mark in `jelly.icon` (`assets/icon.svg`, shipped in the package), which Jelly keeps only if it
+`jelly.summary` ("Typed extraction and bounded decisions. The text, files and artifacts you give it go to OpenRouter."),
+and the mark in `jelly.icon` (`assets/icon.svg`, shipped in the package), which Jelly keeps only if it
 is a clean SVG of drawing elements.
+
+`jelly.cost` is the line Jelly shows on the plugin's review before it installs, in the plugin's own words, saying what
+it costs with OpenRouter: "Extract and decide calls are charged by OpenRouter to the key you add, per input token
+(output is free on both enabled routes), and each result reports its cost. No spend cap is set unless you set one." It
+changes nothing Jelly allows.
 
 ## Tools and permissions
 
 5 tools are declared (3 read-only): `inference.status`, `inference.capabilities` and `inference.plan`, which are local,
-and `inference.extract` and `inference.decide`, which send the source to OpenRouter and can be charged (class `send`;
+and `inference.extract` and `inference.decide`, which send the text, files and artifacts you give them to OpenRouter and can be charged (class `send`;
 they run only on a verified, enabled route). Jelly's agents have no base "allow everything" rule,
 so this plugin's own default rules never reach them; every declared tool's effect is the one the default rules give at
 `access: "all"`.
@@ -56,7 +62,10 @@ None: `jelly.views` and `jelly.rpc` are empty.
 
 Nothing is required. `jelly.signIns` declares one optional sign-in, `openrouter`, labelled "OpenRouter key for
 Inference": the plugin's own key integration `inference-openrouter` (`required: false`), with a link to where
-OpenRouter keys are created. It is a separate key from OpenCode's own OpenRouter model provider and from the OpenRouter
+OpenRouter keys are created, whose text (`help.label`) is "Create an OpenRouter API key. Inference sends the text, files
+and artifacts you give it to OpenRouter." The label stays the name `/connect` shows, so a result's "Run /connect and
+choose OpenRouter key for Inference" still opens the card; `/connect`'s key prompt reads "OpenRouter API key (text,
+files and artifacts go to OpenRouter)". It is a separate key from OpenCode's own OpenRouter model provider and from the OpenRouter
 plugin's "OpenRouter tools" sign-in, and `/connect` shows the same name.
 
 The key is read for a call on an enabled route (`inference.extract` on `cloudflare/clairic`, `inference.decide` on

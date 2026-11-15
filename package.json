@@ -1,6 +1,6 @@
 {
   "name": "@joe-broadhead/opencode-inference",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "description": "Unofficial OpenCode plugin: typed extraction and bounded decisions with evidence, planned locally",
   "keywords": [
@@ -98,8 +98,9 @@
   },
   "jelly": {
     "title": "Inference",
-    "summary": "Typed extraction and bounded decisions over supplied content, planned locally.",
+    "summary": "Typed extraction and bounded decisions. The text, files and artifacts you give it go to OpenRouter.",
     "icon": "assets/icon.svg",
+    "cost": "Extract and decide calls are charged by OpenRouter to the key you add, per input token (output is free on both enabled routes), and each result reports its cost. No spend cap is set unless you set one.",
     "tools": [
       {
         "name": "inference.status",
@@ -146,7 +147,7 @@
         "required": false,
         "help": {
           "url": "https://openrouter.ai/settings/keys",
-          "label": "Create an OpenRouter API key"
+          "label": "Create an OpenRouter API key. Inference sends the text, files and artifacts you give it to OpenRouter."
         }
       }
     ],
