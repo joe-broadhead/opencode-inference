@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The icon is now OpenRouter's own mark, OpenRouter's Volt-on-Ink square glyph, the same file opencode-openrouter ships, in place of the family's neutral mark; `opencode.vendor.mark` is `true`, and the README says OpenRouter is a trademark of OpenRouter, Inc.
+
 ## [0.0.4] - 2026-11-15
 
 ### Changed
