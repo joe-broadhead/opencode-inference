@@ -134,6 +134,10 @@ transport boundary.
   runs the tests.
 - `TESTED_HOSTS` in `src/host/versions.ts` is the one list of tested releases. The host stage runs the suite on each
   release's `@opencode/sdk`; the pack stage loads each stock release. A release that does not run fails the run.
+- Host tests use the public `@opencode/sdk` with `OpenCode.create({ app: { version } })`. On 2.3.1 and later the harness
+  builds that host through `PromiseSdk.create`, which `OpenCode.create` calls, with the SDK's `overrides` so that its
+  Automation service also runs the scheduler, as `opencode serve` does: Code Mode with nobody present runs there as an
+  automation's code action (`unattended` in `test/host/harness.ts`).
 - Host and pack runs put HOME, XDG, `OPENCODE_TEST_HOME` and `TMPDIR` in a temp root under `/tmp`, never under the
   real home, and fail a host that tried to leave loopback.
 - No test calls OpenRouter or any other network service. No live canaries.

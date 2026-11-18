@@ -2,7 +2,7 @@
 
 ## Setup
 
-You need Node.js 24 or later, npm, and [Bun](https://bun.sh) 1.4.4 (the Bun inside stock OpenCode 2.2.3 to 2.2.7 and 2.3.0).
+You need Node.js 24 or later, npm, and [Bun](https://bun.sh) 1.4.4 (the Bun inside stock OpenCode 2.2.3 to 2.2.7 and 2.3.0 to 2.3.2).
 
 ```sh
 npm ci --ignore-scripts
@@ -165,7 +165,7 @@ Before the approval, the workflow:
 - **verifies** on a fresh runner: the commit's identity, one parent on `master`, `package.json` exactly the parent's
   without the lifecycle scripts, only regular files in the allowed paths, no `package.json` under `dist/`, and a second,
   independent build of the parent (its own job) equal to the committed `dist/` byte for byte;
-- **installs** the release commit with `plugin add` on each stock OpenCode host (2.2.3 to 2.2.7 and 2.3.0);
+- **installs** the release commit with `plugin add` on each stock OpenCode host (2.2.3 to 2.2.7 and 2.3.0 to 2.3.2);
 - **packs** the commit before installing anything, keeps that tarball and records its sha256, then runs the pack stage
   against a copy;
 - **runs the conformance kit** on the parent, for a plugin that declares sources (above), and uploads only its report;

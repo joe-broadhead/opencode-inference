@@ -61,7 +61,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      # Bun runs the tests: 1.4.4 is the Bun inside stock OpenCode 2.2.3 to 2.2.7 and 2.3.0. The host stage installs each other
+      # Bun runs the tests: 1.4.4 is the Bun inside stock OpenCode 2.2.3 to 2.2.7 and 2.3.0 to 2.3.2. The host stage installs each other
       # tested SDK, and the pack stage each stock release, from TESTED_HOSTS in src/host/versions.ts.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
