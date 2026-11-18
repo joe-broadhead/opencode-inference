@@ -11,7 +11,7 @@ import { WIRE_REVISION } from "../../src/providers/openrouter/decisions.js"
 import { createPlugin } from "../../src/host/plugin.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
-import { cleanup, HOST_VERSION, REPO, root, startHost, until, type Host } from "./harness.js"
+import { cleanup, HOST_VERSION, REPO, root, startHost, unattended, until, type Host } from "./harness.js"
 
 setDefaultTimeout(300_000)
 afterAll(cleanup)
@@ -94,16 +94,9 @@ describe(`inference_decide on OpenCode ${HOST_VERSION} (embedded SDK), against a
   test("Code Mode and the tools RPC return the same answers and acceptance; the key goes only to the fake, in its header", async () => {
     const input = { profile: "decide-text", source: { kind: "text", text: STATE }, questionSet: "document-kind-v1", acceptanceProfile: "document-kind-auto-v1" }
     const viaScript = (await host.client.rpc.call({ rpcID: TOOLS_RPC_ID, method: "decide", input: { sessionID, input } as never, location: host.location })).output as Record<string, any>
-    const message = await (host.client as any).experimental.schedule
-      .create({
-        sessionID,
-        location: host.location,
-        name: "decide-check",
-        when: { in: "6 hours" },
-        if: { code: `const result = await tools.inference.decide(${JSON.stringify(input)})\nthrow new Error("SEEN " + JSON.stringify(result))` },
-        prompt: "never wakes",
-      })
-      .then(() => "created", (error: Error) => error.message)
+    const code = `const result = await tools.inference.decide(${JSON.stringify(input)})\nthrow new Error("SEEN " + JSON.stringify(result))`
+    const outcome = await unattended(host, sessionID, code)
+    const message = outcome.ok ? "created" : outcome.error
     const viaModel = JSON.parse(/SEEN (\{.*\})/s.exec(message)?.[1] ?? "null") as Record<string, any>
     expect(viaModel).not.toBeNull()
     for (const result of [viaScript, viaModel]) {

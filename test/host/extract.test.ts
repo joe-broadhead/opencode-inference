@@ -11,7 +11,7 @@ import { WIRE_REVISION as EXTRACTIONS_REVISION } from "../../src/providers/openr
 import { createPlugin } from "../../src/host/plugin.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
-import { cleanup, HOST_VERSION, REPO, root, startHost, until, type Host } from "./harness.js"
+import { cleanup, HOST_VERSION, REPO, root, startHost, unattended, until, type Host } from "./harness.js"
 
 setDefaultTimeout(300_000)
 afterAll(cleanup)
@@ -65,16 +65,9 @@ describe(`inference_extract on OpenCode ${HOST_VERSION} (embedded SDK), against 
     const input = { profile: "extract-typed", source: { kind: "text", text: STATE }, fields: FIELDS }
     const script = await host.client.rpc.call({ rpcID: TOOLS_RPC_ID, method: "extract", input: { sessionID, input } as never, location: host.location })
     const viaScript = script.output as Record<string, any>
-    const message = await (host.client as any).experimental.schedule
-      .create({
-        sessionID,
-        location: host.location,
-        name: "extract-check",
-        when: { in: "6 hours" },
-        if: { code: `const result = await tools.inference.extract(${JSON.stringify(input)})\nthrow new Error("SEEN " + JSON.stringify(result))` },
-        prompt: "never wakes",
-      })
-      .then(() => "created", (error: Error) => error.message)
+    const code = `const result = await tools.inference.extract(${JSON.stringify(input)})\nthrow new Error("SEEN " + JSON.stringify(result))`
+    const outcome = await unattended(host, sessionID, code)
+    const message = outcome.ok ? "created" : outcome.error
     const viaModel = JSON.parse(/SEEN (\{.*\})/s.exec(message)?.[1] ?? "null") as Record<string, any>
     expect(viaModel).not.toBeNull()
     for (const result of [viaScript, viaModel]) {

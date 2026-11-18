@@ -8,7 +8,7 @@ import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { AGENT_FIX, Inference } from "../../src/rpc.js"
 import { createPlugin } from "../../src/host/plugin.js"
 import { OPENROUTER_CAPABILITIES, type CapabilityFixture } from "../../src/providers/openrouter/capabilities.js"
-import { cleanup, HOST_VERSION, REPO, startHost, until, type Host } from "./harness.js"
+import { cleanup, HOST_VERSION, REPO, startHost, unattended, until, type Host } from "./harness.js"
 
 // The host wiring, on the committed fixture with every route disabled and unpriced: what these tests check never depends
 // on which routes are on. The installed tarball, with the committed fixture as it is, is test/pack's.
@@ -37,9 +37,8 @@ const status = async (host: Host) => (await host.client.rpc(Inference).status({}
 /** Runs a Code Mode program through the host's own tool path, unattended, as a schedule condition does. */
 async function codemode(host: Host, sessionID: string, body: string) {
   const code = `const seen = {}\n${body}\nthrow new Error("SEEN " + JSON.stringify(seen))`
-  const message = await (host.client as any).experimental.schedule
-    .create({ sessionID, location: host.location, name: "inference-check", when: { in: "6 hours" }, if: { code }, prompt: "never wakes" })
-    .then(() => "created", (error: Error) => error.message)
+  const outcome = await unattended(host, sessionID, code)
+  const message = outcome.ok ? "created" : outcome.error
   const seen = /SEEN (\{.*\})/s.exec(message)
   if (!seen) throw new Error(`the program did not finish: ${message}`)
   return JSON.parse(seen[1]!) as Record<string, any>
