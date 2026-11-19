@@ -36,7 +36,7 @@ const RULES = [
   { pattern: /["']@opencode-ai\//, message: "V1 @opencode-ai packages" },
   { pattern: /["'`]@opencode\/ai(?:\/[^"'`]*)?["'`]/, message: "@opencode/ai changes incompatibly between patches; do not import it" },
   { pattern: /\bpackages\/(?:ai|client|core|opencode|plugin|protocol|schema|sdk|server|util)\/src\b/, message: "private host source import" },
-  { pattern: /\bhook\(\s*["']evaluate["']/, evaluate: true, message: "permission evaluate hook (only the tools RPC's own, in src/host/tools-rpc.ts)" },
+  { pattern: /\bhook\(\s*["']evaluate["']/, evaluate: true, message: "permission evaluate hook (only the one inlined from source-contract into dist/index.js)" },
   { pattern: /\bevent\.effect\s*=(?!=)/, message: "a hook that changes a permission effect" },
   { pattern: /\b(?:config|options)\.policy\b|(?:^|[\s{,])policy\s*\??\s*:/, scope: ["src/", "dist/"], message: "plugin permission policy option" },
   { pattern: /\bexperimental\s*\??\.\s*artifact\b|\bexperimental\s*\??\.?\[\s*["'`]artifact["'`]\s*\]|\{[^}]*\bartifact\b[^}]*\}\s*=\s*[\w$.?]*\bexperimental\b/, message: "ctx.experimental.artifact is experimental (new in 2.2.4); do not use it" },
@@ -45,11 +45,11 @@ const RULES = [
   // The domain and the runtime are pure: the filesystem is the host layer's business.
   { pattern: /(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["'](?:node:)?fs(?:\/promises)?["']/, scope: ["src/domain/", "src/runtime/"], message: "filesystem access in the domain or runtime; keep fs in src/host/" },
 ]
-// The one exception to the evaluate-hook rule: the tools RPC (src/host/tools-rpc.ts) turns an ask on its own script
-// calls in flight into a deny, because no one is there to answer a script's prompt. It only tightens, and matches only
-// its own live call ids. It is allowed exactly once, in that file and in that file's section of dist/index.js.
-const SCRIPT_HOOK = "src/host/tools-rpc.ts"
-const scriptHooks = new Map([[SCRIPT_HOOK, 0], ["dist/index.js", 0]])
+// The one evaluate hook lives in source-contract's transport, inlined into dist/index.js. It turns an ask on its own
+// script calls in flight into a deny, because no one is there to answer a script's prompt. It is allowed exactly once,
+// in that bundle, and nowhere in first-party source.
+const BUNDLED_HOOK = "dist/index.js"
+const scriptHooks = new Map([[BUNDLED_HOOK, 0]])
 const vendored = file => file.startsWith("dist/")
 for (const file of [...source, ...built]) {
   const content = readFileSync(join(root, file), "utf8")
@@ -57,12 +57,13 @@ for (const file of [...source, ...built]) {
   let firstParty = true, section = file
   content.split("\n").forEach((line, index) => {
     if (vendored(file) && /^\/\/ (?:src|node_modules)\//.test(line)) { firstParty = line.startsWith("// src/"); section = line.slice(3) }
+    if (file === BUNDLED_HOOK && /\bhook\(\s*["']evaluate["']/.test(line)) scriptHooks.set(file, scriptHooks.get(file) + 1)
     if (!firstParty) return
     for (const rule of RULES) {
       if (rule.scope && !rule.scope.some(prefix => file.startsWith(prefix))) continue
       if (rule.except && rule.except.test(file)) continue
       if (!rule.pattern.test(line)) continue
-      if (rule.evaluate && section === SCRIPT_HOOK && scriptHooks.has(file)) { scriptHooks.set(file, scriptHooks.get(file) + 1); continue }
+      if (rule.evaluate && file === BUNDLED_HOOK) continue
       report(file, index + 1, rule.message)
     }
   })
@@ -114,7 +115,7 @@ for (const file of [...tracked, ...dist]) {
 }
 
 // dist/ ships prebuilt JavaScript only, and inlines no host-provided or build-time package.
-const INLINED = new Set(["zod"])
+const INLINED = new Set(["zod", "@we-the-rebel-alliance/source-contract"])
 if (built.length === 0) report("dist", 0, "missing; run npm run build first")
 for (const file of dist) if (!file.endsWith(".js")) report(file, 0, "dist/ ships only .js; the licences of inlined packages are in the root NOTICE")
 // Every bundled section is either first-party source under src/ or an inlined package: a section from scripts/, test/,

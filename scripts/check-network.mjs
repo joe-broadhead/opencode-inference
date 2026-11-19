@@ -17,8 +17,7 @@
 // Refused outright:
 // - `eval` and `Function` (any reference, `new Function`, `Function("return this")`);
 // - `.constructor`, `.prototype` and `.__proto__`, and those names as strings; `Object.getOwnPropertyDescriptor(s)`,
-//   `defineProperty`/`defineProperties`, `setPrototypeOf` (the shared tools-RPC copy may use defineProperty); so no
-//   assignment to a built-in prototype either;
+//   `defineProperty`/`defineProperties`, `setPrototypeOf`; so no assignment to a built-in prototype either;
 // - `fetch`, `WebSocket`, `XMLHttpRequest`, `EventSource`, `Bun`, `Reflect` and `getBuiltinModule`, as any identifier,
 //   and the loader escapes `binding`, `_linkedBinding`, `dlopen` as members; their names as strings;
 // - `globalThis`, `window`, `self` and `global` other than as a plain, non-computed read of a name in GLOBAL_READS;
@@ -45,12 +44,10 @@ import { dirname, isAbsolute, join, posix } from "node:path"
 import ts from "typescript"
 
 export const TRANSPORT = /^src\/providers\/[^/]+\/http\.ts$/
-/** The family's shared tools-RPC module: its own checksum guards it; only Object.defineProperty is allowed there. */
-const SHARED_COPY = "src/host/tools-rpc.ts"
 /** The Node builtins src/ uses today, outside the transport boundary. */
 export const BUILTINS = new Set(["node:crypto", "node:fs", "node:fs/promises", "node:os", "node:path", "node:url"])
 /** The packages src/ imports: zod (bundled) and what the host provides. package.json has no `dependencies`. */
-export const PACKAGES = new Set(["zod", "@opencode/plugin", "@opencode/plugin/promise/tool", "@opencode/plugin/rpc", "@opencode/plugin/tui", "solid-js"])
+export const PACKAGES = new Set(["zod", "@opencode/plugin", "@opencode/plugin/promise/tool", "@opencode/plugin/rpc", "@opencode/plugin/tui", "solid-js", "@we-the-rebel-alliance/source-contract/tools-rpc"])
 const DENIED = new Set(["fetch", "WebSocket", "XMLHttpRequest", "EventSource", "Bun", "Reflect", "eval", "Function", "getBuiltinModule"])
 const ROOTS = new Set(["globalThis", "window", "self", "global"])
 /** What a global root may be read for, as `globalThis.<name>`. */
@@ -212,8 +209,7 @@ function problemsOf(file, source, checker) {
     if (name !== undefined && LOADERS.has(name)) report(node, `module loader access outside the transport boundary: ${name}`)
     if (name === "require") report(node, "a .require member (module.require, import.meta.require)")
     if (name !== undefined && PROTOTYPE.has(name)) report(node, `a .${name} access (the route to Function and to shared prototypes)`)
-    // The shared tools-RPC copy (checked byte for byte by check-copies.mjs) defines one non-enumerable schema field.
-    if (name !== undefined && DEFINERS.has(name) && file !== SHARED_COPY) report(node, `a property-definition escape: ${name}`)
+    if (name !== undefined && DEFINERS.has(name)) report(node, `a property-definition escape: ${name}`)
     if (ts.isElementAccessExpression(node) && !literalKey(node.argumentExpression) && !safeKey(checker, node.argumentExpression))
       report(node, "a computed key whose type is not a number or a known safe string literal")
     if (ts.isElementAccessExpression(node) && ts.isMetaProperty(node.expression)) report(node, "a computed access on import.meta")

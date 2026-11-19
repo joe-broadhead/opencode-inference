@@ -77,5 +77,5 @@ read it, and status shows only whether it is connected. A key lasts until you re
 Jelly's curated catalogue pins an exact version. Each release is published under a new version, so a review in Jelly can
 tell the two apart.
 
-The declaration test runs the shared kit, `test/support/jelly-kit.ts`. `scripts/check-copies.mjs` holds the kit, and the
-shared part of the tools RPC (`src/host/tools-rpc.ts`), equal to the copy every plugin carries.
+The declaration test runs the shared kit, `test/support/jelly-kit.ts`. `scripts/check-copies.mjs` holds the kit. The
+tools RPC's transport is source-contract's `tools-rpc` module, pinned in `package.json` and bundled into `dist/index.js`.

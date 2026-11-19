@@ -52,8 +52,8 @@ a callable stub, a method or a permission rule.
   availability on every call.
 - **Layers.** `src/domain` is zod contracts and pure logic, with no host import. `src/runtime` runs tools.
   `src/host` touches the host. `src/providers/<provider>` holds provider data and, later, adapters.
-- `src/host/tools-rpc.ts` is a copy of a module shared by several plugins: change only its block between the
-  `PLUGIN-SPECIFIC` markers here, and the rest in the shared copy first. `scripts/check-copies.mjs` checks it.
+- `src/host/tools-rpc.ts` is Inference's part of the tools RPC. The transport is source-contract's `tools-rpc` module,
+  pinned in `package.json` and bundled into `dist/index.js`. Change the transport in source-contract, never here.
 - **Permissions.** The default block goes in through `ctx.agent.transform`, directly after each agent's base
   `* * allow`: the namespace rule `inference_*` (allow at `access: "all"`, ask at `ask-changes`, deny at `read-only`),
   then each registered tool by its class (reads always allow). Leave agents with no base allow alone, never change a
@@ -106,8 +106,8 @@ a callable stub, a method or a permission rule.
 
 `npm run lint` (scripts/check-forbidden.mjs) enforces, in `src/`, `test/`, `scripts/` and `dist/`: one-argument
 `permission.assert`; no `ctx.experimental.artifact`; no `@opencode/ai`, `@opencode-ai/*` or host source imports; no
-permission `evaluate` hook except the tools RPC's own, once; `import * as z from "zod"` only; no install or pack scripts
-or peer/bundled dependencies; no absolute local paths; nothing bundled into `dist/` except zod; no network outside the
+permission `evaluate` hook except the one inlined from source-contract into `dist/index.js`, once; `import * as z from "zod"` only; no install or pack scripts
+or peer/bundled dependencies; no absolute local paths; nothing bundled into `dist/` except zod and source-contract; no network outside the
 transport boundary.
 
 ## Package

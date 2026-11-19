@@ -55,7 +55,7 @@ src/host/                        everything that touches the host
   plugin.ts                      setup, the cleanup stack, failure cleanup
   tools.ts                       the registry projected onto the model's tools
   scripting.ts                   the registry projected onto the tools RPC
-  tools-rpc.ts                   the family's shared tools RPC (checked copy; plugin-specific block only)
+  tools-rpc.ts                   Inference's part of the tools RPC; the transport is source-contract's tools-rpc module
   permissions.ts                 the default block, the exact-block matcher, the one-argument assert
   files.ts                       file metadata before approval, descriptor reads after it
   skills.ts                      the shipped skills, read from skills/ and registered per module
