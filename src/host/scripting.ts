@@ -1,6 +1,7 @@
+import { registerToolsRpc, type PluginMethod, type ToolsRpcContext } from "@we-the-rebel-alliance/source-contract/tools-rpc"
 import { actionOf, jsonSchemaOf, TOOLS, type ToolSpec } from "../domain/registry.js"
 import type { RunTool } from "../runtime/dispatch.js"
-import { registerToolsRpc, type PluginMethod, type ToolsRpcContext } from "./tools-rpc.js"
+import { PLUGIN } from "./tools-rpc.js"
 
 /**
  * The tools RPC `inference.core.tools`: every registered tool as a method of the same name, with the registry's class,
@@ -56,5 +57,5 @@ export async function registerScripting(
       },
     },
   } as unknown as ToolsRpcContext
-  await registerToolsRpc(tracked, { methods: scriptMethods(runTool, available, tools) })
+  await registerToolsRpc(tracked, { plugin: PLUGIN, methods: scriptMethods(runTool, available, tools) })
 }
