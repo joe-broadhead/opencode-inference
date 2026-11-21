@@ -61,9 +61,10 @@ anything. Enabling a route is a reviewed change, one route at a time (see [Refre
 - **What is kept locally:** the operation journal (a 0700 folder, a 0600 file) holds hashes, ids, the route, timing,
   amounts and error codes, never a key, source text, request or response body, or URL. Terminal records leave after 30
   days; unsettled ones stay.
-- **Permissions:** reading a file asks the host (`read`, and `external_directory` outside the project, by the real
-  folder) before any byte is read. A result never authorizes anything: a label or an accepted answer is not a
-  permission.
+- **Permissions:** every call asserts its tool's own action first (`inference_extract`, `inference_decide`), so
+  `access` holds for a text source too, then reading a file asks the host (`read`, and `external_directory` outside the
+  project, by the real folder) before any byte is read. A result never authorizes anything: a label or an accepted
+  answer is not a permission.
 
 ## Refreshing the fixture
 

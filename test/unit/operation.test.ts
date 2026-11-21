@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { createTransport, TransportError } from "../../src/providers/openrouter/http.js"
 import { InferenceError } from "../../src/domain/errors.js"
 import { spyNetwork } from "../support/network-spy.js"
-import { ACCOUNT, pathInput, probeAdapter, probeHarness, probeRoute, textInput } from "../support/operation-kit.js"
+import { ACCOUNT, pathInput, probeAdapter, probeHarness, probeRoute, PROBE, textInput } from "../support/operation-kit.js"
 import { tempRoot } from "../support/temp.js"
 
 let network: ReturnType<typeof spyNetwork>
@@ -56,27 +56,33 @@ describe("the happy path on both surfaces", () => {
     ])
     expect(records[0]!.sourceRefs).toEqual([{ sha256: sha("Invoice AB-72. Total EUR 120.00.") }])
     expect(records[0]!.attempts).toEqual([{ kind: "submit", at: expect.any(String), result: "completed" }])
-    // No file source: nothing to assert beyond the tool action, which the host owns.
-    expect(harness.fake.asserted).toEqual([])
+    // A text source has no file effect, but each call still asserts the tool's own action first.
+    expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([
+      ["inference_probe", ["*"]],
+      ["inference_probe", ["*"]],
+    ])
   })
 
-  test("a path inside the project: read is asserted on the host's own relative resource, then the bytes are snapshotted", async () => {
+  test("a path inside the project: the tool's own action, then read on the host's own relative resource, then the bytes are snapshotted", async () => {
     const harness = await probeHarness()
     writeFileSync(join(harness.project, "note.txt"), "Hello there")
     await harness.model(pathInput("note.txt"))
-    expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([["read", ["note.txt"]]])
+    expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([
+      ["inference_probe", ["*"]],
+      ["read", ["note.txt"]],
+    ])
     expect(harness.counts.read).toBe(1)
     const [record] = await harness.journal.list()
     expect(record!.sourceRefs).toEqual([{ sha256: sha("Hello there") }])
   })
 
-  test("a path outside the project also asserts external_directory, first", async () => {
+  test("a path outside the project also asserts external_directory, after the tool's own action", async () => {
     const harness = await probeHarness()
     mkdirSync(join(harness.root, "outside"))
     writeFileSync(join(harness.root, "outside", "a.txt"), "outside text")
     await harness.model(pathInput(join(harness.root, "outside", "a.txt")))
-    expect(harness.fake.asserted.map((item) => item.action)).toEqual(["external_directory", "read"])
-    expect(harness.fake.asserted[0]!.resources).toEqual([`${join(harness.root, "outside")}/*`])
+    expect(harness.fake.asserted.map((item) => item.action)).toEqual(["inference_probe", "external_directory", "read"])
+    expect(harness.fake.asserted[1]!.resources).toEqual([`${join(harness.root, "outside")}/*`])
   })
 
   test("outside the project, a linked folder is asked for, and read from, by its real path, never the link path", async () => {
@@ -87,6 +93,7 @@ describe("the happy path on both surfaces", () => {
     const harness = await probeHarness()
     await harness.model(pathInput(join(outside, "extdir", "secret.txt")))
     expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([
+      ["inference_probe", ["*"]],
       ["external_directory", [`${join(outside, "realdir")}/*`]],
       ["read", [join(outside, "realdir", "secret.txt")]],
     ])
@@ -196,6 +203,109 @@ describe("authorization", () => {
     const off = await probeHarness({ options: { modules: { extractions: false } } })
     expect((await failure(off.model(textInput()))).message).toMatch(/^MODULE_DISABLED:/)
     expect(off.sent).toEqual([])
+  })
+})
+
+/**
+ * The probe operation registered under a real tool's name. `actionOf` reads only the name, so this asserts exactly the
+ * action the registry's `inference_decide` and `inference_extract` get, on the same pipeline.
+ */
+const named = (name: string) => ({ ...PROBE, name })
+
+// The tool's own action. At `access: "ask-changes"` and `"read-only"` it is what holds for every source: a text source
+// has no file effect, so without this assert the default rule block never takes effect and the call would be sent.
+describe("the tool's own action", () => {
+  test("decide and extract on a text source assert it before the transport and before the journal or a reservation", async () => {
+    for (const name of ["decide", "extract"]) {
+      let atPrompt: { sent: number; records: number } | undefined
+      let harness!: Awaited<ReturnType<typeof probeHarness>>
+      harness = await probeHarness({
+        tool: named(name),
+        agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: `inference_${name}`, resource: "*", effect: "ask" }],
+        onAsk: async () => {
+          atPrompt = { sent: harness.sent.length, records: (await harness.journal.list()).length }
+          return "once"
+        },
+      })
+      await harness.model(textInput())
+      expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([[`inference_${name}`, ["*"]]])
+      expect(atPrompt).toEqual({ sent: 0, records: 0 })
+      expect(harness.sent).toHaveLength(1)
+      expect(await harness.journal.list()).toHaveLength(1)
+    }
+  })
+
+  test("a declined or unanswered ask for the tool's own action propagates unchanged: nothing read, reserved, journaled or sent", async () => {
+    for (const name of ["decide", "extract"]) {
+      // A deny.
+      const denied = await probeHarness({
+        tool: named(name),
+        agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: `inference_${name}`, resource: "*", effect: "deny" }],
+      })
+      const error = await failure(denied.model(textInput()))
+      expect(error._tag).toBe("Tool.Error")
+      expect(error.message).toBe(`Permission denied: inference_${name}`)
+      expect(denied.fake.asserted.map((item) => item.action)).toEqual([`inference_${name}`])
+      // An ask the person declines: the host's own error, unchanged.
+      const declined = await probeHarness({
+        tool: named(name),
+        agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: `inference_${name}`, resource: "*", effect: "ask" }],
+        onAsk: async () => "reject",
+      })
+      const refused = await failure(declined.model(textInput()))
+      expect(refused._tag).toBe("Tool.Error")
+      expect(refused.message).toBe(`The user rejected inference_${name}`)
+      for (const harness of [denied, declined]) {
+        expect(harness.counts.inspect + harness.counts.read).toBe(0)
+        expect(harness.sent).toEqual([])
+        expect(await harness.journal.list()).toEqual([])
+      }
+    }
+  })
+
+  test("no key connected, or one that needs sign-in: refused before the own action is asserted", async () => {
+    for (const [account, code] of [[undefined, "AUTH_REQUIRED"], ["needs_auth", "AUTH_REJECTED"]] as const) {
+      const harness = await probeHarness({ tool: named("decide"), account })
+      expect((await failure(harness.model(textInput()))).message).toMatch(new RegExp(`^${code}:`))
+      expect(harness.fake.asserted).toEqual([])
+      expect(harness.sent).toEqual([])
+      expect(await harness.journal.list()).toEqual([])
+    }
+  })
+
+  test("a path source still asserts its read after the tool's own action", async () => {
+    const harness = await probeHarness({ tool: named("decide") })
+    writeFileSync(join(harness.project, "note.txt"), "Hello there")
+    await harness.model(pathInput("note.txt"))
+    mkdirSync(join(harness.root, "outside"))
+    writeFileSync(join(harness.root, "outside", "a.txt"), "outside text")
+    await harness.model(pathInput(join(harness.root, "outside", "a.txt")))
+    expect(harness.fake.asserted.map((item) => item.action)).toEqual([
+      "inference_decide",
+      "read",
+      "inference_decide",
+      "external_directory",
+      "read",
+    ])
+  })
+
+  test("the tools RPC asserts it too, and refuses an ask rather than leaving it waiting", async () => {
+    const allowed = await probeHarness({ tool: named("decide") })
+    await allowed.rpc(textInput())
+    expect(allowed.fake.asserted.map((item) => [item.action, item.resources])).toEqual([["inference_decide", ["*"]]])
+    expect(allowed.sent).toHaveLength(1)
+    let prompted = 0
+    const asked = await probeHarness({
+      tool: named("decide"),
+      agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: "inference_decide", resource: "*", effect: "ask" }],
+      onAsk: async () => (prompted++, "once"),
+    })
+    const script = rpcError(await asked.rpc(textInput()))
+    expect(script.data.code).toBe("PERMISSION_DENIED")
+    expect(script.message).toMatch(/inference_decide would ask for this session's agent, and a script cannot answer/)
+    expect(prompted).toBe(0)
+    expect(asked.sent).toEqual([])
+    expect(await asked.journal.list()).toEqual([])
   })
 })
 

@@ -80,10 +80,11 @@ a callable stub, a method or a permission rule.
   Tests spy every network path (`test/support/network-spy.ts`) and assert zero calls from setup, status, capabilities,
   plan and every refused operation; transport tests use loopback servers only.
 - **Operations.** A non-read tool runs the ordered pipeline in `src/runtime/operation.ts` (handoff §7): trusted route,
-  metadata-only source identification, the host's file assertion, a descriptor read into an immutable snapshot,
-  re-validation, a reservation persisted with the `planned` record, `dispatching` persisted, transport, strict
-  validation, settlement. `src/domain` and `src/runtime` import no `fs`: file access is `src/host/files.ts` and
-  `src/host/journal-store.ts` behind the runtime's `FileAccess` and `JournalStore` interfaces.
+  metadata-only source identification, the host's assertion of the tool's own action and then the file effects, a
+  descriptor read into an immutable snapshot, re-validation, a reservation persisted with the `planned` record,
+  `dispatching` persisted, transport, strict validation, settlement. `src/domain` and `src/runtime` import no `fs`: file
+  access is `src/host/files.ts` and `src/host/journal-store.ts` behind the runtime's `FileAccess` and `JournalStore`
+  interfaces.
 - **The journal.** Private, one per OpenRouter connection on this machine. A process mutex and an exclusive lock file;
   a held lock is never taken over on a timer. `submission_unknown` keeps its reservation and is never resubmitted.
   Money is exact decimal (src/domain/money.ts), never a float; credits are never added to dollars. Every spend cap

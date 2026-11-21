@@ -149,8 +149,9 @@ own `permissions`, followed by your top-level `inference_*` rules.
 <!-- /generated:rules-read-only -->
 
 `inference_extract` and `inference_decide` get the send effect of `access`; the namespace rule covers the send tools a later release adds; the
-three local reads are always allowed. Reading a file for `inference_extract` also asks the host's own `read` (and
-`external_directory` outside the project).
+three local reads are always allowed. Each call asserts its tool's own action before anything is read or sent, so the
+effect holds for every source, a text source included. Reading a file for `inference_extract` also asks the host's own
+`read` (and `external_directory` outside the project).
 
 ## Errors
 

@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - The tools RPC transport is source-contract's `tools-rpc` module, pinned at `v0.3.0` and bundled into `dist/index.js`. `src/host/tools-rpc.ts` is Inference's part of it. The vendored copy and its `check-copies` pin are gone. Spend rules are unchanged.
 
+### Fixed
+
+- At `access: "ask-changes"` and `"read-only"`, `inference_decide` and `inference_extract` now ask or deny for every source, a text source included. Before this, a text source was sent to OpenRouter and could be charged with no ask: the pipeline asserted only the source's file effects, and a text source has none, so the default rule block never took effect. Every operation now asserts its tool's own action first, after the route and key checks and before anything is read, reserved, journaled or sent, then the file's `read` and `external_directory` as before. A denial propagates unchanged. A script's ask is still refused by the tools RPC rather than left waiting.
+
 ## [0.0.7] - 2026-11-18
 
 ### Changed

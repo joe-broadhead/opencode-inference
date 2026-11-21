@@ -122,8 +122,9 @@ rules for each `access` value, and the error codes.
 
 The plugin inserts a default block after each agent's base allow: the three local reads always run, and
 `inference_extract` and the `inference_*` pattern follow `access` (`all` allows them, `ask-changes` asks, `read-only`
-denies). Reading a file also asks the host's own `read` (and `external_directory` outside the project). Your own rules
-still win.
+denies). Every call asserts its tool's own action first, so that holds for a text source as much as for a file: a text
+source is never sent without the ask. Reading a file also asks the host's own `read` (and `external_directory` outside
+the project). Your own rules still win.
 
 ## Documentation
 

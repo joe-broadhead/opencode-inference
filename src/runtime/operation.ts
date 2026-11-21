@@ -3,6 +3,7 @@ import type * as z from "zod"
 import { profileModel, type Config } from "../domain/config.js"
 import { Usage, type Coverage, type Exclusion, type Operation, type Review, type SourceInput } from "../domain/contracts.js"
 import { fence, InferenceError } from "../domain/errors.js"
+import { actionOf } from "../domain/registry.js"
 import { canonical, exclusions, OPERATION_MODULE } from "../domain/routing.js"
 import type { CapabilityFixture, RouteCapability } from "../providers/openrouter/capabilities.js"
 import type { Account, Transport, TransportError, TransportResponse } from "../providers/openrouter/http.js"
@@ -18,8 +19,10 @@ import { locate, permissionRequests, snapshot, type FileAccess, type PermissionR
 //     (its presence only: the key itself is read at the transport boundary). Unsupported requests fail here, before
 //     any file is touched;
 //  2. the source is identified from its descriptor and file metadata only;
-//  4. the host asserts the file effects (read, external_directory) with the plain one-argument assert, raced against
-//     cancellation and fenced after it settles. A denial reads no byte and sends nothing;
+//  4. the host decides. The tool's own action (`inference_extract`, `inference_decide`) is asserted first, so
+//     `access` holds for every source, text included, before any byte is read or anything is sent; then the file
+//     effects (read, external_directory) with the plain one-argument assert, raced against cancellation and fenced
+//     after it settles. A denial reads no byte and sends nothing;
 //  5. the approved bytes are read through a descriptor and frozen as a private snapshot with its SHA-256;
 //  6. route, type and size limits are re-validated against the snapshot, and the exact request is built;
 //  7. the reservation is admitted and persisted with the `planned` record (budget.ts, journal.ts), then `dispatching`
@@ -254,8 +257,10 @@ export async function runOperation(tool: { readonly name: string }, adapter: Ada
   const located = await locate(input.source, runtime.project, runtime.files, now)
   fence(call.signal)
 
-  // 4. The host decides. A denial propagates unchanged, before any byte is read.
-  await runtime.authorize(permissionRequests(located), call)
+  // 4. The host decides. The tool's own action comes first, so `access: "ask-changes"` and `"read-only"` hold for
+  // every source, text included; then the source's file effects. A denial propagates unchanged, before any byte is
+  // read.
+  await runtime.authorize([{ action: actionOf(tool.name), resources: ["*"] }, ...permissionRequests(located)], call)
 
   // 5. Read and freeze the approved bytes.
   const source = await snapshot(located, runtime.files, route, call.signal)
