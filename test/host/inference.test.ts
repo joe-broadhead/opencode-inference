@@ -131,6 +131,36 @@ describe(`defaults on OpenCode ${HOST_VERSION} (embedded SDK)`, () => {
     expect(await script(host, "read", { sessionID: sessions.build, input: {} })).not.toMatchObject({ value: expect.anything() })
   })
 
+  test("Code Mode calls capabilities and gets the reviewed routes, operations and fixture for each operation", async () => {
+    const seen = await codemode(
+      host,
+      sessions.build!,
+      `const extract = await tools.inference.capabilities({ operation: "extract" })
+const decide = await tools.inference.capabilities({ operation: "decide" })
+seen.extract = { operations: extract.operations.map((item) => [item.name, item.tool, item.class, item.module, item.moduleEnabled, item.implemented]), fields: extract.operations[0].acceptedFieldTypes, routes: extract.routes.map((route) => [route.model, route.operation, route.available, route.reasons]), revision: extract.fixture.revision, routing: extract.routing }
+seen.decide = { operations: decide.operations.map((item) => [item.name, item.tool, item.class, item.module, item.moduleEnabled, item.implemented]), questions: decide.operations[0].acceptedQuestionTypes, routes: decide.routes.map((route) => [route.model, route.operation, route.available, route.reasons]) }`,
+    )
+    expect(seen).toEqual({
+      extract: {
+        operations: [["extract", "inference_extract", "send", "extractions", true, true]],
+        fields: ["text", "number", "date", "time", "datetime", "duration", "list"],
+        routes: [
+          ["cloudflare/clairic", "extract", false, ["ROUTE_DISABLED", "PRICE_UNKNOWN"]],
+          ["scaledown/extract", "extract", false, ["ROUTE_DISABLED", "PRICE_UNKNOWN"]],
+          ["inception/mercury-decide", "extract", false, ["ROUTE_DISABLED", "PRICE_UNKNOWN"]],
+          ["levanto/sage-2", "extract", false, ["ROUTE_UNCONFIRMED", "ROUTE_DISABLED", "PRICE_UNKNOWN"]],
+        ],
+        revision: "openrouter-2026-11-13.2",
+        routing: { mode: "explicit", fallbacks: [] },
+      },
+      decide: {
+        operations: [["decide", "inference_decide", "send", "decisions", true, true]],
+        questions: ["noul", "choice", "score", "box"],
+        routes: [["typesafe/jev-1.14", "decide", false, ["ROUTE_DISABLED", "PRICE_UNKNOWN"]]],
+      },
+    })
+  })
+
   test("Code Mode calls the tools and keeps the structured output, review and coverage included", async () => {
     const seen = await codemode(
       host,
@@ -146,6 +176,14 @@ seen.state = status.state`,
     expect(refused.error).toMatch(/CAPABILITY_UNSUPPORTED: cloudflare\/clairic is disabled in this version/)
     // A reserved operation is no Code Mode tool at all: the host refuses the program before it runs.
     await expect(codemode(host, sessions.build!, "seen.x = await tools.inference.read({})")).rejects.toThrow(/Unknown Code Mode tool: inference\.read/)
+  })
+
+  test("Code Mode refuses a denied local plan before the program runs: no prompt and no local work", async () => {
+    const pending = async () => (await host.client.permission.request.list({ location: host.location })).data
+    expect(await pending()).toEqual([])
+    const outcome = await unattended(host, sessions.locked!, `await tools.inference.plan(${JSON.stringify(planInput)})`)
+    expect(outcome).toEqual({ ok: false, error: "Permission denied: inference_plan" })
+    expect(await pending()).toEqual([])
   })
 
   test("/connect lists OpenRouter key for Inference; a connected key shows as connected and never appears anywhere", async () => {
