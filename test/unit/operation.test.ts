@@ -289,23 +289,44 @@ describe("the tool's own action", () => {
     ])
   })
 
-  test("the tools RPC asserts it too, and refuses an ask rather than leaving it waiting", async () => {
-    const allowed = await probeHarness({ tool: named("decide") })
-    await allowed.rpc(textInput())
-    expect(allowed.fake.asserted.map((item) => [item.action, item.resources])).toEqual([["inference_decide", ["*"]]])
-    expect(allowed.sent).toHaveLength(1)
-    let prompted = 0
-    const asked = await probeHarness({
-      tool: named("decide"),
-      agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: "inference_decide", resource: "*", effect: "ask" }],
-      onAsk: async () => (prompted++, "once"),
-    })
-    const script = rpcError(await asked.rpc(textInput()))
-    expect(script.data.code).toBe("PERMISSION_DENIED")
-    expect(script.message).toMatch(/inference_decide would ask for this session's agent, and a script cannot answer/)
-    expect(prompted).toBe(0)
-    expect(asked.sent).toEqual([])
-    expect(await asked.journal.list()).toEqual([])
+  test("the tools RPC asserts it too, and refuses an ask or a deny for extract and decide before dispatch", async () => {
+    const { profile: _profile, ...unprofiled } = textInput()
+    const unknownRoute = { ...unprofiled, model: "test/none" }
+    for (const name of ["extract", "decide"]) {
+      // The sentinels are live on an allowing session: the dispatcher runs, the route resolves, and one request is sent.
+      const allowed = await probeHarness({ tool: named(name) })
+      await allowed.rpc(textInput())
+      expect(allowed.fake.asserted.map((item) => [item.action, item.resources])).toEqual([[`inference_${name}`, ["*"]]])
+      expect(allowed.sent).toHaveLength(1)
+      expect(rpcError(await allowed.rpc({})).data.code).toBe("INPUT_INVALID")
+      expect(rpcError(await allowed.rpc(unknownRoute)).data.code).toBe("CAPABILITY_UNSUPPORTED")
+      for (const effect of ["ask", "deny"] as const) {
+        let prompted = 0
+        const harness = await probeHarness({
+          tool: named(name),
+          agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: `inference_${name}`, resource: "*", effect }],
+          onAsk: async () => (prompted++, "once"),
+        })
+        const refused = rpcError(await harness.rpc(textInput()))
+        expect(refused.data.code).toBe("PERMISSION_DENIED")
+        expect(refused.message).toMatch(
+          effect === "ask" ? new RegExp(`inference_${name} would ask for this session's agent, and a script cannot answer`) : new RegExp(`inference_${name} is hidden from this session's agent by a deny rule`),
+        )
+        // No prompt, no dispatcher assert, no file read, no reservation or journal record and nothing sent.
+        expect(prompted).toBe(0)
+        expect(harness.fake.asserted).toEqual([])
+        expect(harness.counts.inspect + harness.counts.read).toBe(0)
+        expect(harness.sent).toEqual([])
+        expect(await harness.journal.list()).toEqual([])
+        // The dispatcher's parse and the route resolution would each answer with their own code on an allowing
+        // session, so the own-action refusal on the same inputs proves neither ran.
+        expect(rpcError(await harness.rpc({})).data.code).toBe("PERMISSION_DENIED")
+        expect(rpcError(await harness.rpc(unknownRoute)).data.code).toBe("PERMISSION_DENIED")
+        expect(harness.fake.asserted).toEqual([])
+        expect(harness.sent).toEqual([])
+        expect(await harness.journal.list()).toEqual([])
+      }
+    }
   })
 })
 
