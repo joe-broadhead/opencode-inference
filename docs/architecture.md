@@ -77,7 +77,7 @@ src/tui.tsx                      the status dialog
 - the model tools (`src/host/tools.ts`): host tool `inference_<name>`, permission `inference_<name>`, namespace `inference`;
 - the tools RPC methods (`src/host/scripting.ts`): method `<name>`, the same class and action, JSON Schema from the same zod;
 - the default permission block (`src/host/permissions.ts`): the namespace rule, then each tool by its class;
-- the Jelly declaration in `package.json` and the tables in these docs, checked by `test/unit/registry.test.ts`.
+- the package declaration in `package.json` and the tables in these docs, checked by `test/unit/registry.test.ts`.
 
 Both host surfaces call `runTool` from `src/runtime/dispatch.ts`. It checks that the plugin is open and the tool and
 its module are available at the moment of the call (the tools RPC's `available()` is for `describe` only), parses the

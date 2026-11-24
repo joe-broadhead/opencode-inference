@@ -63,32 +63,36 @@ OpenCode `>=2.4.1 <2.5.0`, tested on 2.4.1.
 
 <!-- /generated:hosts -->
 
-Another OpenCode refuses to start the plugin with `HOST_UNTESTED`, unless the option `allowUntestedHost` is set.
+An OpenCode outside `>=2.4.1 <2.5.0` refuses to start the plugin with `HOST_UNTESTED`, unless the option `allowUntestedHost` is set; an in-range release that is not tested starts and is reported as untested.
 
 ## Install
 
+Install from a release:
+
 ```sh
-opencode plugin add github:we-the-rebel-alliance/inference-plugin
+opencode plugin add github:we-the-rebel-alliance/inference-plugin#v<version>
 opencode reload
 ```
+
+The first release on plugin-contract is v0.0.0 (phase 4b).
 
 Or add it to `opencode.json`:
 
 ```json
 {
-  "plugins": [{ "package": "github:we-the-rebel-alliance/inference-plugin" }]
+  "plugins": [{ "package": "github:we-the-rebel-alliance/inference-plugin#v<version>" }]
 }
 ```
 
-The install tracks `master` until the first release. A Git install does not update by itself: remove the entry with
-`opencode plugin remove github:we-the-rebel-alliance/inference-plugin`, then add it again.
+A release install does not update by itself: remove the entry with
+`opencode plugin remove github:we-the-rebel-alliance/inference-plugin#v<version>`, then add the new release's tag.
 
 ## Connect OpenRouter
 
 Run `/connect` and choose **OpenRouter key for Inference**, then enter an OpenRouter API key, or run
 `opencode auth login inference-openrouter`. This is the plugin's own key, separate from OpenCode's OpenRouter model
 provider. The plugin stores no key itself: the transport reads it at dispatch, only for an enabled route, and sends it
-only to OpenRouter in the `Authorization` header. Status shows only connected or not connected. The key is needed only
+only to OpenRouter in the `Authorization` header. Status shows whether the key is connected, not connected, needs sign-in, or is unknown. The key is needed only
 for an enabled route; the three local tools never need it. Several named accounts arrive with the plugin contract in a
 later release; this version has the one key.
 
@@ -102,7 +106,7 @@ rules for each `access` value, and the error codes.
 {
   "plugins": [
     {
-      "package": "github:we-the-rebel-alliance/inference-plugin",
+      "package": "github:we-the-rebel-alliance/inference-plugin#v<version>",
       "options": { "access": "ask-changes", "limits": { "maxFields": 16 } }
     }
   ]

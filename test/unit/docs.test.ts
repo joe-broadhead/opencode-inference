@@ -123,16 +123,19 @@ const compare = (left: string, right: string) => {
 }
 
 describe("the release", () => {
-  test("installs from the repository's master branch, claims no tag that does not exist, and states its known limits", () => {
+  test("installs from a release tag, states the first release is 4b, and states its known limits", () => {
     const { version } = JSON.parse(text("package.json")) as { version: string }
     expect(version).toBe("0.0.0")
     for (const file of [...FILES, "AGENTS.md"]) {
       expect({ file, old: /joe-broadhead/.test(text(file)) }).toEqual({ file, old: false })
     }
     const readme = text("README.md")
-    expect(readme.match(/github:we-the-rebel-alliance\/inference-plugin/g)?.length).toBeGreaterThanOrEqual(3)
-    // The first release is cut in the next phase: no install line names a tag that does not exist yet.
-    expect(readme).not.toMatch(/inference-plugin#v\d/)
+    expect(readme).toContain("opencode plugin add github:we-the-rebel-alliance/inference-plugin#v<version>")
+    expect((readme.match(/inference-plugin#v<version>/g) ?? []).length).toBeGreaterThanOrEqual(3)
+    expect(readme).toContain("The first release on plugin-contract is v0.0.0 (phase 4b).")
+    // No install line names the default branch or an untagged repository.
+    expect(readme).not.toMatch(/opencode plugin add github:we-the-rebel-alliance\/inference-plugin\s*$/m)
+    expect(readme).not.toMatch(/"github:we-the-rebel-alliance\/inference-plugin"/)
     expect(readme).toContain("## Install\n")
     // The known limits name both enabled routes and what each covers, and the spend defaults the options actually have.
     const limits = readme.slice(readme.indexOf("## Known limits"), readme.indexOf("## License"))

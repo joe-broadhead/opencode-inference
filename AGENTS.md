@@ -46,7 +46,7 @@ catalog drift is only reported. Do not register `read` until it works: a reserve
   tools RPC `inference.core.tools`, permission prefix `inference_`, command `/inference-status`, key integration
   `inference-openrouter`.
 - **One registry.** `src/domain/registry.ts` drives the model tools, the tools RPC methods and classes, the default
-  permission block, the Jelly declaration in `package.json` and the generated docs tables. `test/unit/registry.test.ts`
+  permission block, the package declaration in `package.json` and the generated docs tables. `test/unit/registry.test.ts`
   checks every projection; `UPDATE_GENERATED=1 bun test test/unit/registry.test.ts` rewrites the generated parts.
 - **One dispatcher.** The model's tools and the tools RPC both call `runTool` (src/runtime/dispatch.ts). Every control
   goes there, so it holds on both paths. The tools RPC's `available()` is for describe only; the dispatcher re-checks

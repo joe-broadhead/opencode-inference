@@ -24,7 +24,7 @@ To try a checkout in OpenCode, build it and point a `plugins` entry at the repos
    access matrix, the dispatcher, the operation pipeline on both host surfaces with a test-only operation (permission
    races, source integrity, budgets, ambiguous dispatch, secrets), the transport against loopback servers, the journal
    and its lock across real child processes, status, setup and failure cleanup, reload, the zero-network gate, the lint
-   rules, and registry parity with the generated Jelly declaration and docs.
+   rules, and registry parity with the generated package declaration and docs.
 3. `test:kit`: the release kit's own tests (`node --test scripts/release-kit.test.mjs`).
 4. `build`.
 5. `test:tui`: the built `dist/tui.js` with OpenTUI's test renderer.
@@ -102,9 +102,8 @@ a `## [x.y.z] - YYYY-MM-DD` heading below it, newest first, and the npm history 
    `CONTRIBUTING.md` and `docs/` to `#v<version>` (`test/unit/docs.test.ts` fails until they match). Then run
    `node scripts/changelog.mjs release`: it turns `## [Unreleased]` into `## [<version>] - <today>`, above the earlier
    releases, and refuses a CHANGELOG it cannot shape. Run `npm run check`.
-2. Push that commit to `master`, and wait for CI to pass on it. A pull request's CI runs the Linux runners only; the
-   push to `master` runs every runner, Apple-silicon macOS (`macos-26`) too, and the release stands on that run. An
-   Intel Mac (`macos-26-intel`) is not required.
+2. Push that commit to `master`, and wait for the one `ci` job (Ubuntu 24.04, Node 24) to pass on it. CI runs the same
+   full check on every pull request and every push to `master`.
 3. Start the release with that commit's full sha:
    `gh workflow run release.yml --ref master -f sha=<full sha>`, or from Actions → release →
    Run workflow, on `master`.
@@ -199,7 +198,7 @@ tag, and restores the ruleset exactly as it was.
 
 **Known limit: a `v*` tag pushed by hand.** No ruleset limits who creates a `v*` tag, so anyone with write access can
 push one by hand, pointing at any commit. Such a tag has no published Release, the forward-only check ignores it, and
-Jelly installs only a published Release whose `SHA256SUMS` it verifies. But a user who installs
+The release installer installs only a published Release whose `SHA256SUMS` it verifies. But a user who installs
 `github:we-the-rebel-alliance/inference-plugin#v<x>` directly gets whatever that tag points at. Only the release workflow makes
 release tags; never push one by hand.
 
