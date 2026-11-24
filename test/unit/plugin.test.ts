@@ -96,8 +96,8 @@ describe("setup", () => {
   })
 
   test("a host outside the range refuses, unless allowUntestedHost is set", async () => {
-    await expect(plugin().setup(fakeContext({ version: "2.4.0" }).context)).rejects.toThrow(/^HOST_UNTESTED:/)
-    const fake = fakeContext({ version: "2.4.0", options: { allowUntestedHost: true } })
+    await expect(plugin().setup(fakeContext({ version: "2.5.0" }).context)).rejects.toThrow(/^HOST_UNTESTED:/)
+    const fake = fakeContext({ version: "2.5.0", options: { allowUntestedHost: true } })
     const warn = console.warn
     console.warn = () => undefined
     try {

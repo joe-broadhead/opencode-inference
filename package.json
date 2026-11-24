@@ -1,6 +1,6 @@
 {
-  "name": "@joe-broadhead/opencode-inference",
-  "version": "0.0.7",
+  "name": "@we-the-rebel-alliance/inference-plugin",
+  "version": "0.0.0",
   "private": true,
   "description": "Unofficial OpenCode plugin: typed extraction and bounded decisions with evidence, planned locally",
   "keywords": [
@@ -9,13 +9,13 @@
     "inference",
     "extraction"
   ],
-  "homepage": "https://github.com/joe-broadhead/opencode-inference#readme",
+  "homepage": "https://github.com/we-the-rebel-alliance/inference-plugin#readme",
   "bugs": {
-    "url": "https://github.com/joe-broadhead/opencode-inference/issues"
+    "url": "https://github.com/we-the-rebel-alliance/inference-plugin/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/joe-broadhead/opencode-inference.git"
+    "url": "git+https://github.com/we-the-rebel-alliance/inference-plugin.git"
   },
   "license": "MIT",
   "type": "module",
@@ -38,7 +38,7 @@
     "CHANGELOG.md"
   ],
   "opencode": {
-    "host": ">=2.2.3 <2.4.0",
+    "host": ">=2.4.1 <2.5.0",
     "icons": [
       {
         "src": "assets/icon.svg",
@@ -84,14 +84,15 @@
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/preset-typescript": "7.27.1",
-    "@opencode/client": "2.2.3",
-    "@opencode/plugin": "2.2.3",
-    "@opencode/sdk": "2.2.3",
+    "@opencode/client": "2.4.1",
+    "@opencode/plugin": "2.4.1",
+    "@opencode/sdk": "2.4.1",
     "@opentui/core": "0.8.0",
     "@opentui/solid": "0.8.0",
-    "@we-the-rebel-alliance/source-contract": "github:we-the-rebel-alliance/source-contract#v0.3.0",
     "@types/bun": "1.4.4",
+    "@we-the-rebel-alliance/source-contract": "github:we-the-rebel-alliance/source-contract#v0.3.0",
     "babel-preset-solid": "1.9.16",
+    "effect": "4.1.0",
     "esbuild": "0.28.2",
     "solid-js": "1.9.16",
     "typescript": "5.9.3",

@@ -3,7 +3,7 @@
 import { CONTRACTS } from "../../src/domain/contracts.js"
 import { DEFAULT_PROFILES, DEFAULTS, OPTIONS_JSON_SCHEMA } from "../../src/domain/config.js"
 import { FAILURES } from "../../src/domain/errors.js"
-import { ACCESS_VALUES, INTEGRATION_ID, INTEGRATION_NAME, NAMESPACE, PLUGIN_ID, type Access } from "../../src/domain/ids.js"
+import { ACCESS_VALUES, INTEGRATION_ID, INTEGRATION_NAME, NAMESPACE, type Access } from "../../src/domain/ids.js"
 import { actionOf, PLANNED, TOOLS } from "../../src/domain/registry.js"
 import { defaultRules, effectOf } from "../../src/host/permissions.js"
 import { SKILL_IDS } from "../../src/host/skills.js"
@@ -68,15 +68,14 @@ const yes = (value: boolean) => (value ? "yes" : "no")
 /** docs/architecture.md: the registered tools on every surface. */
 export const toolsBlock = () =>
   [
-    "| Tool | Host tool and permission | Code Mode | Tools RPC method | Jobs manifest | Class | Network | Uploads source | Billable |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Tool | Host tool and permission | Code Mode | Tools RPC method | Class | Network | Uploads source | Billable |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ...TOOLS.map((tool) =>
       [
         `\`${NAMESPACE}.${tool.name}\``,
         `\`${actionOf(tool.name)}\``,
         `\`tools.${NAMESPACE}.${tool.name}(input)\``,
         `\`${TOOLS_RPC_ID}/${tool.name}\``,
-        `\`${PLUGIN_ID}.${tool.name}\``,
         tool.class,
         yes(tool.effects.network),
         yes(tool.effects.uploadsSource),

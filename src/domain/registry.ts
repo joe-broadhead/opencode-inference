@@ -5,7 +5,7 @@ import { NAMESPACE, PERMISSION_PREFIX, type MethodClass, type Module } from "./i
 import { StatusSummarySchema } from "./status-schema.js"
 
 // The single registry. Everything public is projected from it: the model tools (src/host/tools.ts), the tools RPC
-// methods and their classes (src/host/scripting.ts), the default permission block (src/host/permissions.ts), the Jelly
+// methods and their classes (src/host/scripting.ts), the default permission block (src/host/permissions.ts), the package
 // declaration in package.json and the generated tables in the docs (both checked by test/unit/registry.test.ts).
 //
 // Only tools that work are registered. `PLANNED` names the operations a later release adds, for capabilities, plan and

@@ -1,6 +1,6 @@
 ---
 name: inference-extract
-description: Extract named typed fields (invoice number, total, dates) with inference_extract, sending the source to OpenRouter, when the user asks for Inference or OpenRouter by name, or needs evidence-tracked, reviewable fields from a document too long or numerous to read reliably. Use for "extract these fields with Inference", "build a reviewable record with evidence from these invoices". Not for text already in the conversation or a small file you can read yourself: read it and answer directly, free and without uploading it. Not for summaries, classifying (use inference-decide), or known JSON or CSV.
+description: Typed, evidence-tracked fields with inference_extract (invoice number, total, dates) sent to OpenRouter, when the user names Inference or the documents are too long or many to read. Not for text you can read yourself, summaries, or classifying (inference-decide).
 ---
 
 # Extracting typed fields

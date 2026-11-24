@@ -41,11 +41,13 @@ describe("the shipped skills", () => {
     const { skills } = await loadSkills(ROOT)
     for (const skill of skills) {
       const description = skill.info.description!
-      // Trigger: the user names Inference or OpenRouter, or needs evidence-tracked, reviewable output.
-      expect(description).toMatch(/when the user asks for Inference or OpenRouter by name, or needs/)
-      expect(description).toContain("sending")
-      // Negative: text already in the conversation or a small readable file.
-      expect(description).toMatch(/Not for (?:text already in the conversation|a question about text in the conversation) or a small file you can/)
+      // Trigger: the user names Inference, or needs calibrated answers or evidence-tracked fields at scale.
+      expect(description).toMatch(/when the user names Inference or (needs calibrated|the documents are too long)/)
+      // The source goes to OpenRouter; no app is named as the trigger (openrouter owns OpenRouter requests).
+      expect(description).toContain("sent to OpenRouter")
+      expect(description).not.toContain("OpenRouter by name")
+      // Negative: text the agent can judge or read itself.
+      expect(description).toMatch(/Not for text you can (?:judge by reading it|read yourself)/)
       // The old, too-broad trigger is gone.
       expect(description).not.toContain("pull the invoice number and total from this")
       expect(description).not.toContain("is this an invoice or a receipt")
@@ -54,16 +56,15 @@ describe("the shipped skills", () => {
     expect(read("inference-decide")).toContain("Never upload content just to decide what you can read")
   })
 
-  test("their descriptions say when to use them and when not (trigger and negative cases)", async () => {
+  test("their descriptions say when to use them and when not, and stay within the 300-character budget", async () => {
     const { skills } = await loadSkills(ROOT)
     for (const skill of skills) {
-      expect(skill.info.description).toMatch(/\bUse (?:for|it for)\b/)
       expect(skill.info.description).toMatch(/\bNot for\b/)
-      expect(skill.info.description!.length).toBeLessThan(700)
+      expect(skill.info.description!.length).toBeLessThanOrEqual(300)
     }
     // Each points the other way for the other's task.
-    expect(skills.find((skill) => skill.id === "inference-extract")!.info.description).toContain("use inference-decide")
-    expect(skills.find((skill) => skill.id === "inference-decide")!.info.description).toContain("use inference-extract")
+    expect(skills.find((skill) => skill.id === "inference-extract")!.info.description).toContain("(inference-decide)")
+    expect(skills.find((skill) => skill.id === "inference-decide")!.info.description).toContain("(inference-extract)")
   })
 
   test("every example is valid input for the tool it names, by the registry's own schema", () => {

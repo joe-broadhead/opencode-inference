@@ -1,14 +1,14 @@
 // Hosts the plugin on OpenCode through public packages only, in two ways:
-// - startHost: the embedded host of @opencode/sdk (the dev pin, or the release in HOST_SDK_DIR) in this process, with
-//   the plugin from src and an observer plugin that keeps each location's context, so a test can list the tools.
-// - startStock: `opencode serve` of a stock release on a free loopback port with a password, loading an installed
+// - startHost: the embedded host of the pinned @opencode/sdk 2.4.1 in this process, with the plugin from src and an
+//   observer plugin that keeps each location's context, so a test can list the tools.
+// - startStock: `opencode serve` of a stock 2.4.1 on a free loopback port with a password, loading an installed
 //   package. Its HTTP(S) proxy refuses every request, and the models fetch, the update check and free models are off.
 // Each host gets its own folder in one temp root under /tmp (never under the user's home: OpenCode searches upward for
 // `.opencode/`), holding HOME, XDG_*, OPENCODE_TEST_HOME, TMPDIR, the config, the database and the project. Any fetch
 // off loopback from this process fails the host's close.
 import { spawn, spawnSync } from "node:child_process"
 import { randomBytes } from "node:crypto"
-import { cpSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { createServer, type AddressInfo, type Server, type Socket } from "node:net"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -16,8 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { OpenCode as Client, type OpenCodeClient } from "@opencode/client"
 import { Plugin, type PluginOptions } from "@opencode/plugin"
 import plugin from "../../src/index.js"
-import { familyProblems } from "../support/family.js"
-import { inRange, TESTED_HOSTS } from "../../src/host/versions.js"
+import { TESTED_HOSTS, tested } from "../../src/host/versions.js"
 
 export const REPO = fileURLToPath(new URL("../../", import.meta.url))
 export const root = realpathSync(mkdtempSync(join(existsSync("/private/tmp") ? "/private/tmp" : "/tmp", "inference-host-")))
@@ -52,28 +51,20 @@ for (const key of Object.keys(process.env)) if (key.startsWith("OPENCODE") || ke
 Object.assign(process.env, isolatedEnv(join(root, "home")))
 process.chdir(join(root, "home"))
 
-const SDK = process.env.HOST_SDK_DIR ? join(realpathSync(process.env.HOST_SDK_DIR), "node_modules", "@opencode", "sdk") : fileURLToPath(new URL("../../node_modules/@opencode/sdk", import.meta.url))
+const SDK = fileURLToPath(new URL("../../node_modules/@opencode/sdk", import.meta.url))
 export const HOST_VERSION = (JSON.parse(readFileSync(join(SDK, "package.json"), "utf8")) as { version: string }).version
-
-/**
- * From OpenCode 2.3.1, `experimental.automation` replaces `experimental.schedule`, and a code action no longer runs when
- * it is created: it runs when the scheduler finds it due.
- */
-export const AUTOMATIONS = ((major, minor, patch) => major > 2 || (major === 2 && (minor > 3 || (minor === 3 && patch >= 1))))(
-  ...(HOST_VERSION.split(".").map(Number) as [number, number, number]),
-)
+if (!tested(HOST_VERSION)) throw new Error(`The host suite runs on the @opencode/sdk dev pin, which is ${HOST_VERSION}; the tested releases are ${TESTED_HOSTS.join(", ")}.`)
 
 /** The embedded SDK's interface, which carries `close` (the `OpenCodeClient` type does not). */
 type SdkClient = Awaited<ReturnType<(typeof import("@opencode/sdk"))["OpenCode"]["create"]>>
 
 /**
- * The SDK's host. From 2.3.1 it is the same embedded host, with its own Automation service also running the scheduler,
- * as `opencode serve` does (only a server process starts it): `PromiseSdk.create` is what `OpenCode.create` calls, here
- * with the SDK's `overrides`. The modules sit next to the SDK, so they are the instances its bundle imports.
+ * The SDK's host with its own Automation service also running the scheduler, as `opencode serve` does (only a server
+ * process starts it): `PromiseSdk.create` is what `OpenCode.create` calls, here with the SDK's `overrides`. The modules
+ * sit next to the SDK, so they are the instances its bundle imports. Without the override a code action never runs.
  */
 async function createSdk(options: Parameters<(typeof import("@opencode/sdk"))["OpenCode"]["create"]>[0]): Promise<SdkClient> {
   const load = (...path: string[]) => import(pathToFileURL(join(...path)).href)
-  if (!AUTOMATIONS) return ((await load(SDK, "dist", "index.js")) as typeof import("@opencode/sdk")).OpenCode.create(options) as Promise<SdkClient>
   const modules = join(SDK, "..", "..")
   const { PromiseSdk } = await load(SDK, "dist", "promise.js")
   const { Automation } = await load(modules, "@opencode", "core", "dist", "automation.js")
@@ -121,8 +112,6 @@ export interface HostInput {
   readonly options?: PluginOptions
   /** The plugin to host instead of src/index.ts's, such as one built with test sources (a fixture, a loopback origin). */
   readonly plugin?: Plugin.Plugin
-  /** Other plugins to host alongside it, such as the family's Jobs and Utilities (familyPlugin). */
-  readonly plugins?: readonly Plugin.Plugin[]
   readonly config?: Record<string, unknown>
 }
 
@@ -138,11 +127,10 @@ export interface Host {
 }
 
 const READY_MS = 180_000
-/** Keeps the built-in local providers from probing ports, and turns on schedules, which run Code Mode unattended. */
+/** Keeps the built-in local providers from probing ports, and turns on automations, which run Code Mode unattended. */
 const QUIET = {
-  // A schedule's check program, or on 2.3.1 and later an automation's code action, is how a host test runs Code Mode
-  // with nobody present to answer a prompt.
-  experimental: AUTOMATIONS ? { automations: true } : { schedules: true },
+  // An automation's code action is how a host test runs Code Mode with nobody present to answer a prompt.
+  experimental: { automations: true },
   providers: { lmstudio: { settings: { baseURL: "" } }, ollama: { settings: { baseURL: "" } }, vllm: { settings: { baseURL: "" } } },
 }
 
@@ -178,7 +166,7 @@ export async function startHost(input: HostInput = {}): Promise<Host> {
   })
   const observer = Plugin.define({ id: "test.observer", setup: (ctx) => void contexts.set(realpathSync(ctx.location.directory), ctx) })
   const client = await createSdk({
-    plugins: [counted, observer, ...(input.plugins ?? [])],
+    plugins: [counted, observer],
     app: { version: HOST_VERSION },
     config: { content: JSON.stringify({ ...QUIET, ...input.config }), directory: join(base, "config"), project: false, claude: false },
     database: { path: join(base, "opencode.db") },
@@ -321,37 +309,26 @@ export async function until<T>(what: string, check: () => Promise<T | false | un
 /** How OpenCode answered a program run with nobody present: it ran and returned, or its message. */
 export type Unattended = { readonly ok: true } | { readonly ok: false; readonly error: string }
 
-/** The part of the `experimental.automation` client of 2.3.1 and later used here; the checks compile against 2.2.3. */
+/** The part of the 2.4.1 `experimental.automation` client used here. */
 interface Automations {
   create(input: { sessionID: string; name: string; trigger: { type: "at"; at: string }; action: { type: "code"; code: string } }): Promise<{ id: string }>
   get(input: { automationID: string }): Promise<{ lastOutcome?: string; lastOutput?: string }>
   delete(input: { automationID: string }): Promise<unknown>
 }
 
-/** A schedule check returned a boolean or `{ wake }`; an automation returns nothing, so the program is wrapped. */
+/** An automation returns nothing, so the program is wrapped to return a boolean or `{ wake }`. */
 const asCheck = (code: string) =>
   `const checked = await (async () => {\n${code}\n})()\nif (typeof checked !== "boolean" && !(typeof checked === "object" && checked !== null && typeof checked.wake === "boolean")) throw new Error("A code check must return a boolean or { wake, state?, message? }")`
 
 /**
  * Runs a Code Mode program once with nobody present to answer a prompt, as the session's agent and under its rules,
- * with no model, and answers as a schedule's `if: { code }` check did at creation up to 2.3.0: `ok` when the program
- * returned a boolean or `{ wake }`, else OpenCode's message (a refusal, or what the program threw). Up to 2.3.0 it is
- * that check, and the schedule is deleted at once. From 2.3.1 it is an automation's code action, due at once:
- * creation refuses what the rules do not allow, as the check did, and the run's outcome is read back before the
- * automation is deleted. A run that never comes throws, so it is never read as a refusal.
+ * with no model: it is an automation's code action, due at once. Creation refuses what the rules do not allow, and the
+ * run's outcome is read back before the automation is deleted. A run that never comes throws, so it is never read as a
+ * refusal.
  */
 export async function unattended(host: Host, sessionID: string, code: string): Promise<Unattended> {
   const name = "inference-host-test"
   const refused = (error: unknown): Unattended => ({ ok: false, error: error instanceof Error ? error.message : String(error) })
-  if (!AUTOMATIONS) {
-    try {
-      const schedule = await host.client.experimental.schedule.create({ sessionID, location: host.location, name, when: { in: "6 hours" }, prompt: "never wakes", if: { code } } as never)
-      await host.client.experimental.schedule.delete({ scheduleID: schedule.id })
-      return { ok: true }
-    } catch (error) {
-      return refused(error)
-    }
-  }
   const automations = (host.client.experimental as unknown as { automation: Automations }).automation
   let automationID: string
   try {
@@ -375,32 +352,4 @@ export async function unattended(host: Host, sessionID: string, code: string): P
 
 export function cleanup() {
   rmSync(root, { recursive: true, force: true })
-}
-
-/** The vendored family plugins (test/fixtures/family/README.md): the released version of each. */
-export const FAMILY_VERSIONS = { jobs: "0.0.0", utilities: "0.0.0" } as const
-
-/**
- * A released family plugin, Jobs or Utilities, loaded from its vendored, digest-checked copy in
- * test/fixtures/family/<name>@<version>/. Never the network, never the user's home. Its dist/ imports only the
- * host-provided @opencode/plugin, so a copy is staged in the temp root where that resolves to this repository's.
- */
-export async function familyPlugin(name: "jobs" | "utilities"): Promise<Plugin.Plugin> {
-  const dir = join(REPO, "test", "fixtures", "family", `${name}@${FAMILY_VERSIONS[name]}`)
-  const problems = familyProblems(dir)
-  if (problems.length) throw new Error(`the vendored ${name} plugin is not the released one: ${problems.join("; ")}`)
-  const staged = join(root, "family", name)
-  const target = join(staged, "node_modules", "@joe-broadhead", `opencode-${name}`)
-  if (!existsSync(target)) {
-    mkdirSync(join(staged, "node_modules"), { recursive: true })
-    cpSync(dir, target, { recursive: true })
-    symlinkSync(join(REPO, "node_modules", "@opencode"), join(staged, "node_modules", "@opencode"), "dir")
-  }
-  const released = ((await import(pathToFileURL(join(target, "dist", "index.js")).href)) as { default: Plugin.Plugin }).default
-  // A released copy states its own host range. On a host this plugin is tested on but that copy's range leaves out (a
-  // newer OpenCode than it was released for), it runs with its own allowUntestedHost override, as a user would set it;
-  // the vendored bytes stay as released.
-  const range = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { opencode: { host: string } }).opencode.host
-  if (inRange(HOST_VERSION, range)) return released
-  return Plugin.define({ id: released.id, setup: (ctx) => released.setup({ ...ctx, options: { ...(ctx.options as Record<string, unknown> | undefined), allowUntestedHost: true } }) })
 }

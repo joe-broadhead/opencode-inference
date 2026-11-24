@@ -15,18 +15,17 @@ tool's input and output as JSON Schema; it is the authoritative shape.
 
 <!-- generated:tools -->
 
-| Tool | Host tool and permission | Code Mode | Tools RPC method | Jobs manifest | Class | Network | Uploads source | Billable |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `inference.status` | `inference_status` | `tools.inference.status(input)` | `inference.core.tools/status` | `inference.core.status` | read | no | no | no |
-| `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | `inference.core.capabilities` | read | no | no | no |
-| `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | `inference.core.plan` | read | no | no | no |
-| `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | `inference.core.extract` | send | yes | yes | yes |
-| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | `inference.core.decide` | send | yes | yes | yes |
+| Tool | Host tool and permission | Code Mode | Tools RPC method | Class | Network | Uploads source | Billable |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `inference.status` | `inference_status` | `tools.inference.status(input)` | `inference.core.tools/status` | read | no | no | no |
+| `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | read | no | no | no |
+| `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | read | no | no | no |
+| `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | send | yes | yes | yes |
+| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | send | yes | yes | yes |
 
 <!-- /generated:tools -->
 
-A Jobs script names a method in its manifest as `inference.core.<method>` and calls it as
-`await tools.inference.core.<method>(input)`. In Code Mode the same tool is `await tools.inference.<name>(input)`.
+In Code Mode the same tool is `await tools.inference.<name>(input)`.
 
 ## A script runs as a session
 
@@ -89,7 +88,14 @@ and a decision takes questions, or a versioned `questionSet` from the trusted op
 ```
 
 On a disabled route either is refused with `CAPABILITY_UNSUPPORTED` before anything is read or sent;
-`inference_capabilities` lists the enabled routes. For a scheduled script, see the [Jobs recipe](jobs.md).
+`inference_capabilities` lists the enabled routes.
+
+## Scheduled reads
+
+A scheduled read is an OpenCode automation whose code action calls `tools.inference.<method>`, with a cadence as slow
+as the work allows. A send tool (`extract`, `decide`) in an automation spends money with no one present, and an `ask`
+cannot be answered there: schedule reads and plans, and keep sends in a session whose agent allows them under its own
+rules.
 
 ## Errors
 

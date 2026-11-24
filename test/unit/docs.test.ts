@@ -74,7 +74,7 @@ describe("the docs and skills name only what is registered", () => {
 })
 
 /** Names in backticks that are not codes: files, constants and environment variables. */
-const IDENTIFIERS = new Set(["NOTICE", "WIRE_REVISION", "CONTRACT_JSON_SCHEMAS", "ADAPTERS", "OPENROUTER_CANARY_KEY", "TESTED_HOSTS", "HOST_SDK_DIR", "XDG_STATE_HOME", "TMPDIR", "OPENCODE_TEST_HOME", "OPENCODE_BIN_2_2_3"])
+const IDENTIFIERS = new Set(["NOTICE", "WIRE_REVISION", "CONTRACT_JSON_SCHEMAS", "ADAPTERS", "OPENROUTER_CANARY_KEY", "TESTED_HOSTS", "XDG_STATE_HOME", "TMPDIR", "OPENCODE_TEST_HOME", "OPENCODE_BIN_2_4_1"])
 
 /** Review and acceptance reason codes, which the docs also name. */
 const REASONS = new Set(["FIELD_ABSENT", "REQUIRED_FIELD_ABSENT", "CONFIDENCE_MISSING", "EVIDENCE_UNAVAILABLE", "EVIDENCE_MISMATCH", "VALIDATION_FAILED", "PROVIDER_TRUNCATED", "CALIBRATION_UNAVAILABLE", "CALIBRATION_MISMATCH", "REFUSED", "LOW_PROBABILITY", "AMBIGUOUS", "INCONSISTENT", "ACCEPTANCE_PROFILE_UNKNOWN", "RECOVERED_UNSENT", "RECOVERED_UNKNOWN"])
@@ -100,7 +100,7 @@ describe("the spend caps are opt-in, and every doc says so", () => {
     expect({ requestUsd: spend.requestUsd, sessionUsd: spend.sessionUsd, rolling24hUsd: spend.rolling24hUsd }).toEqual({ requestUsd: null, sessionUsd: null, rolling24hUsd: null })
     // requirePricedRoute is a truthful-cost guard, not a limit, so it stays on.
     expect(spend.requirePricedRoute).toBe(true)
-    for (const file of ["docs/configuration.md", "docs/operations.md", "README.md", "docs/jelly.md"]) expect({ file, stated: /no (?:spend )?cap is set by default/i.test(text(file).replace(/\s+/g, " ")) }).toEqual({ file, stated: true })
+    for (const file of ["docs/configuration.md", "docs/operations.md", "README.md"]) expect({ file, stated: /no (?:spend )?cap is set by default/i.test(text(file).replace(/\s+/g, " ")) }).toEqual({ file, stated: true })
     expect(text("AGENTS.md").replace(/\s+/g, " ")).toContain("Every spend cap is opt-in")
     // The configuration table gives the same values.
     for (const key of ["requestUsd", "sessionUsd", "rolling24hUsd"]) expect(text("docs/configuration.md")).toContain(`| \`spend.${key}\` | \`null\` |`)
@@ -123,22 +123,20 @@ const compare = (left: string, right: string) => {
 }
 
 describe("the release", () => {
-  test("installs from the release tag of package.json's version, with every install spec pinned to it, and states its known limits", () => {
+  test("installs from a release tag, states the first release is 4b, and states its known limits", () => {
     const { version } = JSON.parse(text("package.json")) as { version: string }
+    expect(version).toBe("0.0.0")
     for (const file of [...FILES, "AGENTS.md"]) {
-      const specs = text(file).match(/(?:plugin remove )?github:joe-broadhead\/opencode-inference(?:#[^\s"'`)]*)?/g) ?? []
-      // A spec whose tag is a placeholder, such as `#v<x>`, describes the form, not a release. The upgrade example
-      // removes an earlier release's entry.
-      for (const spec of specs.filter((item) => !item.includes("#v<"))) {
-        if (spec.startsWith("plugin remove ")) expect({ file, earlier: compare(spec.slice(spec.indexOf("#v") + 2), version) < 0 }).toEqual({ file, earlier: true })
-        else expect({ file, spec }).toEqual({ file, spec: `github:joe-broadhead/opencode-inference#v${version}` })
-      }
+      expect({ file, old: /joe-broadhead/.test(text(file)) }).toEqual({ file, old: false })
     }
     const readme = text("README.md")
-    expect(readme.match(/github:joe-broadhead\/opencode-inference#v/g)?.length).toBeGreaterThanOrEqual(3)
-    expect(readme).not.toMatch(/not (?:yet )?released|not published/i)
+    expect(readme).toContain("opencode plugin add github:we-the-rebel-alliance/inference-plugin#v<version>")
+    expect((readme.match(/inference-plugin#v<version>/g) ?? []).length).toBeGreaterThanOrEqual(3)
+    expect(readme).toContain("The first release on plugin-contract is v0.0.0 (phase 4b).")
+    // No install line names the default branch or an untagged repository.
+    expect(readme).not.toMatch(/opencode plugin add github:we-the-rebel-alliance\/inference-plugin\s*$/m)
+    expect(readme).not.toMatch(/"github:we-the-rebel-alliance\/inference-plugin"/)
     expect(readme).toContain("## Install\n")
-    expect(readme).toContain("The install takes the GitHub release tag.")
     // The known limits name both enabled routes and what each covers, and the spend defaults the options actually have.
     const limits = readme.slice(readme.indexOf("## Known limits"), readme.indexOf("## License"))
     for (const route of OPENROUTER_CAPABILITIES.routes.filter((item) => item.enabled)) expect(limits).toContain(`\`${route.model}\``)
@@ -150,14 +148,15 @@ describe("the release", () => {
 describe("the 0.0.0 release notes", () => {
   const notes = () => {
     const changelog = text("CHANGELOG.md")
-    const start = changelog.indexOf("## [0.0.0]")
-    const next = changelog.indexOf("\n## [", start + 1)
+    const start = changelog.indexOf("## 0.0.0 (unreleased)")
+    const next = changelog.indexOf("\n## ", start + 1)
+    expect(start).toBeGreaterThan(-1)
     return changelog.slice(start, next === -1 ? undefined : next)
   }
 
   test("describe what ships: the key is read for enabled routes, the send tools are registered, two routes are enabled", () => {
     const section = notes()
-    expect(section).toStartWith("## [0.0.0] - ")
+    expect(section).toStartWith("## 0.0.0 (unreleased)")
     // Statements an earlier stage made true and a later one made false.
     for (const stale of [/never reads? the key/i, /no registered tool/i, /reached by no/i, /every route (?:is|stays) disabled/i, /not (?:yet )?released/i, /no prices?\b/i, /never (?:been )?run against/i, /after the (?:first|second|third|fourth|live)/i, /\bowner\b/i, /one-option choice, is valid/i])
       expect({ stale: String(stale), found: stale.test(section) }).toEqual({ stale: String(stale), found: false })
@@ -170,5 +169,7 @@ describe("the 0.0.0 release notes", () => {
     // No superseded wire revision is named.
     for (const revision of section.match(/openrouter-alpha-(?:extractions|decisions)-\d{4}-\d{2}-\d{2}\.\d+/g) ?? [])
       expect(OPENROUTER_CAPABILITIES.routes.some((route) => route.canary.wireRevision === revision)).toBe(true)
+    // One section, at 0.0.0: the earlier releases are gone with the old repository.
+    expect(text("CHANGELOG.md").match(/^## .*$/gm)).toEqual(["## 0.0.0 (unreleased)"])
   })
 })
