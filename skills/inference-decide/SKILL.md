@@ -1,6 +1,6 @@
 ---
 name: inference-decide
-description: Answer bounded questions (a proposition, a choice among defined categories, a rubric score) with inference_decide, sending the text to OpenRouter, when the user asks for Inference or OpenRouter by name, or needs calibrated probabilities and reviewable acceptance, such as a recurring workflow with a versioned question set. Use for "classify these documents with Inference", "score urgency with the evaluated profile". Not for a question about text in the conversation or a small file you can judge by reading it yourself. Not for field values (use inference-extract), summaries, or checks code can do exactly.
+description: Bounded decisions with inference_decide (a yes/no, a choice among categories, a rubric score) sent to OpenRouter, when the user names Inference or needs calibrated, reviewable answers at scale. Not for text you can judge by reading it, or field values (inference-extract).
 ---
 
 # Bounded decisions

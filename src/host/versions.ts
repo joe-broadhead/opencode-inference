@@ -1,10 +1,10 @@
 // Host versions, with no imports, so the TUI bundle can use them without zod.
 
 /** The supported OpenCode line. package.json `opencode.host` states the same range. */
-export const HOST_RANGE = ">=2.2.3 <2.4.0"
+export const HOST_RANGE = ">=2.4.1 <2.5.0"
 /** The releases every host, pack and stock test runs on. The one list: the tests, CI and the release read it. */
-export const TESTED_HOSTS = ["2.2.3", "2.2.4", "2.2.5", "2.2.6", "2.2.7", "2.3.0", "2.3.1", "2.3.2"] as const
-export const TESTED_TEXT = "OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 or 2.3.2"
+export const TESTED_HOSTS = ["2.4.1"] as const
+export const TESTED_TEXT = "OpenCode 2.4.1"
 
 type Version = readonly [number, number, number]
 const parse = (value: string): Version | undefined => {

@@ -1,4 +1,4 @@
-// A narrow fake of the server plugin context, typed loosely against the public @opencode/plugin 2.2.3 API, for unit
+// A narrow fake of the server plugin context, typed loosely against the public @opencode/plugin 2.4.1 API, for unit
 // tests that need to see what setup registers and disposes. No host source. Host tests use the real embedded host.
 import type { Plugin } from "@opencode/plugin"
 
@@ -84,7 +84,7 @@ export function fakeContext(input: FakeOptions = {}) {
   })
 
   const context = {
-    app: { version: input.version ?? "2.2.3" },
+    app: { version: input.version ?? "2.4.1" },
     location: { directory: "/fake/project", project: { id: "prj_fake", directory: "/fake/project" } },
     options: input.options ?? {},
     integration: {

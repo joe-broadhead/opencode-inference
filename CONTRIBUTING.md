@@ -2,7 +2,7 @@
 
 ## Setup
 
-You need Node.js 24 or later, npm, and [Bun](https://bun.sh) 1.4.4 (the Bun inside stock OpenCode 2.2.3 to 2.2.7 and 2.3.0 to 2.3.2).
+You need Node.js 24 or later, npm, and [Bun](https://bun.sh) 1.4.4.
 
 ```sh
 npm ci --ignore-scripts
@@ -28,16 +28,15 @@ To try a checkout in OpenCode, build it and point a `plugins` entry at the repos
 3. `test:kit`: the release kit's own tests (`node --test scripts/release-kit.test.mjs`).
 4. `build`.
 5. `test:tui`: the built `dist/tui.js` with OpenTUI's test renderer.
-6. `test:host`: the host suite on the embedded `@opencode/sdk` of each tested release (`scripts/host-tests.mjs`; set
-   `HOST_SDK_DIR` to run one).
+6. `test:host`: the host suite on the embedded `@opencode/sdk` 2.4.1 (`scripts/host-tests.mjs`).
 7. `lint`: `scripts/check-forbidden.mjs`, `scripts/check-copies.mjs` and `scripts/check-icons.mjs`.
-8. `test:pack`: packs the plugin, installs the tarball offline into an empty project, and loads it in each tested stock
-   OpenCode release. Set `OPENCODE_BIN_2_2_3` and so on to stock binaries to skip installing them.
+8. `test:pack`: packs the plugin, installs the tarball offline into an empty project, and loads it in stock OpenCode
+   2.4.1. Set `OPENCODE_BIN_2_4_1` to a stock binary to skip installing it.
 
-The tested releases are one list, `TESTED_HOSTS` in `src/host/versions.ts`. No check calls OpenRouter or any other
-network service; the host harness fails a host that tried to leave loopback, the unit tests spy every network path, and
-the transport tests talk only to loopback servers they start.
-The host and pack stages download the SDK and stock OpenCode releases from npm.
+The tested releases are one list, `TESTED_HOSTS` in `src/host/versions.ts` (2.4.1). No check calls OpenRouter or any
+other network service; the host harness fails a host that tried to leave loopback, the unit tests spy every network
+path, and the transport tests talk only to loopback servers they start. The pack stage downloads stock OpenCode 2.4.1
+from npm.
 
 The generated parts of `package.json` (`jelly`) and of the docs come from the registry. After changing a tool, an
 option default, a failure code or the fixture, run:
@@ -45,15 +44,6 @@ option default, a failure code or the fixture, run:
 ```sh
 UPDATE_GENERATED=1 bun test test/unit/registry.test.ts
 ```
-
-## The Jobs recipe test
-
-`test/host/jobs.test.ts` runs the recipe in [docs/jobs.md](docs/jobs.md) through the released Jobs and Utilities
-plugins on the embedded host. They are vendored in `test/fixtures/family/<name>@<version>/`, byte for byte from their
-verified `v0.0.0` Release tarballs, and every file is checked against the folder's committed `FILES.sha256` before it is
-loaded; [the folder's README](test/fixtures/family/README.md) records the source URLs and digests and how to update
-them. The test never touches the network or your home folder. The extraction reaches a loopback fake; nothing is paid
-for.
 
 ## The compatibility canary
 
@@ -109,7 +99,7 @@ a `## [x.y.z] - YYYY-MM-DD` heading below it, newest first, and the npm history 
 `## Earlier releases on npm`.
 
 1. On `master`, set `version` in `package.json` to the new version, and change every install spec in the README,
-   `CONTRIBUTING.md` and `docs/` to `#v<version>` (`test/docs.test.ts` fails until they match). Then run
+   `CONTRIBUTING.md` and `docs/` to `#v<version>` (`test/unit/docs.test.ts` fails until they match). Then run
    `node scripts/changelog.mjs release`: it turns `## [Unreleased]` into `## [<version>] - <today>`, above the earlier
    releases, and refuses a CHANGELOG it cannot shape. Run `npm run check`.
 2. Push that commit to `master`, and wait for CI to pass on it. A pull request's CI runs the Linux runners only; the
@@ -165,7 +155,7 @@ Before the approval, the workflow:
 - **verifies** on a fresh runner: the commit's identity, one parent on `master`, `package.json` exactly the parent's
   without the lifecycle scripts, only regular files in the allowed paths, no `package.json` under `dist/`, and a second,
   independent build of the parent (its own job) equal to the committed `dist/` byte for byte;
-- **installs** the release commit with `plugin add` on each stock OpenCode host (2.2.3 to 2.2.7 and 2.3.0 to 2.3.2);
+- **installs** the release commit with `plugin add` on stock OpenCode 2.4.1;
 - **packs** the commit before installing anything, keeps that tarball and records its sha256, then runs the pack stage
   against a copy;
 - **runs the conformance kit** on the parent, for a plugin that declares sources (above), and uploads only its report;
@@ -195,7 +185,7 @@ exact `package.json`, the allowed paths and the byte-for-byte rebuild. Never rel
 **A rejected, expired or failed run** leaves nothing behind: the `cleanup` job deletes `release/v<version>` when it points
 at the parent or at that run's commit, and never touches another branch. No tag exists before the approval, so the
 version is not burned: fix `master` and start again. If `cleanup` itself failed, the next run refuses until the branch
-is deleted: `gh api -X DELETE repos/joe-broadhead/opencode-inference/git/refs/heads/release/v<version>`.
+is deleted: `gh api -X DELETE repos/we-the-rebel-alliance/inference-plugin/git/refs/heads/release/v<version>`.
 
 **Resume.** If the run fails after creating the tag and before the Release is complete, start it again with the same `sha`. The plan finds the kit's tag on a release commit on that sha with no published Release, and resumes:
 it makes no new commit, checks and installs the tagged commit, stages the files, and after a new approval reuses the tag
@@ -210,7 +200,7 @@ tag, and restores the ruleset exactly as it was.
 **Known limit: a `v*` tag pushed by hand.** No ruleset limits who creates a `v*` tag, so anyone with write access can
 push one by hand, pointing at any commit. Such a tag has no published Release, the forward-only check ignores it, and
 Jelly installs only a published Release whose `SHA256SUMS` it verifies. But a user who installs
-`github:joe-broadhead/opencode-inference#v<x>` directly gets whatever that tag points at. Only the release workflow makes
+`github:we-the-rebel-alliance/inference-plugin#v<x>` directly gets whatever that tag points at. Only the release workflow makes
 release tags; never push one by hand.
 
 The release kit is these files, the same in every plugin: `scripts/release-rules.mjs`, `scripts/release-commit.mjs`,

@@ -9,7 +9,7 @@ This is the design of the shell that later releases build on. The tables marked 
 
 | Surface | Value |
 | --- | --- |
-| Package name | `@joe-broadhead/opencode-inference` |
+| Package name | `@we-the-rebel-alliance/inference-plugin` |
 | Plugin | `inference.core` |
 | TUI | `inference.core.tui`, palette "Inference: Status", slash `/inference` |
 | Namespace | `inference` (Code Mode `tools.inference.<name>`) |
@@ -86,13 +86,13 @@ validates the output against the tool's own schema. So a control added there hol
 
 <!-- generated:tools -->
 
-| Tool | Host tool and permission | Code Mode | Tools RPC method | Jobs manifest | Class | Network | Uploads source | Billable |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `inference.status` | `inference_status` | `tools.inference.status(input)` | `inference.core.tools/status` | `inference.core.status` | read | no | no | no |
-| `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | `inference.core.capabilities` | read | no | no | no |
-| `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | `inference.core.plan` | read | no | no | no |
-| `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | `inference.core.extract` | send | yes | yes | yes |
-| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | `inference.core.decide` | send | yes | yes | yes |
+| Tool | Host tool and permission | Code Mode | Tools RPC method | Class | Network | Uploads source | Billable |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `inference.status` | `inference_status` | `tools.inference.status(input)` | `inference.core.tools/status` | read | no | no | no |
+| `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | read | no | no | no |
+| `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | read | no | no | no |
+| `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | send | yes | yes | yes |
+| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | send | yes | yes | yes |
 
 <!-- /generated:tools -->
 
@@ -133,8 +133,8 @@ canary passes:
   is an exact upper bound. A per-token price is never bounded locally (a server-side prompt template can add tokens the
   request does not contain): it is an estimate, so the call reserves the whole per-request budget, unless the fixture
   records a provider-documented ceiling with its source (`pricing.ceiling`). Estimates are exact and rounded up.
-- **Routes.** Every route stays `enabled: false`; the fixture's schema refuses an enabled route without a passed
-  canary. `catalog.ts` compares OpenRouter's catalog with the fixture and reports drift (new candidates, missing
+- **Routes.** A route is enabled only with a passed canary and a price; the fixture's schema refuses an enabled route
+  without a passed canary. `catalog.ts` compares OpenRouter's catalog with the fixture and reports drift (new candidates, missing
   models) without enabling anything. `scripts/canary-extractions.ts` is the opt-in live check (see CONTRIBUTING.md).
 
 ## Decisions

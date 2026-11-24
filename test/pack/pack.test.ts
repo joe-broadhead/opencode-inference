@@ -15,7 +15,7 @@ import { cleanup, npm, REPO, root, startStock, STOCK_VERSIONS, until, type Host 
 
 setDefaultTimeout(300_000)
 
-const NAME = "@joe-broadhead/opencode-inference"
+const NAME = "@we-the-rebel-alliance/inference-plugin"
 const ALLOWED = /^(package\.json|README\.md|LICENSE|NOTICE|CHANGELOG\.md|assets\/icon(-128|-256)?\.(svg|png)|dist\/(index|tui)\.js|skills\/inference-(extract|decide)\/SKILL\.md)$/
 const REQUIRED = ["package.json", "README.md", "LICENSE", "NOTICE", "CHANGELOG.md", "assets/icon.svg", "assets/icon-128.png", "assets/icon-256.png", "dist/index.js", "dist/tui.js", "skills/inference-extract/SKILL.md", "skills/inference-decide/SKILL.md"]
 const LIFECYCLE = ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare", "prepack", "postpack", "prepublish", "prepublishOnly", "publish", "postpublish", "preuninstall", "uninstall", "postuninstall", "dependencies"]
@@ -61,7 +61,7 @@ describe("the tarball", () => {
     for (const field of ["dependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta", "bundleDependencies", "bundledDependencies", "overrides"]) expect(manifest[field]).toBeUndefined()
     expect(Object.keys(manifest.scripts ?? {}).filter((script) => LIFECYCLE.includes(script))).toEqual([])
     expect(manifest.type).toBe("module")
-    expect(manifest.opencode.host).toBe(">=2.2.3 <2.4.0")
+    expect(manifest.opencode.host).toBe(">=2.4.1 <2.5.0")
     expect(manifest.exports).toEqual({ ".": "./dist/index.js", "./tui": "./dist/tui.js", "./icon.svg": "./assets/icon.svg", "./icon-128.png": "./assets/icon-128.png", "./icon-256.png": "./assets/icon-256.png" })
     for (const target of Object.values(manifest.exports as Record<string, string>)) expect(existsSync(join(installed, target))).toBe(true)
   })
@@ -70,8 +70,8 @@ describe("the tarball", () => {
 describe("the install", () => {
   test("adds only this package", () => {
     const visible = (directory: string) => readdirSync(directory).filter((entry) => !entry.startsWith("."))
-    expect(visible(join(project, "node_modules"))).toEqual(["@joe-broadhead"])
-    expect(visible(join(project, "node_modules", "@joe-broadhead"))).toEqual(["opencode-inference"])
+    expect(visible(join(project, "node_modules"))).toEqual(["@we-the-rebel-alliance"])
+    expect(visible(join(project, "node_modules", "@we-the-rebel-alliance"))).toEqual(["inference-plugin"])
     expect(existsSync(join(installed, "node_modules"))).toBe(false)
   })
 
@@ -139,7 +139,7 @@ for (const version of STOCK_VERSIONS)
         version: manifest.version,
         state: required ? "sign_in_required" : "local_only",
         nextStep: required ? "Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key." : "Nothing to do.",
-        host: { version, range: ">=2.2.3 <2.4.0", tested: true },
+        host: { version, range: ">=2.4.1 <2.5.0", tested: true },
         connection: { state: "not_connected", required },
       })
       const { data: commands } = await host.client.command.list({ location: host.location })

@@ -79,7 +79,7 @@ const notices = [...inlined.keys()].sort().map(name => {
   if (!file) throw new Error(`NOTICE_MISSING: ${name} ships no licence file`)
   return `## ${name} ${version} (${license}), in ${[...inlined.get(name)].sort().join(" and ")}\n\n${readFileSync(join(dir, file), "utf8").trim()}\n`
 })
-const notice = `@joe-broadhead/opencode-inference bundles this third-party code into dist/.\n\n${notices.join("\n")}`
+const notice = `@we-the-rebel-alliance/inference-plugin bundles this third-party code into dist/.\n\n${notices.join("\n")}`
 const noticePath = join(root, "NOTICE")
 if (process.argv.includes("--notice")) writeFileSync(noticePath, notice)
 else if (!existsSync(noticePath) || readFileSync(noticePath, "utf8") !== notice) {

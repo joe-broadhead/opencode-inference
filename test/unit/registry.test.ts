@@ -14,7 +14,7 @@ import { defaultRules } from "../../src/host/permissions.js"
 import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
 import { fakeContext } from "../support/fake-context.js"
 import { ACCESS, contractsBlock, errorsBlock, hostsBlock, jellyDeclaration, optionsBlock, plannedBlock, routesBlock, rulesBlock, toolsBlock } from "../support/generated.js"
-import { declarationProblems, docProblems, effectFromRules, readPackage } from "../support/jelly-kit.js"
+import { declarationProblems, effectFromRules, readPackage } from "../support/jelly-kit.js"
 import { ACCESS_CHOICES, type PluginSetting, settingChoices, settingsProblems, settingValueIssue } from "../support/jelly-settings.js"
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url))
@@ -47,6 +47,10 @@ async function registered() {
 }
 
 describe("registry parity", () => {
+  test("the namespace line is within the fixed-context budget: at most 400 characters", () => {
+    expect(NAMESPACE_DESCRIPTION.length).toBeLessThanOrEqual(400)
+  })
+
   test("the host registration is the registry: names, descriptions, schemas, namespace and permission actions", async () => {
     const { fake } = await registered()
     expect(fake.namespaces).toEqual([{ name: NAMESPACE, description: NAMESPACE_DESCRIPTION }])
@@ -124,7 +128,7 @@ describe("the Jelly declaration", () => {
 
   test("follows the plugin authors' standard, with the effects the plugin's own default rules give", () => {
     expect(declarationProblems(ROOT_URL, { effectOf: effectFromRules(defaultRules("all")), registered: TOOLS.map((tool) => actionOf(tool.name)) })).toEqual([])
-    expect(docProblems(ROOT_URL)).toEqual([])
+    // No docs/jelly.md: the app guide belongs in the app's repository (the plugin standard, §6).
   })
 
   test("says that the text, files and artifacts go to OpenRouter, and keeps the sign-in's /connect name", () => {

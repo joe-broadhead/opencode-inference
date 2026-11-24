@@ -2,88 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed
-
-- The tools RPC transport is source-contract's `tools-rpc` module, pinned at `v0.3.0` and bundled into `dist/index.js`. `src/host/tools-rpc.ts` is Inference's part of it. The vendored copy and its `check-copies` pin are gone. Spend rules are unchanged.
-
-### Fixed
-
-- At `access: "ask-changes"` and `"read-only"`, `inference_decide` and `inference_extract` now ask or deny for every source, a text source included. Before this, a text source was sent to OpenRouter and could be charged with no ask: the pipeline asserted only the source's file effects, and a text source has none, so the default rule block never took effect. Every operation now asserts its tool's own action first, after the route and key checks and before anything is read, reserved, journaled or sent, then the file's `read` and `external_directory` as before. A denial propagates unchanged. A script's ask is still refused by the tools RPC rather than left waiting.
-
-## [0.0.7] - 2026-11-18
-
-### Changed
-
-- Tested on OpenCode 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7, 2.3.0, 2.3.1 and 2.3.2. The supported range is unchanged (`>=2.2.3 <2.4.0`).
-
-## [0.0.6] - 2026-11-15
-
-### Added
-
-- **For jelly:** `jelly.cost`, the line jelly shows on the plugin's review before it installs: "Extract and decide calls
-  are charged by OpenRouter to the key you add, per input token (output is free on both enabled routes), and each result
-  reports its cost. No spend cap is set unless you set one."
-- **For jelly:** `jelly.summary` is now "Typed extraction and bounded decisions. The text, files and artifacts you give
-  it go to OpenRouter.", and the sign-in's `help.label` "Create an OpenRouter API key. Inference sends the text, files
-  and artifacts you give it to OpenRouter." The sign-in's `label` stays "OpenRouter key for Inference", the name
-  `/connect` shows.
-
-### Changed
-
-- `/connect`'s key prompt reads "OpenRouter API key (text, files and artifacts go to OpenRouter)", and the README and
-  `docs/jelly.md` name the text, files and artifacts that go to OpenRouter.
-
-## [0.0.5] - 2026-11-15
-
-### Changed
-
-- The icon is now OpenRouter's own mark, OpenRouter's Volt-on-Ink square glyph, the same file opencode-openrouter ships, in place of the family's neutral mark; `opencode.vendor.mark` is `true`, and the README says OpenRouter is a trademark of OpenRouter, Inc.
-
-## [0.0.4] - 2026-11-15
-
-### Changed
-
-- Admits OpenCode 2.3: the host range is `>=2.2.3 <2.4.0`, tested on 2.2.3, 2.2.4, 2.2.5, 2.2.6, 2.2.7 and 2.3.0, and CI
-  runs the host and pack suites on each of them. An out-of-range example is now 2.4.0. On 2.3, pressing Stop aborts a
-  call's signal, which already ends a pending approval, a queued call and the provider request as `CANCELLED`.
-
-## [0.0.3] - 2026-11-14
-
-### Changed
-
-- `package.json` is `"private": true`, so nothing can be published to npm; an install from the release tag is unaffected.
-
-## [0.0.2] - 2026-11-14
-
-### Changed
-
-- **Spend caps are opt-in.** `spend.requestUsd`, `spend.sessionUsd` and `spend.rolling24hUsd` now default to `null`:
-  no cap is set, so a call is never refused for its price, and each result still reports what it cost. This reverses
-  the default caps of 0.0.0 and 0.0.1 (USD 0.05 per request, 1.00 per session, 5.00 per rolling 24 hours), to match
-  the family's default that everything is allowed until you add a limit. A cap you set works exactly as before. With
-  no per-request cap, a call reserves the top of its estimate, and an unpriced call is refused while a session or
-  rolling cap is set. `spend.requirePricedRoute` stays on. Status names only the caps that are set.
-- **The connection is named "OpenRouter key for Inference"**, in `/connect` and in Jelly (its Jelly label was
-  "OpenRouter"), so it can be told apart from OpenCode's OpenRouter model provider and the OpenRouter plugin's
-  "OpenRouter tools" sign-in. Its integration id, `inference-openrouter`, is unchanged, so a connected key stays
-  connected.
-- Jelly: `docs/jelly.md` said the key is never read. It is read for a call on an enabled route, at dispatch, and sent
-  only to OpenRouter; the local tools never read it. The source comment that said no registered tool reached it is
-  corrected too.
-
-## [0.0.1] - 2026-11-13
-
-### Added
-
-- The `jelly` settings declare their choices: `access` offers Jelly's three (Allowed, Ask before changes, Read only),
-  generated from the access values with the rest of the declaration, so Jelly draws it as a choice instead of free text.
-  A test reads the settings with Jelly's setting schema and checks that the options parser takes every declared value
-  and refuses one outside the set (needs a jelly that includes app#1301).
-- The README says how to move to a newer release: remove the old tag's entry, then add the new tag.
-
-## [0.0.0] - 2026-11-13
+## 0.0.0 (unreleased)
 
 ### Added
 
@@ -118,35 +37,20 @@ All notable changes to this project are documented here. The format follows [Kee
 - Local refusals, before anything is read or sent: a disabled or unpriced route; a field type, question type or input a
   route does not take (Clairic's images and `duration` fields among them); a null threshold where the route takes none;
   more than 6 decimals; a one-option choice; Box questions; a request that may not fit the route's context.
-- Acceptance: `review-first-v1` built in (every answer is reviewed), and automatic profiles in the trusted options
-  (`questionSets`, `acceptanceProfiles`) that load only with a matching held-out report.
-- Spend control: a reservation before each call (the whole per-request budget when a price has no documented ceiling),
-  request, session and rolling 24-hour budgets (`spend.requestUsd` 0.05, `spend.sessionUsd` 1.00,
-  `spend.rolling24hUsd` 5.00, in USD), and a private operation journal that keeps a reservation when the cost is unknown
-  and never resubmits a call that may have been sent.
-- Strict options (`access`, `modules`, `profiles`, `routing`, `limits`, `spend`, `data`, `cache`, `allowUntestedHost`);
-  a key-like option is refused.
-- The plugin-owned `/connect` entry "OpenRouter for Inference" (`inference-openrouter`). The key is read at dispatch,
-  only for a call on an enabled route, and sent only to OpenRouter; status shows only whether it is connected and
-  whether an enabled route needs it.
-- Default permission rules for each `access` value; a file read is asked of the host before any byte is read; status
-  names every agent whose own rules would run a non-read Inference action without asking.
-- Failure codes with a next step for every refusal, listed in docs/configuration.md.
-- The `inference-extract` and `inference-decide` skills, registered per module; a missing or malformed skill is skipped
-  with `SKILLS_INVALID` in status.
-- Documentation: configuration, scripting, operations (uncertainty, cost scope, privacy, refreshing the fixture, alpha
-  compatibility, common errors), architecture, Jelly, and a Jobs recipe tested through the released Jobs plugin.
-- Opt-in scripts the checks never run: `scripts/canary-extractions.ts` and `scripts/canary-decisions.ts` (catalog,
-  request and malformed-request canaries; they refuse without an explicit key, budget and acknowledgement; `--shape`
-  records an answer's structure, never its values; every report names its wire revision and commit), and
-  `scripts/evaluate-decisions.ts` (held-out reports from labelled cases).
+- Two skills, `inference-extract` and `inference-decide`, shipped in the package and registered while their module is
+  on; each teaches its tool's result: nulls, evidence, probabilities, review and cost.
+- OpenCode `>=2.4.1 <2.5.0`, tested on 2.4.1. An older or newer host refuses with `HOST_UNTESTED` unless
+  `allowUntestedHost` is set.
 
-### Security
+### Changed
 
-- Only the OpenRouter transport (`src/providers/openrouter/http.ts`) reaches the network or resolves the key: one
-  trusted origin, two reviewed paths, the key in one `Authorization` header, no redirects followed. `npm run lint`
-  checks that boundary with the TypeScript compiler API: elsewhere modules are an allow-list, and network globals,
-  string-evaluated code, loader escapes, prototype and property-definition routes, computed keys the type checker
-  cannot prove safe, and any use of the host connection API other than a direct method call are refused; `dist/` may
-  hold only `src/` and inlined zod. It catches accidental and casual network use; review and the runtime network spy
-  cover deliberate evasion.
+- The plugin moved to `we-the-rebel-alliance/inference-plugin`: the package is
+  `@we-the-rebel-alliance/inference-plugin` at `0.0.0`, and the changelog restarts here.
+- Spend caps are opt-in: `spend.requestUsd`, `spend.sessionUsd` and `spend.rolling24hUsd` default to `null`, so a call
+  runs at whatever it costs and each result reports that cost. A cap you set is a budget, not a price.
+- `@opencode/plugin`, `@opencode/sdk` and `@opencode/client` are exact `2.4.1` devDependencies, with `effect` `4.1.0`.
+
+### Removed
+
+- The Jelly guide (`docs/jelly.md`) and the Jobs recipe (`docs/jobs.md`) with the Jobs and Utilities fixtures they ran.
+  Scheduled reads are OpenCode automations; app guides live in each app's repository.

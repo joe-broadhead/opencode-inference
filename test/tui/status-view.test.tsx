@@ -21,7 +21,7 @@ interface Deferred { resolve(view: StatusView): void; reject(error: Error): void
 
 const view = (version: string, overrides: Partial<StatusView> = {}): StatusView => ({
   version,
-  host: { version: "2.2.3", range: ">=2.2.3 <2.4.0", tested: true },
+  host: { version: "2.4.1", range: ">=2.4.1 <2.5.0", tested: true },
   state: "local_only",
   unguardedAgents: ["reviewer"],
   nextStep: AGENT_FIX,
@@ -122,7 +122,7 @@ test("renders the status lines and the next steps from the status RPC", async ()
     "Tools: 3 registered",
     "Agents without default rules: reviewer",
     "  {\"action\":\"inference_*\",\"resource\":\"*\",\"effect\":\"ask\"},",
-    `OpenCode: 2.2.3 (tested). Inference ${VERSION}`,
+    `OpenCode: 2.4.1 (tested). Inference ${VERSION}`,
     "Next step: Put the default rules shown by /inference-status first",
     "r refresh · esc close",
   ]
