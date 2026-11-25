@@ -1,4 +1,4 @@
-import * as z from "zod"
+import type * as z from "zod"
 import { InferenceError } from "../domain/errors.js"
 
 /** The input checked against its exact zod contract, or INPUT_INVALID naming each path and rule, never a value. */

@@ -711,6 +711,7 @@
     }
   },
   "scripts": {
+    "lint": "biome check .",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
     "test": "bun test test/unit",
@@ -719,7 +720,7 @@
     "test:pack": "bun test test/pack",
     "check:kit": "npx plugin-kit check",
     "docs": "npx plugin-kit docs",
-    "check": "npm run typecheck && npm run build && npm test && npm run test:conformance && npm run test:host && npm run test:pack && npx plugin-kit check",
+    "check": "npm run lint && npm run typecheck && npm run build && npm test && npm run test:conformance && npm run test:host && npm run test:pack && npx plugin-kit check",
     "canary:extractions": "bun scripts/canary-extractions.ts",
     "canary:decisions": "bun scripts/canary-decisions.ts",
     "evaluate": "bun scripts/evaluate-decisions.ts"
@@ -727,6 +728,7 @@
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/preset-typescript": "7.27.1",
+    "@biomejs/biome": "2.6.9",
     "@opencode/client": "2.4.1",
     "@opencode/plugin": "2.4.1",
     "@opencode/sdk": "2.4.1",

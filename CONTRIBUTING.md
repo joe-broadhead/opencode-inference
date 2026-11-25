@@ -15,18 +15,19 @@ npm ci --ignore-scripts
 npm run check
 ```
 
-`npm run check` is the whole gate:
+`npm run check` is the whole gate. CI runs the same gate in one job named `ci`, on Ubuntu 24.04 with Node 24 and Bun 1.4.4.
 
-1. `typecheck`: `tsc --noEmit` over `src`, `test` and the scripts.
-2. `build`: esbuild writes exactly `dist/index.js` (server, with the plugin's own code, the contract modules it imports
+1. `lint`: `biome check .` over the repository, with the formatter off and the recommended linter rules on.
+2. `typecheck`: `tsc --noEmit` over `src`, `test` and the scripts.
+3. `build`: esbuild writes exactly `dist/index.js` (server, with the plugin's own code, the contract modules it imports
    and zod bundled) and `dist/tui.js` (the TUI, no zod). `NOTICE` holds the licence of every package inlined; the build
    fails when it no longer matches, and `node scripts/build.mjs --notice` rewrites it.
-3. `test`: the unit tests (`bun test test/unit`).
-4. `test:conformance`: the recorded two-account behaviour and the recorded status and bus nudge
+4. `test`: the unit tests (`bun test test/unit`).
+5. `test:conformance`: the recorded two-account behaviour and the recorded status and bus nudge
    (`bun test test/conformance`).
-5. `test:host`: the built plugin in the real embedded OpenCode 2.4.1 host (`bun test test/host`).
-6. `test:pack`: `npm pack`, an offline install, and the installed package in the real host (`bun test test/pack`).
-7. `npx plugin-kit check`: T0 and T1 on the real 2.4.1 host, an unsupported host's refusal, the accounts, bus, status,
+6. `test:host`: the built plugin in the real embedded OpenCode 2.4.1 host (`bun test test/host`).
+7. `test:pack`: `npm pack`, an offline install, and the installed package in the real host (`bun test test/pack`).
+8. `npx plugin-kit check`: T0 and T1 on the real 2.4.1 host, an unsupported host's refusal, the accounts, bus, status,
    the required doc files, the generated sections, the forbidden scan and the bundled-kit check.
 
 `npx plugin-kit docs` regenerates the sections between `<!-- generated:… -->` markers from `package.json`; never edit a
@@ -42,7 +43,7 @@ real account; the committed fixture is synthetic and both aliases are invented.
 - `src/domain/` — the pure rules: options, contracts, planning, capabilities, acceptance, money and errors.
 - `src/accounts.ts`, `src/authorize.ts` — the account wiring and the file-effect asserts.
 - `fixtures/conformance.json` — what the plugin's own tests recorded, replayed by the kit.
-- `skills/` — `inference-extract` and `inference-decide`, registered while their module is on.
+- `skills/` — `inference` (always), and `inference-extract` and `inference-decide` while their module is on.
 
 ## Adding or changing a method
 

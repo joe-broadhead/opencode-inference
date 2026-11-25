@@ -74,7 +74,9 @@ export function shapeOf(answer: { readonly status: number; readonly contentType?
     } else if (typeof value === "object") {
       const keys = Object.keys(value as object)
       add(path, "object", keys.length)
-      keys.forEach((name, index) => walk((value as Record<string, unknown>)[name], `${path}.${KEY.test(name) ? name : `<key ${index}>`}`, depth + 1, name))
+      keys.forEach((name, index) => {
+        walk((value as Record<string, unknown>)[name], `${path}.${KEY.test(name) ? name : `<key ${index}>`}`, depth + 1, name)
+      })
     } else if (typeof value === "string") add(path, "string", value.length, key !== undefined && STATUS_KEYS.has(key) && WORD.test(value) ? value : undefined)
     else if (typeof value === "number") add(path, Number.isInteger(value) ? "integer" : "number")
     else if (typeof value === "boolean") add(path, "boolean")

@@ -86,13 +86,18 @@ export function catalogModels(answer: unknown): Catalog {
     const id = object?.["id"]
     if (typeof id === "string" && MODEL.test(id)) {
       const slug = object?.["canonical_slug"]
-      return void models.push({ id, ...(typeof slug === "string" && MODEL.test(slug) ? { canonicalSlug: slug } : {}) })
+      models.push({ id, ...(typeof slug === "string" && MODEL.test(slug) ? { canonicalSlug: slug } : {}) })
+      return
     }
     if (typeof id === "string" && ALIAS.test(id)) {
       const target = object?.["alias_target"]
       const slug = typeof target === "object" && target !== null ? (target as Record<string, unknown>)["slug"] : undefined
-      if (typeof slug === "string" && MODEL.test(slug)) return void aliases.push({ id, target: slug })
-      return void unexpected.push({ index, shape: `an alias with no valid alias_target.slug: ${idShape(id)}` })
+      if (typeof slug === "string" && MODEL.test(slug)) {
+        aliases.push({ id, target: slug })
+        return
+      }
+      unexpected.push({ index, shape: `an alias with no valid alias_target.slug: ${idShape(id)}` })
+      return
     }
     unexpected.push({ index, shape: object === undefined ? "not an object" : idShape(id) })
   })

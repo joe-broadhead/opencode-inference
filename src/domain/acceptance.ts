@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import * as z from "zod"
-import { ACCEPTANCE_REASONS, Decimal, Key, ModelId, QuestionInput, VersionedName, type Acceptance, type DecidedAnswer } from "./contracts.js"
+import { type ACCEPTANCE_REASONS, Decimal, Key, ModelId, QuestionInput, VersionedName, type Acceptance, type DecidedAnswer } from "./contracts.js"
 import { ofNumber, ONE, units } from "./decimal.js"
 import { money } from "./money.js"
 import { canonicalJson } from "@we-the-rebel-alliance/plugin-contract/manifest"

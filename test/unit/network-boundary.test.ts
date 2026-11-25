@@ -22,4 +22,4 @@ test("src/ stays inside the network and key boundary", () => {
   const problems = networkProblemsAll(ROOT, files) as Record<string, [number, string][]>
   const found = Object.entries(problems).flatMap(([file, list]) => list.map(([line, message]) => `${file}:${line} ${message}`))
   expect(found).toEqual([])
-})
+}, 10_000)

@@ -153,7 +153,8 @@ var tui_default = {
       if (closed) return;
       const current = ++generation;
       controller?.abort();
-      const request = controller = new AbortController();
+      controller = new AbortController();
+      const request = controller;
       setState((previous) => ({
         ...previous,
         loading: true
@@ -247,7 +248,6 @@ var tui_default = {
           }
         }), _el$5);
         _$insertNode(_el$5, _$createTextNode(`r refresh \xB7 esc close`));
-        _$setProp(_el$5, "onMouseUp", () => void refresh());
         _$effect((_p$) => {
           var _v$ = theme.text.base, _v$2 = theme.text.muted;
           _v$ !== _p$.e && (_p$.e = _$setProp(_el$2, "fg", _v$, _p$.e));

@@ -95,7 +95,8 @@ export default {
       if (closed) return
       const current = ++generation
       controller?.abort()
-      const request = (controller = new AbortController())
+      controller = new AbortController()
+      const request = controller
       setState((previous) => ({ ...previous, loading: true }))
       const id = sessionID()
       if (id === undefined) {
@@ -131,9 +132,7 @@ export default {
           <Show when={state().view && state().error}>
             <text fg={theme.text.feedback.error.base}>{`Refresh failed: ${state().error}`}</text>
           </Show>
-          <text fg={theme.text.muted} onMouseUp={() => void refresh()}>
-            r refresh · esc close
-          </text>
+          <text fg={theme.text.muted}>r refresh · esc close</text>
         </box>
       )
     }

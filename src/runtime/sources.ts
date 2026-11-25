@@ -203,7 +203,11 @@ function isText(bytes: Uint8Array) {
   } catch {
     return false
   }
-  return !/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/.test(decoded)
+  for (const char of decoded) {
+    const code = char.codePointAt(0)!
+    if (code <= 0x08 || code === 0x0b || (code >= 0x0e && code <= 0x1f) || code === 0x7f) return false
+  }
+  return true
 }
 
 /** The byte limit for one modality on a route: its documented limit, never above the hard ceiling. */

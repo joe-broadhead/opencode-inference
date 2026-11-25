@@ -1,5 +1,5 @@
-import { constants } from "node:fs"
-import { lstat, open, realpath } from "node:fs/promises"
+import { constants, type BigIntStats } from "node:fs"
+import { type FileHandle, lstat, open, realpath } from "node:fs/promises"
 import { basename, dirname, isAbsolute, join, relative } from "node:path"
 import { FileProblem, type FileAccess, type FileIdentity, type Inspection } from "./runtime/sources.js"
 
@@ -28,7 +28,7 @@ const READ_FLAGS = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants
 
 export const files: FileAccess = {
   async inspect(path, roots): Promise<Inspection> {
-    let stats
+    let stats: BigIntStats
     try {
       stats = await lstat(path, { bigint: true })
     } catch (error) {
@@ -50,7 +50,7 @@ export const files: FileAccess = {
   },
 
   async read(path, expected, maxBytes) {
-    let handle
+    let handle: FileHandle
     try {
       handle = await open(path, READ_FLAGS)
     } catch (error) {

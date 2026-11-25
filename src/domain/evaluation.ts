@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import * as z from "zod"
-import { AcceptanceRules, applyRules, HeldOutReport, questionSetDigest, type QuestionSet, type Unaccepted } from "./acceptance.js"
+import { type AcceptanceRules, applyRules, HeldOutReport, questionSetDigest, type QuestionSet, type Unaccepted } from "./acceptance.js"
 import { canonicalJson } from "@we-the-rebel-alliance/plugin-contract/manifest"
 
 const canonical = (value: unknown) => canonicalJson(value)

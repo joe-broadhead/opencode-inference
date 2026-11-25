@@ -14,10 +14,11 @@ const ROOT = fileURLToPath(new URL("../../", import.meta.url))
 const read = (id: string) => readFileSync(join(ROOT, "skills", id, "SKILL.md"), "utf8")
 
 describe("the shipped skills", () => {
-  test("load from the package, one per implemented module, each teaching a declared method", async () => {
+  test("load from the package: the main skill, and one per implemented module, each teaching a declared method", async () => {
     const { skills, problems } = await loadSkills(ROOT)
     expect(problems).toEqual([])
     expect(skills.map((skill) => [skill.id, skill.module])).toEqual([
+      ["inference", undefined],
       ["inference-extract", "extractions"],
       ["inference-decide", "decisions"],
     ])
@@ -40,9 +41,12 @@ describe("the shipped skills", () => {
     for (const skill of skills) {
       expect(skill.info.description).toMatch(/\bNot for\b/)
       expect(skill.info.description!.length).toBeLessThanOrEqual(300)
-      expect(skill.info.description).toContain("sent to OpenRouter")
+      expect(skill.info.description).toContain("OpenRouter")
     }
-    // Each points the other way for the other's task.
+    // The main skill points at both workflows; the topic skills point at each other.
+    expect(skills.find((skill) => skill.id === "inference")!.info.description).toContain("Inference")
+    expect(skills.find((skill) => skill.id === "inference-extract")!.info.description).toContain("sent to OpenRouter")
+    expect(skills.find((skill) => skill.id === "inference-decide")!.info.description).toContain("sent to OpenRouter")
     expect(skills.find((skill) => skill.id === "inference-extract")!.info.description).toContain("(inference-decide)")
     expect(skills.find((skill) => skill.id === "inference-decide")!.info.description).toContain("(inference-extract)")
   })
@@ -68,7 +72,7 @@ describe("the shipped skills", () => {
     writeFileSync(join(root, "skills", "inference-extract", "SKILL.md"), "---\nname: something-else\ndescription: x\n---\nbody\n")
     const loaded = await loadSkills(root)
     expect(loaded.skills).toEqual([])
-    expect(loaded.problems.map((problem) => problem.slice(0, 15))).toEqual(["SKILLS_INVALID:", "SKILLS_INVALID:"])
+    expect(loaded.problems.map((problem) => problem.slice(0, 15))).toEqual(["SKILLS_INVALID:", "SKILLS_INVALID:", "SKILLS_INVALID:"])
     writeFileSync(join(root, "skills", "inference-extract", "SKILL.md"), "---\nname: inference-extract\ndescription: x\n---\nbody\n")
     expect((await loadSkills(root)).skills.map((skill) => skill.id)).toEqual(["inference-extract"])
   })
@@ -78,7 +82,7 @@ describe("the shipped skills", () => {
     const config = loadConfig({ modules: { decisions: false } })
     const added: string[] = []
     skillTransform(skills, (module) => config.modules[module])({ add: (info: { id: string }) => added.push(info.id) } as never)
-    expect(added).toEqual(["inference-extract"])
-    expect(Object.values(SKILLS)).toEqual(["extractions", "decisions"])
+    expect(added).toEqual(["inference", "inference-extract"])
+    expect(Object.values(SKILLS)).toEqual([undefined, "extractions", "decisions"])
   })
 })

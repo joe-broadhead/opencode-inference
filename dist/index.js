@@ -11946,6 +11946,18 @@ function statusText(view) {
 }
 
 // src/commands.ts
+async function commandStatus(status, agentList, rules) {
+  const call = {
+    unguardedAgents: async () => {
+      try {
+        return { ok: true, agents: unguardedAgents((await agentList()).data, rules) };
+      } catch (error3) {
+        return { ok: false, error: error3 instanceof Error ? error3.message : String(error3) };
+      }
+    }
+  };
+  return await status.run({}, call);
+}
 function commandTransform(sources) {
   return (editor) => {
     editor.add({
@@ -20017,7 +20029,11 @@ function isText(bytes) {
   } catch {
     return false;
   }
-  return !/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/.test(decoded);
+  for (const char of decoded) {
+    const code = char.codePointAt(0);
+    if (code <= 8 || code === 11 || code >= 14 && code <= 31 || code === 127) return false;
+  }
+  return true;
 }
 function byteLimit(route, modality) {
   const documented = modality === "image" ? route?.inputs.images?.maxBytesEach ?? route?.maxRequestBytes : route?.maxRequestBytes;
@@ -20618,7 +20634,7 @@ var JsonNumber = class {
 };
 var MAX_DEPTH = 64;
 var NUMBER2 = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
-var STRING = /"(?:[^"\\\u0000-\u001f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"/y;
+var STRING = /"(?:[^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"/y;
 var malformed2 = (what) => new InferenceError("PROVIDER_CONTRACT_CHANGED", `OpenRouter's answer is not valid JSON: ${what}.`);
 function parseJson(text3) {
   let at = 0;
@@ -20633,7 +20649,10 @@ function parseJson(text3) {
       at++;
       const entries2 = /* @__PURE__ */ new Map();
       space();
-      if (text3[at] === "}") return at++, {};
+      if (text3[at] === "}") {
+        at++;
+        return {};
+      }
       for (; ; ) {
         space();
         const key = string5();
@@ -20651,7 +20670,10 @@ function parseJson(text3) {
       at++;
       const array3 = [];
       space();
-      if (text3[at] === "]") return at++, array3;
+      if (text3[at] === "]") {
+        at++;
+        return array3;
+      }
       for (; ; ) {
         array3.push(value(depth + 1));
         space();
@@ -20661,12 +20683,24 @@ function parseJson(text3) {
       }
     }
     if (char === '"') return string5();
-    if (text3.startsWith("true", at)) return at += 4, true;
-    if (text3.startsWith("false", at)) return at += 5, false;
-    if (text3.startsWith("null", at)) return at += 4, null;
+    if (text3.startsWith("true", at)) {
+      at += 4;
+      return true;
+    }
+    if (text3.startsWith("false", at)) {
+      at += 5;
+      return false;
+    }
+    if (text3.startsWith("null", at)) {
+      at += 4;
+      return null;
+    }
     NUMBER2.lastIndex = at;
     const number5 = NUMBER2.exec(text3);
-    if (number5) return at += number5[0].length, new JsonNumber(number5[0]);
+    if (number5) {
+      at += number5[0].length;
+      return new JsonNumber(number5[0]);
+    }
     throw malformed2("an unexpected character");
   };
   const string5 = () => {
@@ -20674,7 +20708,11 @@ function parseJson(text3) {
     const match = STRING.exec(text3);
     if (!match) throw malformed2("a malformed string");
     at += match[0].length;
-    return JSON.parse(match[0]);
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      throw malformed2("a malformed string");
+    }
   };
   const result = value(0);
   space();
@@ -21152,7 +21190,9 @@ function answerOf2(key, field, raw, source2, sourceText, warnings) {
     const confidences = answer.get("confidences");
     if (confidences !== void 0 && confidences !== null) {
       if (!Array.isArray(confidences) || !values || confidences.length !== values.length) throw changed2(`${what}.confidences does not match the list's values`);
-      confidences.forEach((item2) => probabilityOf3(item2, `${what}.confidences entry`));
+      confidences.forEach((item2) => {
+        probabilityOf3(item2, `${what}.confidences entry`);
+      });
     }
     if (values) {
       items = values.map((item2, index) => {
@@ -21847,7 +21887,7 @@ function createTransport(integration, origin = OPENROUTER_ORIGIN) {
 // src/skills.ts
 import { readFile } from "node:fs/promises";
 import { join as join3 } from "node:path";
-var SKILLS = { "inference-extract": "extractions", "inference-decide": "decisions" };
+var SKILLS = { inference: void 0, "inference-extract": "extractions", "inference-decide": "decisions" };
 var SKILL_IDS = Object.keys(SKILLS);
 var FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
 function parseSkill(id, text3, path) {
@@ -21856,7 +21896,8 @@ function parseSkill(id, text3, path) {
   const fields = new Map((match[1] ?? "").split(/\r?\n/).map((line) => /^(\w+):\s*(.+?)\s*$/.exec(line)).filter((found) => found !== null).map((found) => [found[1], found[2]]));
   const body = match[2].trim();
   if (fields.get("name") !== id || !fields.get("description") || body.length === 0 || text3.length > 64 * 1024) return void 0;
-  return { id, module: SKILLS[id], info: { id, name: id, description: fields.get("description"), path, content: body, autoinvoke: true } };
+  const module = SKILLS[id];
+  return { id, ...module === void 0 ? {} : { module }, info: { id, name: id, description: fields.get("description"), path, content: body, autoinvoke: true } };
 }
 async function loadSkills(packageRoot2) {
   const skills = [];
@@ -21874,7 +21915,7 @@ async function loadSkills(packageRoot2) {
 }
 function skillTransform(skills, enabled) {
   return (editor) => {
-    for (const skill of skills) if (enabled(skill.module)) editor.add(skill.info);
+    for (const skill of skills) if (skill.module === void 0 || enabled(skill.module)) editor.add(skill.info);
   };
 }
 
@@ -21922,18 +21963,7 @@ var src_default = Plugin.define({
     });
     const registration = await register(context, manifest, handlers);
     const rules = rulesFor(manifest, config3.access, profiles.map((profile) => profile.alias));
-    const status = async () => {
-      const call = {
-        unguardedAgents: async () => {
-          try {
-            return { ok: true, agents: unguardedAgents((await context.agent.list()).data, rules) };
-          } catch (error3) {
-            return { ok: false, error: error3 instanceof Error ? error3.message : String(error3) };
-          }
-        }
-      };
-      return await handlers.status.run({}, call);
-    };
+    const status = () => commandStatus(handlers.status, () => context.agent.list(), rules);
     const stops = [];
     try {
       stops.push(await context.skill.transform(skillTransform(skills, (module) => config3.modules[module])));

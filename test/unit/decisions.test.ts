@@ -197,7 +197,7 @@ describe("the answer", () => {
     // A double would read the first as 0.1 and print the second as 1.5e-7.
     expect(exact.answers.paid.probability).toBe("0.1000000000000000055511151231257827")
     expect(exact.answers.kind.distribution).toEqual({ invoice: "0.00000015" })
-    expect(String(0.1000000000000000055511151231257827)).toBe("0.1")
+    expect(String(Number("0.1000000000000000055511151231257827"))).toBe("0.1")
     // Past 64 fractional digits is refused, never rounded.
     expect((await failure(parse(withAnswers({ ...answers, paid: { type: "noul", noul: "__P__" } }).replace('"__P__"', `0.${"1".repeat(65)}`)))).slice(0, 26)).toBe("PROVIDER_CONTRACT_CHANGED:")
   })

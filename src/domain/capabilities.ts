@@ -1,6 +1,6 @@
 import * as z from "zod"
 import type { Config } from "./config.js"
-import { CapabilitiesInput, Exclusion, FIELD_TYPES, ModelId, OPERATIONS, ProfileName, QUESTION_TYPES, type Operation } from "./contracts.js"
+import { type CapabilitiesInput, Exclusion, FIELD_TYPES, ModelId, OPERATIONS, ProfileName, QUESTION_TYPES, type Operation } from "./contracts.js"
 import { METHOD_CLASSES, type MethodClass } from "@we-the-rebel-alliance/plugin-contract/manifest"
 import { MODULES, type Module } from "./ids.js"
 import { OPERATION_MODULE } from "./registry.js"

@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { z } from "zod"
 import { STATUS_SCHEMA, type AccountSignal } from "@we-the-rebel-alliance/plugin-contract/accounts"
 import type { MethodCall } from "@we-the-rebel-alliance/plugin-contract/register"
+import { rulesFor } from "@we-the-rebel-alliance/plugin-contract/access"
+import { commandStatus } from "../../src/commands.js"
 import { loadConfig } from "../../src/domain/config.js"
 import { createHandlers } from "../../src/handlers/index.js"
 import { OPENROUTER_CAPABILITIES } from "../../src/provider/capabilities.js"
@@ -82,6 +84,17 @@ describe("status", () => {
     expect(answer.unguardedAgents).toEqual([])
     expect(answer.nextStep).not.toContain("abc")
     expect(answer.nextStep.length).toBeLessThanOrEqual(160)
+  })
+
+  test("the command wrapper turns a rejected agent list into a status problem, never zero", async () => {
+    const status = createHandlers(deps({ integration: connection("ready") })).status!
+    const rules = rulesFor(deps().manifest, "all", ["work", "personal"])
+    const failed = await commandStatus(status, async () => Promise.reject(new Error("agents unavailable for ana@example.com?token=abc")), rules)
+    expect(failed.state).toBe("error")
+    expect(failed.unguardedAgents).toEqual([])
+    expect(failed.nextStep).not.toContain("abc")
+    const listed = await commandStatus(status, async () => ({ data: [{ id: "reviewer", permissions: [] }] }), rules)
+    expect(listed.unguardedAgents).toEqual(["reviewer"])
   })
 
   test("unguarded agents and registration problems are reported, and a plugin with no accounts lists none", async () => {

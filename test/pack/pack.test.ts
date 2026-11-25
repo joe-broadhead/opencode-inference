@@ -11,8 +11,8 @@ import { tempRoot } from "../support/temp.js"
 setDefaultTimeout(300_000)
 const REPO = fileURLToPath(new URL("../../", import.meta.url))
 const NAME = "@we-the-rebel-alliance/inference-plugin"
-const ALLOWED = /^(package\.json|README\.md|LICENSE|NOTICE|assets\/icon(-128|-256)?\.(svg|png)|dist\/(index|tui)\.js|skills\/inference-(extract|decide)\/SKILL\.md)$/
-const REQUIRED = ["package.json", "README.md", "LICENSE", "NOTICE", "assets/icon.svg", "assets/icon-128.png", "assets/icon-256.png", "dist/index.js", "dist/tui.js", "skills/inference-extract/SKILL.md", "skills/inference-decide/SKILL.md"]
+const ALLOWED = /^(package\.json|README\.md|LICENSE|NOTICE|assets\/icon(-128|-256)?\.(svg|png)|dist\/(index|tui)\.js|skills\/inference(?:-(extract|decide))?\/SKILL\.md)$/
+const REQUIRED = ["package.json", "README.md", "LICENSE", "NOTICE", "assets/icon.svg", "assets/icon-128.png", "assets/icon-256.png", "dist/index.js", "dist/tui.js", "skills/inference/SKILL.md", "skills/inference-extract/SKILL.md", "skills/inference-decide/SKILL.md"]
 const HOST_MODULES = /^(@opencode\/plugin(\/.+)?|@opentui\/(core|solid)(\/.+)?|solid-js(\/.+)?)$/
 const UI_MODULES = /^(@opentui\/|solid-js)/
 

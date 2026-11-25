@@ -1,4 +1,4 @@
-import { InferenceError } from "../domain/errors.js"
+import type { InferenceError } from "../domain/errors.js"
 import { isPlain, ONE, units } from "../domain/decimal.js"
 import { decimalOf, JsonNumber, type Json } from "../domain/json.js"
 import { format, money, roundUp } from "../domain/money.js"

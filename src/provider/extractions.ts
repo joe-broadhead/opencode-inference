@@ -265,7 +265,9 @@ function answerOf(key: string, field: Field, raw: Json | undefined, source: Snap
     const confidences = answer.get("confidences")
     if (confidences !== undefined && confidences !== null) {
       if (!Array.isArray(confidences) || !values || confidences.length !== values.length) throw changed(`${what}.confidences does not match the list's values`)
-      confidences.forEach((item) => probabilityOf(item, `${what}.confidences entry`))
+      confidences.forEach((item) => {
+        probabilityOf(item, `${what}.confidences entry`)
+      })
     }
     if (values) {
       // An item without a span keeps an empty list: its offsets are never invented.

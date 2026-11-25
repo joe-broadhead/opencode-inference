@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { Plugin } from "@opencode/plugin"
 import { accountsOf, type AccountProfile } from "@we-the-rebel-alliance/plugin-contract/accounts"
-import { rulesFor, unguardedAgents, type AgentLike } from "@we-the-rebel-alliance/plugin-contract/access"
+import { rulesFor } from "@we-the-rebel-alliance/plugin-contract/access"
 import type { Manifest } from "@we-the-rebel-alliance/plugin-contract/manifest"
-import { assertHost, register, type MethodCall } from "@we-the-rebel-alliance/plugin-contract/register"
+import { assertHost, register } from "@we-the-rebel-alliance/plugin-contract/register"
 import { register as registerAccounts } from "./accounts.js"
 import { createAuthorize } from "./authorize.js"
-import { commandTransform } from "./commands.js"
+import { commandStatus, commandTransform } from "./commands.js"
 import { loadConfig } from "./domain/config.js"
 import { InferenceError } from "./domain/errors.js"
 import { files } from "./files.js"
@@ -20,7 +20,6 @@ import { createTransport } from "./provider/http.js"
 import { Journal } from "./runtime/journal.js"
 import type { OperationRuntime } from "./runtime/operation.js"
 import { loadSkills, skillTransform } from "./skills.js"
-import type { StatusView } from "./status-text.js"
 
 // The server entry: one `Plugin.define`, the host gate, then one `register` call that wires every method through the
 // contract's doors. Handlers live in src/handlers/, the provider in src/provider/ and the accounts wiring in
@@ -83,18 +82,7 @@ export default Plugin.define({
     // are the access module's pure function of the manifest and the options, because the registration no longer exposes
     // them; the handler itself reads the rules' live result from its call.
     const rules = rulesFor(manifest, config.access, profiles.map((profile) => profile.alias))
-    const status = async (): Promise<StatusView> => {
-      const call = {
-        unguardedAgents: async () => {
-          try {
-            return { ok: true as const, agents: unguardedAgents((await context.agent.list()).data as readonly AgentLike[], rules) }
-          } catch (error) {
-            return { ok: false as const, error: error instanceof Error ? error.message : String(error) }
-          }
-        },
-      }
-      return (await handlers.status!.run({}, call as unknown as MethodCall)) as StatusView
-    }
+    const status = () => commandStatus(handlers.status!, () => context.agent.list(), rules)
 
     const stops: { dispose(): Promise<void> | void }[] = []
     try {

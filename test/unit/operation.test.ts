@@ -22,7 +22,9 @@ beforeEach(() => {
 })
 afterEach(() => {
   network.restore()
-  consoleMethods.forEach((name, index) => (console[name] = originals[index]!))
+  consoleMethods.forEach((name, index) => {
+    console[name] = originals[index]!
+  })
   expect(network.calls).toEqual([])
 })
 

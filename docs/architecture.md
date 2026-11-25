@@ -112,8 +112,9 @@ into a session for people who work in the terminal.
 - **No result cache.** A repeated call is a repeated send and a repeated charge; the journal is for reconciliation, not
   for reuse.
 - **No per-request hook.** The fixed context is the manifest's summary and the two skills; cost is in each result.
-- **No compatibility path.** The contract v0 shape is the only shape; the old repository's tools RPC, app keys and
-  hand-written build scripts are gone.
+- **No compatibility path.** The contract v0 shape is the only shape; the old repository's tools RPC, app keys, and
+  release, drift, copy, icon, forbidden, tested-host, capture and changelog scripts are gone. `scripts/build.mjs` remains
+  the plugin's own build.
 
 ## OpenCode APIs used
 

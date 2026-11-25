@@ -34,10 +34,18 @@ async function serve(handler: (request: IncomingMessage, response: ServerRespons
 const logged: unknown[] = []
 const consoleMethods = ["log", "info", "warn", "error", "debug"] as const
 const originals = consoleMethods.map((name) => console[name])
-beforeAll(() => consoleMethods.forEach((name) => (console[name] = (...args: unknown[]) => void logged.push(args))))
+beforeAll(() => {
+  consoleMethods.forEach((name) => {
+    console[name] = (...args: unknown[]) => void logged.push(args)
+  })
+})
 afterAll(() => {
-  servers.forEach((server) => server.close())
-  consoleMethods.forEach((name, index) => (console[name] = originals[index]!))
+  servers.forEach((server) => {
+    server.close()
+  })
+  consoleMethods.forEach((name, index) => {
+    console[name] = originals[index]!
+  })
   // The transport logs nothing, so it cannot log the key.
   expect(logged).toEqual([])
 })
