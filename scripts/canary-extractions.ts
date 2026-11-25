@@ -26,10 +26,10 @@
 import { ExtractInput } from "../src/domain/contracts.js"
 import { InferenceError } from "../src/domain/errors.js"
 import { format } from "../src/domain/money.js"
-import { catalogDrift, catalogModels } from "../src/providers/openrouter/catalog.js"
-import { CLAIRIC_DOCUMENTED_IMAGES, OPENROUTER_CAPABILITIES, type RouteCapability } from "../src/providers/openrouter/capabilities.js"
-import { extractionsAdapter } from "../src/providers/openrouter/extractions.js"
-import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
+import { catalogDrift, catalogModels } from "../src/provider/catalog.js"
+import { CLAIRIC_DOCUMENTED_IMAGES, OPENROUTER_CAPABILITIES, type RouteCapability } from "../src/provider/capabilities.js"
+import { extractionsAdapter } from "../src/provider/extractions.js"
+import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/provider/http.js"
 import { snapshot, type FileAccess, type Snapshot } from "../src/runtime/sources.js"
 import { canaryArgs, provenance } from "./canary-cli.js"
 import { BREAKS, malformedRequest } from "./canary-malformed.js"
@@ -115,7 +115,7 @@ for (const item of cases) {
     results.push({ canary: item.canary, model: item.route.model, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall), ...(item.refused ? { breaks: BREAKS.extractions } : {}), ...(shape ? { shape: "would record the answer's structure" } : {}) })
     continue
   }
-  const account = await transport.account()
+  const account = await transport.account("default")
   if (account === undefined || account === "needs_auth") throw new Error("the canary key is not usable")
   let answer: Uint8Array | undefined
   let structure: ReturnType<typeof shapeOf> | undefined
@@ -147,5 +147,5 @@ report["results"] = results
 report["spentUsd"] = spend.total
 report["next"] = dryRun
   ? "Dry run: nothing was sent."
-  : "Review the results. Record a passed canary in src/providers/openrouter/capabilities.ts (route.canary and a new revision) in its own reviewed change; the canary never edits the fixture or enables a route."
+  : "Review the results. Record a passed canary in src/provider/capabilities.ts (route.canary and a new revision) in its own reviewed change; the canary never edits the fixture or enables a route."
 console.log(JSON.stringify(report, null, 2))

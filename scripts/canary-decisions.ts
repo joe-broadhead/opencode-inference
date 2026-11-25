@@ -19,10 +19,10 @@ import { DecideInput } from "../src/domain/contracts.js"
 import { loadConfig } from "../src/domain/config.js"
 import { InferenceError } from "../src/domain/errors.js"
 import { format } from "../src/domain/money.js"
-import { catalogDrift, catalogModels } from "../src/providers/openrouter/catalog.js"
-import { OPENROUTER_CAPABILITIES } from "../src/providers/openrouter/capabilities.js"
-import { decisionsAdapter } from "../src/providers/openrouter/decisions.js"
-import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/providers/openrouter/http.js"
+import { catalogDrift, catalogModels } from "../src/provider/catalog.js"
+import { OPENROUTER_CAPABILITIES } from "../src/provider/capabilities.js"
+import { decisionsAdapter } from "../src/provider/decisions.js"
+import { createTransport, OPENROUTER_ORIGIN, TransportError } from "../src/provider/http.js"
 import { snapshot, type FileAccess } from "../src/runtime/sources.js"
 import { canaryArgs, provenance } from "./canary-cli.js"
 import { BREAKS, malformedRequest } from "./canary-malformed.js"
@@ -79,7 +79,7 @@ for (const canary of ["text", "malformed"] as const) {
     results.push({ canary, would: `POST ${request.path}`, bytes: request.body.byteLength, counted: format(perCall), ...(canary === "malformed" ? { breaks: BREAKS.decisions } : {}), ...(shape ? { shape: "would record the answer's structure" } : {}) })
     continue
   }
-  const account = await transport.account()
+  const account = await transport.account("default")
   if (account === undefined || account === "needs_auth") throw new Error("the canary key is not usable")
   let answer: Uint8Array | undefined
   let structure: ReturnType<typeof shapeOf> | undefined
@@ -109,5 +109,5 @@ report["results"] = results
 report["spentUsd"] = spend.total
 report["next"] = dryRun
   ? "Dry run: nothing was sent."
-  : "Review the results. Record a passed canary, the reviewed effective context and real prices in src/providers/openrouter/capabilities.ts in their own reviewed change; the canary never edits the fixture or enables a route."
+  : "Review the results. Record a passed canary, the reviewed effective context and real prices in src/provider/capabilities.ts in their own reviewed change; the canary never edits the fixture or enables a route."
 console.log(JSON.stringify(report, null, 2))

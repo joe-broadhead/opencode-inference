@@ -4,7 +4,7 @@ import type * as z from "zod"
 import type { SourceInput } from "../domain/contracts.js"
 import { fence, InferenceError } from "../domain/errors.js"
 import { modalityOf } from "../domain/routing.js"
-import type { RouteCapability } from "../providers/openrouter/capabilities.js"
+import type { RouteCapability } from "../provider/capabilities.js"
 
 // Sources (handoff §5.1, §7 steps 2 and 5). The order is the guarantee:
 //
@@ -16,7 +16,7 @@ import type { RouteCapability } from "../providers/openrouter/capabilities.js"
 //    the same file that was approved (device, inode, size, change times), reads at most the byte limit, determines the
 //    type from the bytes, hashes them and keeps a private copy. A file replaced, grown or touched in between is refused.
 //
-// The file system itself is the host layer's (src/host/files.ts implements `FileAccess`); this module holds the policy.
+// The file system itself is the host layer's (src/files.ts implements `FileAccess`); this module holds the policy.
 
 type Source = z.infer<typeof SourceInput>
 
@@ -50,7 +50,7 @@ export class FileProblem extends Error {
   }
 }
 
-/** The host's file access: metadata before approval, descriptor reads after. Implemented in src/host/files.ts. */
+/** The host's file access: metadata before approval, descriptor reads after. Implemented in src/files.ts. */
 export interface FileAccess {
   /** Metadata only. Never opens the file. */
   inspect(path: string, roots: readonly string[]): Promise<Inspection>

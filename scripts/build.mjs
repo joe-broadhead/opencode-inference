@@ -61,7 +61,7 @@ if (unexpected.length) {
 // The RPC contract is plain JSON Schema, so the TUI bundle never inlines zod; only the server bundle may.
 const tuiZod = Object.keys(result.metafile.outputs["dist/tui.js"].inputs).filter(input => /node_modules\/zod\//.test(input))
 if (tuiZod.length) {
-  console.error("BUILD_TUI_ZOD: dist/tui.js inlines zod. Next step: Import only zod-free modules (src/domain/ids.ts, src/rpc.ts, src/host/versions.ts) from the TUI.")
+  console.error("BUILD_TUI_ZOD: dist/tui.js inlines zod. Next step: Import only zod-free modules (src/domain/ids.ts, src/status-text.ts) from the TUI.")
   process.exit(1)
 }
 

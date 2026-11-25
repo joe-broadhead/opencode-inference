@@ -1,12 +1,12 @@
 // The network and key boundary, checked on the syntax tree and the type checker (the TypeScript compiler API).
 //
 // What it guarantees: no ACCIDENTAL or CASUAL network or key access outside the transport boundary
-// (src/providers/<provider>/http.ts): no network module, network global, string-evaluated code, loader escape,
+// (src/provider/http.ts): no network module, network global, string-evaluated code, loader escape,
 // prototype route or computed key that could name one, and no reach into the host's connection API other than a
 // plain method call. What it does not: a static check cannot be complete for JavaScript. Deliberate obfuscation, such as
 // passing the integration object through function arguments, iterating it with `Object.entries`, or hiding a name in
 // data, can still get through. Code review and the runtime network spy (test/support/network-spy.ts, which refuses
-// every network path in the unit tests) are the backstop; the bundle check in check-forbidden.mjs keeps dist/ to src/
+// every network path in the unit tests) are the backstop; the bundle check in the pack test keeps dist/ to src/
 // and the inlined packages.
 //
 // Modules are an ALLOW-LIST. A module specifier (static import, export-from, `import x = require`, `require`, dynamic
@@ -43,11 +43,23 @@
 import { dirname, isAbsolute, join, posix } from "node:path"
 import ts from "typescript"
 
-export const TRANSPORT = /^src\/providers\/[^/]+\/http\.ts$/
+export const TRANSPORT = /^src\/provider\/http\.ts$/
 /** The Node builtins src/ uses today, outside the transport boundary. */
 export const BUILTINS = new Set(["node:crypto", "node:fs", "node:fs/promises", "node:os", "node:path", "node:url"])
 /** The packages src/ imports: zod (bundled) and what the host provides. package.json has no `dependencies`. */
-export const PACKAGES = new Set(["zod", "@opencode/plugin", "@opencode/plugin/promise/tool", "@opencode/plugin/rpc", "@opencode/plugin/tui", "solid-js", "@we-the-rebel-alliance/source-contract/tools-rpc"])
+export const PACKAGES = new Set([
+  "zod",
+  "@opencode/plugin",
+  "@opencode/plugin/promise/tool",
+  "@opencode/plugin/rpc",
+  "@opencode/plugin/tui",
+  "solid-js",
+  "@we-the-rebel-alliance/plugin-contract/access",
+  "@we-the-rebel-alliance/plugin-contract/accounts",
+  "@we-the-rebel-alliance/plugin-contract/events",
+  "@we-the-rebel-alliance/plugin-contract/manifest",
+  "@we-the-rebel-alliance/plugin-contract/register",
+])
 const DENIED = new Set(["fetch", "WebSocket", "XMLHttpRequest", "EventSource", "Bun", "Reflect", "eval", "Function", "getBuiltinModule"])
 const ROOTS = new Set(["globalThis", "window", "self", "global"])
 /** What a global root may be read for, as `globalThis.<name>`. */

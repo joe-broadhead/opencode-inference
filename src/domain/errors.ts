@@ -14,7 +14,7 @@ export const FAILURES = {
   TOOL_UNAVAILABLE: ["This tool is not available in this location right now.", "Call inference_status to see what is available, then retry."],
   CLOSED: ["The Inference plugin is shutting down.", "Retry after OpenCode has reloaded the plugin."],
   CANCELLED: ["The call was cancelled.", "Call the tool again if you still need the result."],
-  STATUS_UNAVAILABLE: ["Inference status could not be read.", "Run /inference-status in a session to see the error, or check the OpenCode server log."],
+  STATUS_UNAVAILABLE: ["Inference status could not be read.", "Run /inference in a session to see the error, or check the OpenCode server log."],
   OUTPUT_INVALID: ["The tool produced a result that does not match its own schema.", "Report it with the inference_status output; this is a bug in the plugin."],
   RULES_NOT_ADDED: ["The default permission rules could not be added.", "Restart OpenCode."],
   SKILLS_INVALID: ["A shipped skill is missing or malformed, so it was skipped.", "Reinstall the plugin; the tools still work without the skill."],
@@ -27,8 +27,9 @@ export const FAILURES = {
   SOURCE_TYPE: ["The source's bytes are not a type this call accepts, or do not match its declared type.", "Select a file whose content matches its name, in a type the route accepts (see inference_capabilities)."],
   SOURCE_LIMIT: ["The source is larger than the route accepts.", "Select a smaller range or use an evaluated chunking strategy."],
   CONTEXT_LIMIT: ["The request is larger than the route accepts.", "Select a smaller range or fewer fields, or use an evaluated chunking strategy."],
-  AUTH_REQUIRED: ["No OpenRouter key is connected for Inference.", "Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key."],
-  AUTH_REJECTED: ["OpenRouter did not accept the connected key.", "Run /connect and choose OpenRouter key for Inference to replace the key."],
+  AUTH_REQUIRED: ["No OpenRouter key is connected for this account.", "Run /connect and choose the Inference account, then enter an OpenRouter API key."],
+  AUTH_REJECTED: ["OpenRouter did not accept the connected key.", "Run /connect and choose the Inference account again to replace the key."],
+  PERMISSION_DENIED: ["The host refused access the call needs.", "Allow the read, and the external folder when the source is outside the project, then call again."],
   PRICE_UNKNOWN: ["No price, or no upper bound, is known for this route, and the spend options require one: requirePricedRoute, requireUpperBound, or a session or rolling cap set without a request cap.", "Select a priced, affordable route; change spend.requirePricedRoute or spend.requireUpperBound in the trusted options; or, under a session or rolling cap with no request cap, set spend.requestUsd or remove that cap."],
   BUDGET_EXCEEDED: ["This call would exceed a spend budget.", "Select a priced, affordable route, wait for the rolling window, or raise the limit in the trusted spend options."],
   JOURNAL_LOCKED: ["The operation journal is locked by another process and was not taken over.", "Make sure no other OpenCode process is using Inference, then remove the lock file named above and retry."],
@@ -56,6 +57,10 @@ export class InferenceError extends Error implements Failure {
   readonly code: FailureCode
   readonly hint: string
   readonly what: string
+  /** The next step, under the name `refusalOf` reads. */
+  get next() {
+    return this.hint
+  }
   constructor(code: FailureCode, what?: string, hint?: string) {
     const [defaultWhat, defaultHint] = FAILURES[code]
     const message = what ?? defaultWhat

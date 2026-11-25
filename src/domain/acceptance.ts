@@ -3,7 +3,9 @@ import * as z from "zod"
 import { ACCEPTANCE_REASONS, Decimal, Key, ModelId, QuestionInput, VersionedName, type Acceptance, type DecidedAnswer } from "./contracts.js"
 import { ofNumber, ONE, units } from "./decimal.js"
 import { money } from "./money.js"
-import { canonical } from "./canonical.js"
+import { canonicalJson } from "@we-the-rebel-alliance/plugin-contract/manifest"
+
+const canonical = (value: unknown) => canonicalJson(value)
 
 // Acceptance (handoff §7.2, §8.3, §15.3, §16.3). A provider's probability is a reported model statistic, not verified
 // correctness; whether an answer is ACCEPTED is decided here, in ordinary deterministic code, by a versioned profile:
