@@ -55,8 +55,6 @@ async function start(): Promise<Host> {
   const home = join(root, "home")
   const work = join(root, "work")
   for (const directory of [join(home, ".config", "opencode"), join(home, ".local", "share"), join(home, ".cache"), join(home, ".local", "state"), join(root, "tmp"), work]) mkdirSync(directory, { recursive: true })
-  execFileSync("git", ["init", "-q", work])
-  writeFileSync(join(work, "README.md"), "# skill host\n")
   writeFileSync(
     join(home, ".config", "opencode", "opencode.json"),
     JSON.stringify({ plugins: [PLUGIN_DIR], providers: { lmstudio: { settings: { baseURL: "" } }, ollama: { settings: { baseURL: "" } }, vllm: { settings: { baseURL: "" } } } }, null, 2),
@@ -137,6 +135,9 @@ afterAll(async () => {
 })
 
 test("the real server returns every shipped skill id from GET /api/skill", async () => {
+  // The project is a separate temp directory with no skills/ of its own: a pass cannot come from project discovery.
+  expect(host!.work).not.toBe(PLUGIN_DIR)
+  expect(readdirSync(host!.work).includes("skills")).toBe(false)
   const answer = await host!.client.skill.list({ location: { directory: host!.work } })
   const ids = answer.data.map((skill) => skill.id).filter((id) => id.startsWith("inference")).sort()
   expect(ids).toEqual(shipped)
