@@ -15,7 +15,7 @@ src/
   commands.ts           /inference: the status answer as text
   files.ts              metadata before approval, a descriptor read after it
   journal-store.ts      the private 0700/0600 journal and its cross-process lock
-  skills.ts             the two shipped skills, registered while their module is on
+  skills.ts             the three shipped skills: the main one always, the topics while their module is on
   status-text.ts        the status answer as people read it (TUI and command; no zod)
   tui.tsx               the /inference status dialog, reading the status RPC under an open session
   domain/               pure rules: options, contracts, planning, capabilities, acceptance, money, errors
@@ -111,7 +111,7 @@ into a session for people who work in the terminal.
   to bind, so no source is declared.
 - **No result cache.** A repeated call is a repeated send and a repeated charge; the journal is for reconciliation, not
   for reuse.
-- **No per-request hook.** The fixed context is the manifest's summary and the two skills; cost is in each result.
+- **No per-request hook.** The fixed context is the manifest's summary and the three skills; cost is in each result.
 - **No compatibility path.** The contract v0 shape is the only shape; the old repository's tools RPC, app keys, and
   release, drift, copy, icon, forbidden, tested-host, capture and changelog scripts are gone. `scripts/build.mjs` remains
   the plugin's own build.

@@ -42,7 +42,7 @@ src/authorize.ts        the file-effect asserts and their contract refusal
 src/commands.ts         /inference: the status answer as text
 src/files.ts            metadata before approval, a descriptor read after it
 src/journal-store.ts    the private journal and its cross-process lock
-src/skills.ts           the two shipped skills, registered while their module is on
+src/skills.ts           the three shipped skills: the main one always, the topics while their module is on
 src/status-text.ts      the status answer as people read it (no zod)
 src/tui.tsx             the /inference status dialog
 src/domain/             options, contracts, planning, capabilities, acceptance, money, errors
@@ -50,7 +50,7 @@ src/handlers/           one file per method, plus deps, failures, input and sche
 src/provider/           the one origin, the paths, the fixture, the catalog, the two wire adapters
 src/runtime/            the operation pipeline, budget, journal and source handling
 fixtures/conformance.json   the recorded two-account behaviour, status and account nudge
-skills/                 inference-extract, inference-decide
+skills/                 inference, inference-extract, inference-decide
 docs/                   capabilities, accounts, configuration, architecture, automations, security
 test/                   unit, conformance, host, pack
 ```

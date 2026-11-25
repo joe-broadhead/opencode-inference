@@ -83,7 +83,12 @@ describe("the docs and the install path", () => {
     expect(readme).toContain("## Install\n")
   })
 
-  test("CHANGELOG starts at 0.0.0 and names no other release", () => {
-    expect(text("CHANGELOG.md").match(/^## .*$/gm)).toEqual(["## 0.0.0 (2026-11-25)"])
+  test("CHANGELOG has one 0.0.0 section and no older-version reference", () => {
+    const changelog = text("CHANGELOG.md")
+    expect(changelog.match(/^## .*$/gm)).toEqual(["## 0.0.0 (2026-11-25)"])
+    expect(changelog).not.toMatch(/^### .*v0\.0\.[1-9]\d*/m)
+    expect(changelog).not.toMatch(/Removed since v0\.0\./i)
+    expect(changelog).not.toMatch(/\bv0\.0\.[1-9]\d*\b/)
+    expect(changelog).not.toMatch(/earlier release/i)
   })
 })
