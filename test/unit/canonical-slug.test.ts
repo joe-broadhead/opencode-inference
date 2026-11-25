@@ -4,9 +4,9 @@
 import { expect, test } from "bun:test"
 import { loadConfig } from "../../src/domain/config.js"
 import { DecideInput, ExtractInput } from "../../src/domain/contracts.js"
-import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
-import { decisionsAdapter } from "../../src/providers/openrouter/decisions.js"
-import { extractionsAdapter } from "../../src/providers/openrouter/extractions.js"
+import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/provider/capabilities.js"
+import { decisionsAdapter } from "../../src/provider/decisions.js"
+import { extractionsAdapter } from "../../src/provider/extractions.js"
 import { snapshot, type FileAccess } from "../../src/runtime/sources.js"
 
 const route = (model: string) => OPENROUTER_CAPABILITIES.routes.find((item) => item.model === model)!

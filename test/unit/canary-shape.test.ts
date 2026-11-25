@@ -3,14 +3,14 @@
 import { expect, test } from "bun:test"
 import { ExtractInput, DecideInput } from "../../src/domain/contracts.js"
 import { loadConfig } from "../../src/domain/config.js"
-import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
-import { decisionsAdapter } from "../../src/providers/openrouter/decisions.js"
-import { extractionsAdapter, WIRE_REVISION } from "../../src/providers/openrouter/extractions.js"
+import { OPENROUTER_CAPABILITIES } from "../../src/provider/capabilities.js"
+import { decisionsAdapter } from "../../src/provider/decisions.js"
+import { extractionsAdapter, WIRE_REVISION } from "../../src/provider/extractions.js"
 import { snapshot, type FileAccess } from "../../src/runtime/sources.js"
 import { failureOf, shapeOf } from "../../scripts/canary-shape.js"
 
 const SOURCE = "Total EUR 1.00, paid by Zoé"
-const KEY = "sk-or-v1-canary-shape-test-not-a-key"
+const KEY = "test-key-value"
 const encode = (value: unknown) => new TextEncoder().encode(typeof value === "string" ? value : JSON.stringify(value))
 const answer = (body: unknown, status = 200) => ({ status, contentType: "application/json", body: encode(body), elapsedMs: 3 })
 

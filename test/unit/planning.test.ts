@@ -3,8 +3,11 @@ import { capabilities } from "../../src/domain/capabilities.js"
 import { loadConfig, type Config } from "../../src/domain/config.js"
 import { PlanInput, PlanResult } from "../../src/domain/contracts.js"
 import { implemented, OPERATION_INFO } from "../../src/domain/registry.js"
-import { canonical, fromMicros, plan, taskDigest, toMicros } from "../../src/domain/routing.js"
-import { CapabilityFixture, CLAIRIC_DOCUMENTED_IMAGES, OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
+import { canonicalJson } from "@we-the-rebel-alliance/plugin-contract/manifest"
+import { fromMicros, plan, taskDigest, toMicros } from "../../src/domain/routing.js"
+
+const canonical = (value: unknown) => canonicalJson(value)
+import { CapabilityFixture, CLAIRIC_DOCUMENTED_IMAGES, OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/provider/capabilities.js"
 
 const NOW = new Date("2026-11-12T12:00:00Z")
 const text = { kind: "text", text: "Invoice AB-72. Issued 2026-11-01. Total EUR 120.00. Terms net 30 days." } as const
@@ -27,8 +30,8 @@ describe("the committed capability fixture", () => {
     expect(CapabilityFixture.safeParse(OPENROUTER_CAPABILITIES).success).toBe(true)
     expect(OPENROUTER_CAPABILITIES).toMatchObject({ reviewedOn: "2026-11-13", basis: "documentation", verified: false })
     expect(OPENROUTER_CAPABILITIES.routes.map((route) => route.model).sort()).toEqual(["cloudflare/clairic", "inception/mercury-decide", "levanto/sage-2", "scaledown/extract", "typesafe/jev-1.14"])
-    const { WIRE_REVISION: EXTRACTIONS } = await import("../../src/providers/openrouter/extractions.js")
-    const { WIRE_REVISION: DECISIONS } = await import("../../src/providers/openrouter/decisions.js")
+    const { WIRE_REVISION: EXTRACTIONS } = await import("../../src/provider/extractions.js")
+    const { WIRE_REVISION: DECISIONS } = await import("../../src/provider/decisions.js")
     const adapterRevision = { extract: EXTRACTIONS, decide: DECISIONS, read: undefined } as const
     for (const route of OPENROUTER_CAPABILITIES.routes) {
       // A pass is evidence for one wire revision: when the adapter's revision changes, the canary must run again.
@@ -63,10 +66,10 @@ describe("plan", () => {
     const result = run({ task: "extract", input: { source: text, profile: "extract-typed", fields } })
     expect(result.route).toMatchObject({ status: "eligible", requested: { profile: "extract-typed" }, reasons: [] })
     expect(result.route.selected).toMatchObject({ route: { model: "cloudflare/clairic", capabilityRevision: OPENROUTER_CAPABILITIES.revision }, eligible: true, exclusions: [] })
-    expect(result.execution).toEqual({ available: true, tool: "inference_extract", reasons: [] })
+    expect(result.execution).toEqual({ available: true, tool: "inference.extract", reasons: [] })
     // A per-token price is an estimate, never a ceiling.
     expect(result.quote).toMatchObject({ kind: "estimate", basis: "fixture", priceRevision: "openrouter-catalog-2026-11-12", freshness: { reviewedOn: "2026-11-13", ageDays: 0, stale: false } })
-    expect(result.transmission).toEqual({ provider: "openrouter", apiRoute: "POST /api/alpha/extractions", representation: "text", credentialScope: "inference-openrouter" })
+    expect(result.transmission).toEqual({ provider: "openrouter", apiRoute: "POST /api/alpha/extractions", representation: "text", credentialScope: "inference (per-account: inference-<alias>)" })
     expect(result.coverage).toMatchObject({ expected: "complete", basis: "provided-text" })
     expect(result.review).toEqual({ likely: true, reasons: ["CALIBRATION_UNAVAILABLE"], profileVersion: "review-first-v1" })
     expect(result.source).toMatchObject({ kind: "text", bytes: Buffer.byteLength(text.text), codePoints: [...text.text].length, declared: false })
@@ -151,7 +154,7 @@ describe("plan", () => {
     const result = run({ task: "read", input: { source: text, model: "cloudflare/clairic", question: "What is the total?" } })
     expect(result.route.selected!.exclusions).toEqual(expect.arrayContaining(["OPERATION_MISMATCH", "MODULE_DISABLED", "NOT_IMPLEMENTED"]))
     expect(result.route.alternatives).toEqual([])
-    expect(result.execution.tool).toBe("inference_read")
+    expect(result.execution.tool).toBe("inference.read")
   })
 
   test("trusted options narrow eligibility: modules, field limit, ZDR and the price rules", () => {
@@ -206,7 +209,7 @@ describe("quotes from a priced fixture (synthetic; the committed fixture has no 
   test("with an enabled, priced route and an implemented tool, the plan is eligible and executable", () => {
     const result = run(request, { fixture: priced({ revision: "t1", currency: "USD", perRequest: "0.002", upperBound: true }), implemented: () => true })
     expect(result.route.status).toBe("eligible")
-    expect(result.execution).toEqual({ available: true, tool: "inference_extract", reasons: [] })
+    expect(result.execution).toEqual({ available: true, tool: "inference.extract", reasons: [] })
   })
 
   test("decimal arithmetic round-trips without floats", () => {
@@ -223,9 +226,9 @@ describe("capabilities", () => {
   test("names extract and decide as implemented and read as not, and every route with why it cannot run", () => {
     const result = capabilities({}, context())
     expect(result.operations.map((operation) => [operation.tool, operation.class, operation.implemented])).toEqual([
-      ["inference_extract", "send", true],
-      ["inference_decide", "send", true],
-      ["inference_read", "send", false],
+      ["inference.extract", "send", true],
+      ["inference.decide", "send", true],
+      ["inference.read", "send", false],
     ])
     // A route is available exactly when it is enabled (and priced, which an enabled route always is); every other route
     // says ROUTE_DISABLED.

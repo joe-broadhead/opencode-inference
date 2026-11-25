@@ -1,27 +1,21 @@
-// A test-only operation for the PR 2 pipeline: a fake "probe" tool (class send, operation extract) with a fake
-// adapter and a fake transport, run through the real dispatcher, the real host projections (model tools and tools
-// RPC), the real host file access, the real journal store and createAuthorize over a host-like fake assert. Nothing in
-// it reaches a network: the transport is a recorder.
+// A test-only operation for the pipeline: a fake "probe" tool (class send, operation extract) with a fake adapter and a
+// fake transport, run through the real `runOperation`, the real file access, the real journal store and createAuthorize
+// over a rule-shaped fake assert. Nothing here reaches a network: the transport is a recorder. The contract's register
+// owns the method action, so this harness asserts only the file effects the handler itself needs.
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import * as z from "zod"
+import { createAuthorize } from "../../src/authorize.js"
 import { loadConfig, type Options } from "../../src/domain/config.js"
 import { ExtractInput, InferenceResult } from "../../src/domain/contracts.js"
 import { InferenceError } from "../../src/domain/errors.js"
-import type { ToolSpec } from "../../src/domain/registry.js"
-import { files as hostFiles } from "../../src/host/files.js"
-import { createJournalStore } from "../../src/host/journal-store.js"
-import { createAuthorize } from "../../src/host/permissions.js"
-import { registerScripting } from "../../src/host/scripting.js"
-import { toolTransform } from "../../src/host/tools.js"
-import { TOOLS_RPC_ID } from "../../src/host/tools-rpc.js"
-import { OPENROUTER_CAPABILITIES, type CapabilityFixture, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
-import { TransportError, type Account, type Transport, type TransportRequest, type TransportResponse } from "../../src/providers/openrouter/http.js"
-import { createDispatcher } from "../../src/runtime/dispatch.js"
+import { files as hostFiles } from "../../src/files.js"
+import { createJournalStore } from "../../src/journal-store.js"
+import { OPENROUTER_CAPABILITIES, type CapabilityFixture, type RouteCapability } from "../../src/provider/capabilities.js"
+import { TransportError, type Account, type Transport, type TransportRequest, type TransportResponse } from "../../src/provider/http.js"
 import { Journal } from "../../src/runtime/journal.js"
-import type { Adapter } from "../../src/runtime/operation.js"
+import { runOperation, Slots, type Adapter, type OperationRuntime } from "../../src/runtime/operation.js"
 import type { FileAccess } from "../../src/runtime/sources.js"
-import { fakeContext, type AssertRequest } from "./fake-context.js"
 import { tempRoot } from "./temp.js"
 
 export const PROBE_MODEL = "test/probe"
@@ -57,14 +51,15 @@ export const probeFixture = (route = probeRoute()): CapabilityFixture => ({ ...O
 
 export const ProbeData = z.strictObject({ fields: z.record(z.string(), z.string().nullable()) })
 
+export interface TestTool {
+  readonly name: string
+  readonly input: z.ZodType
+  readonly output: z.ZodType
+}
+
 /** The test-only operation. Registered nowhere but in these tests. */
-export const PROBE: ToolSpec = {
+export const PROBE: TestTool = {
   name: "probe",
-  class: "send",
-  operation: "extract",
-  module: "extractions",
-  effects: { network: true, uploadsSource: true, billable: true, readsFiles: true },
-  description: "A test-only operation.",
   input: ExtractInput,
   output: InferenceResult(ProbeData),
 }
@@ -100,7 +95,7 @@ export const probeAdapter = (quote: () => ReturnType<Adapter["quote"]> = () => (
 export type Reply = TransportResponse | TransportError | ((request: TransportRequest) => Promise<TransportResponse>)
 
 /** A recording transport. Each `post` takes the next reply. */
-export const ACCOUNT: Account = { scope: "openrouter:0123456789abcdef", connection: { type: "credential", id: "cred_test", label: "test", method: "key" } as never }
+export const ACCOUNT: Account = { alias: "default", integrationID: "inference", scope: "openrouter:0123456789abcdef", connection: { type: "credential", id: "cred_test", label: "test", method: "key" } as never }
 
 export function fakeTransport(account: Account | "needs_auth" | undefined) {
   const sent: TransportRequest[] = []
@@ -129,23 +124,44 @@ export function countingFiles(base: FileAccess = hostFiles) {
   return { files, counts }
 }
 
+export interface Rule {
+  readonly action: string
+  readonly resource: string
+  readonly effect: "allow" | "ask" | "deny"
+}
+
+export interface AssertRequest {
+  readonly action: string
+  readonly resources: readonly string[]
+}
+
+const wildcard = (pattern: string) => new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`)
+/** The host's last-match-wins evaluation for one action on one resource, and ask when nothing matches. */
+const effectOn = (rules: readonly Rule[], action: string, resource: string): Rule["effect"] =>
+  rules.findLast((rule) => wildcard(rule.action).test(action) && wildcard(rule.resource).test(resource))?.effect ?? "ask"
+/** Deny if any requested resource is denied; otherwise the effect on the first, which is the one a person sees. */
+const effectOf = (rules: readonly Rule[], request: AssertRequest): Rule["effect"] => {
+  const effects = request.resources.length === 0 ? [effectOn(rules, request.action, "*")] : request.resources.map((resource) => effectOn(rules, request.action, resource))
+  return effects.includes("deny") ? "deny" : (effects[0] ?? "ask")
+}
 
 export interface ProbeOptions {
   readonly options?: Options
   readonly route?: RouteCapability
   readonly adapter?: Adapter
-  readonly agentRules?: { action: string; resource: string; effect: "allow" | "ask" | "deny" }[]
+  readonly agentRules?: readonly Rule[]
   readonly onAsk?: (request: AssertRequest) => Promise<"once" | "reject">
   readonly account?: Account | "needs_auth" | undefined
+  /** A gate before the pipeline runs, such as a module turned off. */
   readonly available?: () => InferenceError | undefined
   /** A transport to use instead of the recording fake. */
   readonly transport?: Transport
-  /** The tool to register instead of the probe; its adapter is `adapter`. */
-  readonly tool?: ToolSpec
+  /** The tool to run instead of the probe; its adapter is `adapter`. */
+  readonly tool?: TestTool
   readonly now?: () => Date
 }
 
-/** Everything a pipeline test needs, wired the way src/host/plugin.ts wires it. */
+/** Everything a pipeline test needs, wired the way src/index.ts wires the operation runtime. */
 export async function probeHarness(options: ProbeOptions = {}) {
   const root = tempRoot("probe")
   const project = join(root, "project")
@@ -153,52 +169,59 @@ export async function probeHarness(options: ProbeOptions = {}) {
   mkdirSync(project, { recursive: true })
   const config = loadConfig({ profiles: { probe: { model: PROBE_MODEL } }, ...options.options })
   const fixture = probeFixture(options.route)
-  const fake = fakeContext({
-    hostPermissions: true,
-    ...(options.onAsk ? { onAsk: options.onAsk } : {}),
-    agents: [{ id: "build", permissions: options.agentRules ?? [{ action: "*", resource: "*", effect: "allow" }] }],
-    sessions: { ses_1: { agent: "build" } },
-  })
+  const rules = options.agentRules ?? [{ action: "*", resource: "*", effect: "allow" as const }]
+  const asserted: AssertRequest[] = []
+  const assert = async (input: { action: string; resources?: readonly string[] }) => {
+    const request = { action: input.action, resources: input.resources ?? [] }
+    asserted.push(request)
+    const effect = effectOf(rules, request)
+    if (effect === "deny") throw Object.assign(new Error(`Permission denied: ${request.action}`), { _tag: "Permission.BlockedError" })
+    if (effect === "ask" && (await options.onAsk?.(request)) !== "once") throw Object.assign(new Error(`The user rejected ${request.action}`), { _tag: "Permission.DeclinedError" })
+  }
   const { transport, sent, replies, ok } = fakeTransport("account" in options ? options.account : ACCOUNT)
   const { files, counts } = countingFiles()
   const store = createJournalStore(join(state, "journal"), { lockWaitMs: 200 })
-  const journal = new Journal(store, "openrouter:0123456789abcdef", options.now)
-  const runTool = createDispatcher({
-    tools: [options.tool ?? PROBE],
-    handlers: {},
-    unavailable: options.available ?? (() => undefined),
-    operations: {
-      config,
-      fixture,
-      project: { id: "prj_fake", directory: project, worktree: project },
-      files,
-      authorize: createAuthorize((input) => fake.context.permission.assert(input)),
-      transport: options.transport ?? transport,
-      journal: () => journal,
-      adapters: { [(options.tool ?? PROBE).name]: options.adapter ?? probeAdapter() },
-      ...(options.now ? { now: options.now } : {}),
-    },
-  })
-  const spec = options.tool ?? PROBE
-  await fake.context.tool.transform(toolTransform(runTool, () => true, [spec]))
-  await registerScripting(fake.context as never, runTool, () => undefined, undefined, [spec])
-  const tool = fake.tools.find((item) => item.name === spec.name)!
-  const call = (signal = new AbortController().signal, id = `call_${Math.random().toString(36).slice(2)}`) => ({ sessionID: "ses_1", agent: "build", messageID: "msg_1", id, signal, progress: async () => undefined })
+  const journal = new Journal(store, ACCOUNT.scope, options.now)
+  const tool = options.tool ?? PROBE
+  const adapter = options.adapter ?? probeAdapter()
+  const slots = new Slots(config.limits.concurrency)
+  const runtime: OperationRuntime = {
+    config,
+    fixture,
+    project: { id: "prj_fake", directory: project, worktree: project },
+    files,
+    authorize: createAuthorize(assert as never),
+    transport: options.transport ?? transport,
+    journal: () => journal,
+    adapters: { [tool.name]: adapter },
+    ...(options.now ? { now: options.now } : {}),
+  }
+  const call = (signal = new AbortController().signal) => ({ account: ACCOUNT.alias, sessionID: "ses_1", agent: "build", messageID: "msg_1", id: `call_${Math.random().toString(36).slice(2)}`, signal, progress: async () => undefined })
+  const run = async (input: unknown, signal?: AbortSignal) => {
+    const blocked = options.available?.()
+    if (blocked) throw blocked
+    const parsed = tool.input.parse(input)
+    return runOperation({ name: tool.name }, adapter, parsed, call(signal), runtime, slots)
+  }
   return {
     root,
     project,
     state,
-    fake,
+    fake: { asserted },
     sent,
     replies,
     ok,
     counts,
     journal,
-    runTool,
-    /** The model path: the host tool's execute. */
-    model: (input: unknown, signal?: AbortSignal) => tool.execute(input, call(signal)),
-    /** The tools RPC path, as a script. */
-    rpc: (input: unknown) => fake.call(TOOLS_RPC_ID, spec.name, { sessionID: "ses_1", input }) as Promise<unknown>,
+    /** The model path: the pipeline's output, with the text the tool door would show. */
+    async model(input: unknown, signal?: AbortSignal) {
+      const result = await run(input, signal)
+      return { output: result.output, content: result.text }
+    },
+    /** The RPC path: the same pipeline; the register owns the envelope and the door's confirmation. */
+    async rpc(input: unknown) {
+      return (await run(input)).output
+    },
   }
 }
 

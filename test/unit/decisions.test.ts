@@ -6,8 +6,8 @@ import { readFileSync } from "node:fs"
 import { questionSetDigest, type HeldOutReport, type QuestionSet } from "../../src/domain/acceptance.js"
 import { loadConfig, type Options } from "../../src/domain/config.js"
 import { DecideData, DecideInput } from "../../src/domain/contracts.js"
-import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/providers/openrouter/capabilities.js"
-import { DECISIONS_PATH, decisionsAdapter, WIRE_REVISION, type PreparedDecision } from "../../src/providers/openrouter/decisions.js"
+import { OPENROUTER_CAPABILITIES, type RouteCapability } from "../../src/provider/capabilities.js"
+import { DECISIONS_PATH, decisionsAdapter, WIRE_REVISION, type PreparedDecision } from "../../src/provider/decisions.js"
 import { snapshot, type FileAccess, type Snapshot } from "../../src/runtime/sources.js"
 
 const STATE = "Payment received for invoice AB-72. Thank you."
@@ -220,8 +220,7 @@ describe("through the dispatcher, with the fake transport", () => {
       ["0.002", "upper_bound", "0.000042000001"],
       ["0.002", "upper_bound", "0.000042000001"],
     ])
-    const unknown = (await harness.rpc({ profile: "probe", source: { kind: "text", text: STATE }, questionSet: "nothing-v1" })) as { error: { data: { code: string } } }
-    expect(unknown.error.data.code).toBe("CAPABILITY_UNSUPPORTED")
+    expect(await failure(harness.rpc({ profile: "probe", source: { kind: "text", text: STATE }, questionSet: "nothing-v1" }))).toMatch(/^CAPABILITY_UNSUPPORTED:/)
     expect(harness.sent).toHaveLength(2)
   })
 })

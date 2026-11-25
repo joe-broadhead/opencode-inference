@@ -4,7 +4,7 @@
 //   crash-planned <dir> / crash-dispatching <dir>: reserve (and dispatch), then exit without settling, as a crash.
 import { InferenceError } from "../../src/domain/errors.js"
 import { money } from "../../src/domain/money.js"
-import { createJournalStore } from "../../src/host/journal-store.js"
+import { createJournalStore } from "../../src/journal-store.js"
 import { admit } from "../../src/runtime/budget.js"
 import { Journal, type Draft } from "../../src/runtime/journal.js"
 

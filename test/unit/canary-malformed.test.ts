@@ -5,9 +5,9 @@
 import { expect, test } from "bun:test"
 import { loadConfig } from "../../src/domain/config.js"
 import { DecideInput, DecideResult, ExtractInput } from "../../src/domain/contracts.js"
-import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
-import { decisionsAdapter, WIRE_REVISION as DECISIONS_REVISION } from "../../src/providers/openrouter/decisions.js"
-import { extractionsAdapter } from "../../src/providers/openrouter/extractions.js"
+import { OPENROUTER_CAPABILITIES } from "../../src/provider/capabilities.js"
+import { decisionsAdapter, WIRE_REVISION as DECISIONS_REVISION } from "../../src/provider/decisions.js"
+import { extractionsAdapter } from "../../src/provider/extractions.js"
 import { snapshot, type FileAccess } from "../../src/runtime/sources.js"
 import { BREAKS, malformedBody, malformedRequest, SOURCES } from "../../scripts/canary-malformed.js"
 
@@ -83,7 +83,7 @@ test("both canaries' dry runs name what the malformed request breaks, and send n
   const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== "CI" && name !== "OPENROUTER_CANARY_KEY"))
   for (const [script, endpoint] of [["canary-extractions", "extractions"], ["canary-decisions", "decisions"]] as const) {
     const child = Bun.spawnSync([process.execPath, new URL(`../../scripts/${script}.ts`, import.meta.url).pathname, "--yes-spend", "--budget-usd", "0.10", "--per-call-usd", "0.02", "--only", "malformed", "--dry-run"], {
-      env: { ...base, OPENROUTER_CANARY_KEY: "sk-or-v1-malformed-test-not-a-key" } as Record<string, string>,
+      env: { ...base, OPENROUTER_CANARY_KEY: "test-key-value" } as Record<string, string>,
       stdout: "pipe",
       stderr: "pipe",
     })
