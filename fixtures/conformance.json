@@ -2,7 +2,7 @@
   "$comment": "Recorded from the plugin's own handlers: two synthetic OpenRouter accounts, a status answer with neither signed in, the account nudge probe emits, and the inputs the RPC door refuses without a confirmation. Every person, key and request is invented.",
   "plugin": "@we-the-rebel-alliance/inference-plugin",
   "accounts": {
-    "real": true,
+    "real": false,
     "aliases": [
       "work",
       "personal"

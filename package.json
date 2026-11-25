@@ -720,7 +720,7 @@
     "test:pack": "bun test test/pack",
     "check:kit": "npx plugin-kit check",
     "docs": "npx plugin-kit docs",
-    "check": "npm run lint && npm run typecheck && npm run bundle && npm test && npm run test:conformance && npm run test:host && npm run test:pack && npx plugin-kit check",
+    "check": "npm run lint && npm run typecheck && npm run bundle && npm test && npm run test:conformance && npm run test:host && npm run test:pack && npx plugin-kit check && npx plugin-kit docs --check",
     "canary:extractions": "bun scripts/canary-extractions.ts",
     "canary:decisions": "bun scripts/canary-decisions.ts",
     "evaluate": "bun scripts/evaluate-decisions.ts"
