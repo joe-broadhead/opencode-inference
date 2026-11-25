@@ -1,150 +1,154 @@
-# Inference plugin
+# Inference
 
-Unofficial OpenCode plugin. Not affiliated with OpenCode, and not affiliated with OpenRouter.
-
-OpenRouter is a trademark of OpenRouter, Inc.; this unofficial plugin is not endorsed by them.
-
-`@we-the-rebel-alliance/inference-plugin` adds typed extraction (`tools.inference.extract`) and bounded decisions
+An OpenCode plugin on the plugin contract. It adds typed extraction (`tools.inference.extract`) and bounded decisions
 (`tools.inference.decide`) through OpenRouter's alpha Extractions and Decisions APIs, keeping nulls, evidence,
-probabilities, refusals, coverage and cost in every result. **A route is enabled only after a compatibility canary has
-verified it against the live API**; a disabled route refuses with that reason and nothing is sent.
-`tools.inference.capabilities` lists the enabled routes and what each takes. The text, files and artifacts you give
-`tools.inference.extract` and `tools.inference.decide` go to OpenRouter; the three local tools send nothing.
+probabilities, refusals, coverage and cost in every result. `status`, `probe`, `capabilities` and `plan` are local and
+spend nothing. `extract` and `decide` send the source through the account's OpenRouter key and can be charged, and only
+on a verified, enabled route: a disabled route refuses before reading a file, resolving the key or sending anything.
 
-## What works in this version
-
-- **`tools.inference.status`**: whether the OpenRouter key is connected (never the key), which modules are on, the
-  capability fixture's date, the spend caps you set (none by default), which actions ask for permission, and one next
-  step.
-- **`tools.inference.capabilities`**: what this version implements, and what each reviewed route documents (inputs,
-  field and question types, limits, price if known) with every reason it cannot run.
-- **`tools.inference.plan`**: given `{ task, input }` for an extract, decide or read call, the route and its exclusion
-  reasons, the local preparation it would need, what would be sent and where, a quote, expected coverage, likely review
-  and the unknowns. It never opens a file, uploads, calls a provider or spends. A plan is not a permission.
-- **`tools.inference.extract`** (`send`): named typed fields (text, number, date, time, datetime, list of text; a
-  duration is refused on OpenRouter in this version) from supplied text, a local file or an artifact, on an enabled
-  route. Each field keeps its nullable value (a guess never fills it), the provider's confidence and null probability
-  when reported, evidence as Unicode code-point spans of the exact source, review reasons, and the number exactly as
-  written. It asks the host before reading a file, reserves budget before sending, and refuses provider constraints
-  locally. On a disabled route it refuses before reading or sending anything.
-- **`tools.inference.decide`** (`send`): noul (the probability a proposition is true), choice and score (the expected
-  position on an ordered rubric) questions about supplied text, given inline or as a versioned question set from the
-  trusted options. Probabilities and distributions come back exactly as reported (never renormalised or completed),
-  the provider's confidence apart, and a refusal as its own outcome. A deterministic acceptance profile marks each
-  answer accepted, review or refused: the built-in `review-first-v1` accepts nothing. An accepted label is never a
-  permission.
-- Two skills, `inference-extract` and `inference-decide`, teach agents when to use each tool and how to read its result
-  (nulls, evidence, probabilities, review, cost). Each is registered while its module is on.
-- `/inference-status` in a session, and the **Inference: Status** dialog (`/inference`) in the TUI.
-- Scripts call the same tools with no model through the tools RPC `inference.core.tools`
-  ([docs/scripting.md](docs/scripting.md)).
-
-A route is enabled only after its opt-in canary (`scripts/canary-extractions.ts`, `scripts/canary-decisions.ts`, which
-need an explicit key and budget and are never run by the checks) has passed against it. A disabled route has no price,
-so its quote is `unavailable`.
-
-<!-- generated:tools -->
-
-| Tool | Host tool and permission | Code Mode | Tools RPC method | Class | Network | Uploads source | Billable |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `inference.status` | `inference_status` | `tools.inference.status(input)` | `inference.core.tools/status` | read | no | no | no |
-| `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | read | no | no | no |
-| `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | read | no | no | no |
-| `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | send | yes | yes | yes |
-| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | send | yes | yes | yes |
-
-<!-- /generated:tools -->
-
-## Requirements
-
-<!-- generated:hosts -->
-
-OpenCode `>=2.4.1 <2.5.0`, tested on 2.4.1.
-
-<!-- /generated:hosts -->
-
-An OpenCode outside `>=2.4.1 <2.5.0` refuses to start the plugin with `HOST_UNTESTED`, unless the option `allowUntestedHost` is set; an in-range release that is not tested starts and is reported as untested.
+Unofficial plugin: not affiliated with OpenCode, and not affiliated with OpenRouter. OpenRouter is a trademark of
+OpenRouter, Inc.; this unofficial plugin is not endorsed by them.
 
 ## Install
 
-Install from a release:
-
 ```sh
 opencode plugin add github:we-the-rebel-alliance/inference-plugin#v<version>
-opencode reload
 ```
 
-The first release on plugin-contract is v0.0.0 (phase 4b).
+The first release is v0.0.0. Pin an exact tag: `master` builds nothing and is not an install target.
 
-Or add it to `opencode.json`:
+## Sign in
+
+The plugin holds one OpenRouter API key per account, as an OpenCode integration. With one account, run `/connect` and
+choose **Inference**, then paste a key from <https://openrouter.ai/settings/keys>. The key is read only when a send
+method runs on an enabled route, and is sent only to `https://openrouter.ai`.
+
+## Accounts
+
+Several accounts can be signed in at once. Declare them in the plugin options and sign each one in:
 
 ```json
-{
-  "plugins": [{ "package": "github:we-the-rebel-alliance/inference-plugin#v<version>" }]
-}
+{ "accounts": { "work": {}, "personal": {} } }
 ```
 
-A release install does not update by itself: remove the entry with
-`opencode plugin remove github:we-the-rebel-alliance/inference-plugin#v<version>`, then add the new release's tag.
+- `work` signs in to the integration **Inference (work)**, whose id is `inference-work`.
+- `personal` signs in to **Inference (personal)**, whose id is `inference-personal`.
+- With no `accounts` option there is one `default` account, signed in to the integration **Inference** (`inference`).
 
-## Connect OpenRouter
+Every method that uses the key takes `account` (`extract`, `decide`, `probe`). With one account it may be left out; with
+several, leaving it out is `ACCOUNT_REQUIRED`, whose next step lists the aliases. An unknown alias is `ACCOUNT_UNKNOWN`.
+See [docs/accounts.md](docs/accounts.md).
 
-Run `/connect` and choose **OpenRouter key for Inference**, then enter an OpenRouter API key, or run
-`opencode auth login inference-openrouter`. This is the plugin's own key, separate from OpenCode's OpenRouter model
-provider. The plugin stores no key itself: the transport reads it at dispatch, only for an enabled route, and sends it
-only to OpenRouter in the `Authorization` header. Status shows whether the key is connected, not connected, needs sign-in, or is unknown. The key is needed only
-for an enabled route; the three local tools never need it. Several named accounts arrive with the plugin contract in a
-later release; this version has the one key.
+## Access
 
-## Configure
+`access` is `all` (the default), `ask-changes` or `read-only`, and is generated into every agent's rules:
 
-Options go in the plugin's entry in `opencode.json`. Every option is optional and the plugin refuses unknown ones;
-keys are never options. See [docs/configuration.md](docs/configuration.md) for each option, the default permission
-rules for each `access` value, and the error codes.
+- **Reads** — `status`, `probe`, `capabilities` and `plan` — always run. They read no key and send nothing.
+- **Sends** — `extract` and `decide` — run under `all`, ask first under `ask-changes`, and are refused under `read-only`.
+- A choice the person makes for one method wins, and an agent that lacks the generated rules is named in `status`.
 
-```json
-{
-  "plugins": [
-    {
-      "package": "github:we-the-rebel-alliance/inference-plugin#v<version>",
-      "options": { "access": "ask-changes", "limits": { "maxFields": 16 } }
-    }
-  ]
-}
-```
+## What it does
 
-## Permissions
+- **`tools.inference.status`** — the OpenCode range, every account alias and whether it is signed in, the agents
+  without the generated rules, and one next step. It never reads a key.
+- **`tools.inference.probe`** — whether OpenCode holds a usable key for one alias. It reads no content and never the key.
+- **`tools.inference.capabilities`** — what this version implements and what each reviewed route documents: inputs,
+  field and question kinds, limits, price when known, and every reason it cannot run now. The data is a dated,
+  documentation-derived fixture; nothing is refreshed or called.
+- **`tools.inference.plan`** — given `{ task, input }`, the route and its exclusions, the preparation it would need,
+  what would be sent and where, a quote, expected coverage, likely review and the unknowns. It never opens a file,
+  uploads, calls a provider or spends. A plan is not a permission.
+- **`tools.inference.extract`** (`send`) — named typed fields from supplied text, a local file or an artifact: a
+  nullable value, the provider's confidence and null probability when reported, evidence as Unicode code-point spans of
+  the exact source, the number exactly as written, review reasons, coverage and usage.
+- **`tools.inference.decide`** (`send`) — noul (the probability a proposition is true), choice and score (the expected
+  position on an ordered rubric) answers with their probability or distribution exactly as reported, per-question
+  refusal, and a deterministic acceptance. An accepted label is never a permission.
 
-The plugin inserts a default block after each agent's base allow: the three local reads always run, and
-`inference_extract` and `inference_decide` follow `access` (`all` allows them, `ask-changes` asks, `read-only` denies).
-Every call asserts its tool's own action first, so that holds for a text source as much as for a file. Reading a file
-also asks the host's own `read` (and `external_directory` outside the project). Your own rules still win.
+Every send asks the host before reading a file, reserves the budget before sending, and reports what the call cost.
+A route is enabled only in a reviewed change after its compatibility canary has passed; a disabled route refuses with
+`CAPABILITY_UNSUPPORTED` and sends nothing. The `read` operation is reserved: it is described by `capabilities` and
+`plan` and has no method in this version.
 
-## Documentation
+## Capabilities
 
-- [docs/operations.md](docs/operations.md): uncertainty, cost scope, privacy, refreshing the fixture, alpha
-  compatibility and common errors.
-- [docs/architecture.md](docs/architecture.md): the layers, the registry, the reserved operations and the fixture.
-- [docs/configuration.md](docs/configuration.md): options, permissions and errors.
-- [docs/scripting.md](docs/scripting.md): the tools RPC, and scheduled reads as an OpenCode automation.
-- [CONTRIBUTING.md](CONTRIBUTING.md): setup and checks.
+<!-- generated:capabilities -->
+### Methods
+
+| Method | Class | Accounts | Operations |
+|---|---|---|---|
+| `status` | read | none | — |
+| `probe` | read | optional | — |
+| `capabilities` | read | none | — |
+| `plan` | read | none | — |
+| `extract` | send | optional | `openrouter.extractions` |
+| `decide` | send | optional | `openrouter.decisions` |
+
+### Sources
+
+| Source | Kind | Reads or output | Method | Cost |
+|---|---|---|---|---|
+
+### Actions
+
+None.
+
+### Bus events
+
+`rpc.inference.account`
+<!-- /generated:capabilities -->
+
+## Errors
+
+Every failure reads `CODE: What happened. Next step: What to do.`
+
+<!-- generated:errors -->
+| Code | Meaning |
+|---|---|
+| `NEEDS_SIGN_IN` | the account is not signed in |
+| `SCOPE_MISSING` | the call needs a scope the person has not confirmed |
+| `ACCOUNT_REQUIRED` | the plugin serves several accounts and the call names none |
+| `ACCOUNT_UNKNOWN` | the call names an alias the plugin does not serve |
+| `ACCOUNT_MISMATCH` | the item belongs to another account |
+| `CURSOR_INVALID` | the cursor is malformed, or belongs to another source, account or scope |
+| `CURSOR_EXPIRED` | the provider no longer keeps the history the cursor names |
+| `RATE_LIMITED` | the provider asked the plugin to slow down |
+| `BUDGET_EXCEEDED` | the read would cost more than the person allows |
+| `SOURCE_DISABLED` | the person turned this source or action off |
+| `TOO_LARGE` | the answer is larger than the source's maxBytes |
+| `INPUT_INVALID` | the input does not match the method's schema |
+| `SOURCE_UNKNOWN` | the plugin declares no such source |
+| `SCHEMA_VIOLATION` | an answer does not keep the contract's shape |
+| `PERMISSION_DENIED` | the person's grant does not cover the call |
+| `PLAN_INVALID` | the plan is missing, or belongs to another method |
+| `PLAN_USED` | the plan was already used by an earlier commit |
+| `GRANT_INVALID` | the action grant did not verify, or was already spent |
+| `HOST_UNTESTED` | OpenCode is outside the plugin's tested range |
+| `OPTIONS_INVALID` | the plugin's options do not match their schema |
+| `UNAVAILABLE` | the provider could not be reached |
+<!-- /generated:errors -->
 
 ## Known limits
 
-- **Two routes are enabled**, each after a compatibility canary against the live API on 2026-11-12:
-  - `cloudflare/clairic` extraction, **text only**. Its images are documented but not enabled, and it takes no PDF.
-  - `typesafe/jev-1.14` decisions: **noul, choice and score over text**. A request whose state and questions exceed
-    about 32 KB is refused before anything is sent. Box questions and images are not enabled.
-- **Everything else is disabled.** A disabled route refuses before reading or sending anything.
-- **Every answer goes to review.** The built-in `review-first-v1` profile accepts nothing: a provider's confidence is
-  its own statistic, not checked accuracy.
-- **Spend.** No cap is set by default: `spend.requestUsd`, `spend.sessionUsd` and `spend.rolling24hUsd` are `null`, so a
-  call runs at whatever it costs, and each result reports that cost. A cap you set counts this machine's journal for one
-  connection, not your whole OpenRouter account, so give the key its own credit limit too.
-- **Alpha endpoints.** OpenRouter's Extractions and Decisions APIs are alpha and may change. An answer that no longer
-  matches the reviewed contract is refused (`PROVIDER_CONTRACT_CHANGED`), and an adapter change disables its route
-  until a new canary passes for the new revision (`ROUTE_NOT_VERIFIED`).
+- Enabled in v0.0.0: OpenRouter's alpha Extractions and Decisions routes as the fixture records them (see
+  `tools.inference.capabilities`). A route the fixture disables, such as an image or PDF route, refuses before reading.
+- No result cache and no automatic retry. A paid call that timed out or was cancelled after sending may have been
+  charged; its result keeps the operation and the reservation, and a second send is a second charge.
+- No spend cap is set by default. `spend.requestUsd`, `spend.sessionUsd` and `spend.rolling24hUsd` are opt-in, and each
+  result reports its own cost. `status` has no cost total (the contract's status shape has no cost field).
+- `probe` proves the integration is signed in; it does not verify whose OpenRouter account the key belongs to
+  (`owner.verified` is `false`).
+
+## Docs
+
+- [Capabilities](docs/capabilities.md)
+- [Accounts](docs/accounts.md)
+- [Configuration](docs/configuration.md)
+- [Architecture](docs/architecture.md)
+- [Automations](docs/automations.md)
+- [Security](docs/security.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 
-MIT. `dist/index.js` bundles zod; see [NOTICE](NOTICE).
+MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for the code bundled into `dist/`.
