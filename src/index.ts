@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { Plugin } from "@opencode/plugin"
 import { accountsOf, type AccountProfile } from "@we-the-rebel-alliance/plugin-contract/accounts"
-import { unguardedAgents, type AgentLike } from "@we-the-rebel-alliance/plugin-contract/access"
+import { rulesFor, unguardedAgents, type AgentLike } from "@we-the-rebel-alliance/plugin-contract/access"
 import type { Manifest } from "@we-the-rebel-alliance/plugin-contract/manifest"
 import { assertHost, register, type MethodCall } from "@we-the-rebel-alliance/plugin-contract/register"
 import { register as registerAccounts } from "./accounts.js"
@@ -79,10 +79,20 @@ export default Plugin.define({
 
     const registration = await register(context, manifest, handlers)
 
-    // The command posts the same answer the status method returns: one status answer, one place it is built.
+    // The command posts the same answer the status method returns: one status answer, one place it is built. The rules
+    // are the access module's pure function of the manifest and the options, because the registration no longer exposes
+    // them; the handler itself reads the rules' live result from its call.
+    const rules = rulesFor(manifest, config.access, profiles.map((profile) => profile.alias))
     const status = async (): Promise<StatusView> => {
-      const agents = await context.agent.list().catch(() => ({ data: [] as readonly AgentLike[] }))
-      const call = { unguardedAgents: async () => ({ ok: true as const, agents: unguardedAgents(agents.data as readonly AgentLike[], registration.access.rules) }) }
+      const call = {
+        unguardedAgents: async () => {
+          try {
+            return { ok: true as const, agents: unguardedAgents((await context.agent.list()).data as readonly AgentLike[], rules) }
+          } catch (error) {
+            return { ok: false as const, error: error instanceof Error ? error.message : String(error) }
+          }
+        },
+      }
       return (await handlers.status!.run({}, call as unknown as MethodCall)) as StatusView
     }
 

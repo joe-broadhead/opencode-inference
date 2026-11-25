@@ -9757,7 +9757,7 @@ function secretKinds(text3) {
   return [...kinds];
 }
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-YTAZMRBO.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-CQOJNZW4.js
 var MANIFEST_VERSION = 1;
 var OPENCODE_RANGE = ">=2.4.1 <2.5.0";
 var TESTED_OPENCODE = "2.4.1";
@@ -9782,8 +9782,20 @@ var SERVICE_LABEL_MAX = 64;
 var DETAIL_FIELDS = ["external_id", "kind", "occurred_at", "url", "thread", "actors", "labels", "hash"];
 var EXTENSION_SEGMENT_MAX = 32;
 var EXTENSION_NAME = new RegExp(`^x-[a-z][a-z0-9-]{0,${EXTENSION_SEGMENT_MAX - 1}}/[a-z][a-z0-9-]{0,${EXTENSION_SEGMENT_MAX - 1}}$`);
+var PAGE = { default: 100, min: 1, max: 500 };
 var TRUST = "untrusted";
 var FACT_TYPES = ["commitment", "person.attribute", "meeting.attended"];
+var EVENTS_LIST_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    source: { type: "string" },
+    cursor: { type: "string" },
+    since: { type: "string" },
+    limit: { type: "integer", minimum: PAGE.min, maximum: PAGE.max },
+    scope: { type: "object" }
+  },
+  additionalProperties: false
+};
 var ERROR_CODES = [
   "NEEDS_SIGN_IN",
   "SCOPE_MISSING",
@@ -9869,7 +9881,7 @@ function validator(name, schema) {
   };
 }
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-KDEHNYY7.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-SWSUBLXW.js
 var text = (max) => string2().max(max);
 var httpsUrl = string2().max(2048).refine((value) => {
   try {
@@ -10011,7 +10023,7 @@ function isExtensionOutput(name) {
   return typeof name === "string" && EXTENSION_NAME.test(name);
 }
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-WUXTQJJP.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-QO4BENAJ.js
 import { createHash } from "node:crypto";
 function canonicalJson(value) {
   return write(value, /* @__PURE__ */ new Set());
@@ -10236,7 +10248,7 @@ var top = looseObject({
   events: eventsField
 });
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-HSYZDBOW.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-LJBRNDIR.js
 var ACCESS_LEVELS = ["all", "ask-changes", "read-only"];
 var DEFAULT_ACCESS = "all";
 function accessLevel(options = {}) {
@@ -11760,7 +11772,6 @@ async function register(context, manifest2, handlers, wiring = {}) {
       const tools = await installTools(context, environment, writer);
       return {
         name,
-        access,
         bus,
         async dispose() {
           await rpc.dispose().catch(() => void 0);
@@ -21910,9 +21921,17 @@ var src_default = Plugin.define({
       operation
     });
     const registration = await register(context, manifest, handlers);
+    const rules = rulesFor(manifest, config3.access, profiles.map((profile) => profile.alias));
     const status = async () => {
-      const agents = await context.agent.list().catch(() => ({ data: [] }));
-      const call = { unguardedAgents: async () => ({ ok: true, agents: unguardedAgents(agents.data, registration.access.rules) }) };
+      const call = {
+        unguardedAgents: async () => {
+          try {
+            return { ok: true, agents: unguardedAgents((await context.agent.list()).data, rules) };
+          } catch (error3) {
+            return { ok: false, error: error3 instanceof Error ? error3.message : String(error3) };
+          }
+        }
+      };
       return await handlers.status.run({}, call);
     };
     const stops = [];
