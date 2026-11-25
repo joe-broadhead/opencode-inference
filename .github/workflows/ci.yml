@@ -52,6 +52,14 @@ jobs:
         # The contract is a public repository, and npm records its GitHub dependency over ssh. A runner has no key.
         run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
       - run: npm ci --ignore-scripts
+      # The stock binary the skill-host and host suites spawn.
+      - name: Stock OpenCode 2.4.1 binary
+        run: |
+          platform="$(node -p 'process.platform')-$(node -p 'process.arch')"
+          dir="$RUNNER_TEMP/stock-2.4.1"
+          mkdir -p "$dir"
+          (cd "$dir" && npm init -y >/dev/null && npm install "@opencode/cli@2.4.1" "@opencode/cli-$platform@2.4.1" --omit=optional --ignore-scripts --no-audit --no-fund)
+          echo "OPENCODE_BIN_2_4_1=$dir/node_modules/@opencode/cli-$platform/bin/opencode" >> "$GITHUB_ENV"
       - run: npm run check
       # dist/ is committed, so a release tag installs with no build. The bundle must be the committed one.
       - name: dist/ is current

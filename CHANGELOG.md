@@ -26,3 +26,12 @@ The first release: `inference` on plugin-contract v0.0.0, with no earlier releas
 - **Documentation and tests.** README, AGENTS.md, the five docs, CONTRIBUTING, SECURITY, both skills and the generated
   sections are written for this release. Unit, conformance, host and pack suites cover the contract doors, two
   synthetic accounts and the built package; `npx plugin-kit check` is the gate.
+
+### Removed since v0.0.7
+
+- `/inference-status` — replaced by `/inference`, the contract's status command name (contract §3). The TUI's `/inference` dialog stays.
+- The `inference-openrouter` integration — replaced by one integration per alias, `inference` and `inference-<alias>`; sign in again for each account.
+- The `inference.core.status` and `inference.core.tools` RPCs, including `describe` — replaced by one `inference` RPC registration with the six methods. `describe` is diagnostics only (contract §18).
+- The old default permission block on `inference_*` actions — replaced by the access module's generated `inference.<method>` rules on `<alias>:*`; `status` names any agent whose later rules override them.
+- The old rich status fields (connection, modules, tools, capabilities, spend, operations, permissions, problems) — replaced by the contract status shape; the same data is in `capabilities`, `plan`, the options docs and each result's `usage`.
+- The `routing` and `cache` options — they were frozen no-ops (explicit routing only, cache off); the contract options carry the settings that matter.
