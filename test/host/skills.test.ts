@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test"
 import { execFileSync, spawn, type ChildProcess } from "node:child_process"
 import { createServer } from "node:net"
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { randomBytes } from "node:crypto"
@@ -20,6 +20,16 @@ const shipped = readdirSync(join(PLUGIN_DIR, "skills"), { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort()
+
+/** The YAML front matter of one SKILL.md, parsed by Bun's YAML parser. */
+function frontMatter(file: string): Record<string, unknown> {
+  const text = readFileSync(file, "utf8")
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text)
+  if (match === null) throw new Error(`no front matter: ${file}`)
+  const parsed = Bun.YAML.parse(match[1]!)
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`front matter is not a mapping: ${file}`)
+  return parsed as Record<string, unknown>
+}
 
 interface Host {
   readonly client: ReturnType<typeof OpenCode.make>
@@ -134,17 +144,30 @@ afterAll(async () => {
   await close(host)
 })
 
-test("the real server returns every shipped skill id from GET /api/skill", async () => {
+test("the real server returns every shipped skill with the description its SKILL.md declares", async () => {
   // The project is a separate temp directory with no skills/ of its own: a pass cannot come from project discovery.
   expect(host!.work).not.toBe(PLUGIN_DIR)
   expect(readdirSync(host!.work).includes("skills")).toBe(false)
   const answer = await host!.client.skill.list({ location: { directory: host!.work } })
-  const ids = answer.data.map((skill) => skill.id).filter((id) => id.startsWith("inference")).sort()
-  expect(ids).toEqual(shipped)
-  expect(ids).toEqual(["inference", "inference-decide", "inference-extract"])
-  // The registration carries the authored description and body, not an empty placeholder.
-  for (const skill of answer.data.filter((entry) => entry.id.startsWith("inference"))) {
-    expect(skill.description?.length).toBeGreaterThan(20)
+  const registered = answer.data.filter((skill) => shipped.includes(skill.id)).sort((left, right) => left.id.localeCompare(right.id))
+  expect(registered.map((skill) => skill.id)).toEqual(shipped)
+  expect(registered.map((skill) => skill.id)).toEqual(["inference", "inference-decide", "inference-extract"])
+  for (const skill of registered) {
+    const file = join(PLUGIN_DIR, "skills", skill.id, "SKILL.md")
+    expect(existsSync(file)).toBe(true)
+    const parsed = frontMatter(file)
+    const description = parsed["description"]
+    expect(parsed["name"]).toBe(skill.id)
+    expect(typeof description).toBe("string")
+    const declared = description as string
+    expect(declared.trim()).not.toBe("")
+    expect(declared).not.toBe(">")
+    expect(declared).not.toBe("|")
+    expect(declared.startsWith(">")).toBe(false)
+    expect(declared.startsWith("|")).toBe(false)
+    expect(skill.description).toBe(declared)
+    expect(skill.name).toBe(skill.id)
+    expect(skill.path.endsWith(join("skills", skill.id, "SKILL.md"))).toBe(true)
     expect(skill.content.length).toBeGreaterThan(20)
   }
   // The status command is registered in the same setup and is listed by the real server.

@@ -21895,9 +21895,10 @@ function parseSkill(id, text3, path) {
   if (!match) return void 0;
   const fields = new Map((match[1] ?? "").split(/\r?\n/).map((line) => /^(\w+):\s*(.+?)\s*$/.exec(line)).filter((found) => found !== null).map((found) => [found[1], found[2]]));
   const body = match[2].trim();
-  if (fields.get("name") !== id || !fields.get("description") || body.length === 0 || text3.length > 64 * 1024) return void 0;
+  const description2 = fields.get("description");
+  if (fields.get("name") !== id || description2 === void 0 || description2.trim() === "" || /^[>|]/.test(description2) || body.length === 0 || text3.length > 64 * 1024) return void 0;
   const module = SKILLS[id];
-  return { id, ...module === void 0 ? {} : { module }, info: { id, name: id, description: fields.get("description"), path, content: body, autoinvoke: true } };
+  return { id, ...module === void 0 ? {} : { module }, info: { id, name: id, description: description2, path, content: body, autoinvoke: true } };
 }
 async function loadSkills(packageRoot2) {
   const skills = [];

@@ -29,9 +29,12 @@ export function parseSkill(id: SkillID, text: string, path: string): LoadedSkill
   if (!match) return undefined
   const fields = new Map((match[1] ?? "").split(/\r?\n/).map((line) => /^(\w+):\s*(.+?)\s*$/.exec(line)).filter((found) => found !== null).map((found) => [found[1]!, found[2]!] as const))
   const body = match[2]!.trim()
-  if (fields.get("name") !== id || !fields.get("description") || body.length === 0 || text.length > 64 * 1024) return undefined
+  const description = fields.get("description")
+  // A description is one non-empty line. A YAML block scalar (`>`/`|`) or an empty value is never registered as the
+  // literal indicator; the skill is skipped and reported instead.
+  if (fields.get("name") !== id || description === undefined || description.trim() === "" || /^[>|]/.test(description) || body.length === 0 || text.length > 64 * 1024) return undefined
   const module = SKILLS[id]
-  return { id, ...(module === undefined ? {} : { module }), info: { id, name: id, description: fields.get("description")!, path, content: body, autoinvoke: true } as Skill.Info }
+  return { id, ...(module === undefined ? {} : { module }), info: { id, name: id, description, path, content: body, autoinvoke: true } as Skill.Info }
 }
 
 /** Reads the shipped skills. Each one that is missing or malformed is skipped and named in `problems`. */
