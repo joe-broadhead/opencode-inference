@@ -1,7 +1,7 @@
 // Builds dist/ with esbuild: exactly two self-contained files, dist/index.js (the server part) and dist/tui.js (the TUI
 // part). Each inlines all of its first-party code, the RPC contract and zod, with no chunks and no relative imports, so
 // an in-place update can never mix a new entry with a cached old sibling module. No declarations ship.
-// Run it with `node scripts/build.mjs` (npm run build).
+// Run it with `node scripts/build.mjs` (npm run bundle).
 // Sources import zod as `import * as z`. A named `import { z }` makes the bundler keep every locale.
 import { transformAsync } from "@babel/core"
 import { build } from "esbuild"

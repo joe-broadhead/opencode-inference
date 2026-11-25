@@ -19,7 +19,7 @@ npm run check
 
 1. `lint`: `biome check .` over the repository, with the formatter off and the recommended linter rules on.
 2. `typecheck`: `tsc --noEmit` over `src`, `test` and the scripts.
-3. `build`: esbuild writes exactly `dist/index.js` (server, with the plugin's own code, the contract modules it imports
+3. `bundle`: esbuild writes exactly `dist/index.js` (server, with the plugin's own code, the contract modules it imports
    and zod bundled) and `dist/tui.js` (the TUI, no zod). `NOTICE` holds the licence of every package inlined; the build
    fails when it no longer matches, and `node scripts/build.mjs --notice` rewrites it.
 4. `test`: the unit tests (`bun test test/unit`).

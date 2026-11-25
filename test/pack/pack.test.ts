@@ -1,6 +1,6 @@
 // The built package as users get it: `npm pack`, then `npm install --ignore-scripts --offline` of the tarball into an
 // empty project. The installed package then loads in the real embedded OpenCode 2.4.1 host, and its two entries import
-// with the host modules supplied. Run after `npm run build` (the full check does).
+// with the host modules supplied. Run after `npm run bundle` (the full check does).
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
@@ -33,7 +33,7 @@ async function npm(args: string[], cwd: string): Promise<string> {
 beforeAll(async () => {
   mkdirSync(project, { recursive: true })
   writeFileSync(join(project, "package.json"), JSON.stringify({ name: "inference-pack-test", version: "0.0.0", private: true }))
-  if (!existsSync(join(REPO, "dist/index.js"))) throw new Error("dist/ is missing. Run npm run build first.")
+  if (!existsSync(join(REPO, "dist/index.js"))) throw new Error("dist/ is missing. Run npm run bundle first.")
   ;[packed] = JSON.parse(await npm(["pack", "--ignore-scripts", "--json", "--pack-destination", work], REPO)) as [Packed]
   await npm(["install", "--ignore-scripts", "--offline", join(work, packed.filename)], project)
 })

@@ -1,7 +1,7 @@
 name: Release
 
 # A tag v<package.json version> on a master commit whose CI passed makes the GitHub Release. Releases are not published
-# to npm: a consumer pins the tag, github:we-the-rebel-alliance/inference-plugin#v<version>, and dist/ is committed, so
+# to npm: a consumer pins the tag, github:we-the-rebel-alliance/inference-plugin#v0.0.0, and dist/ is committed, so
 # that install runs no build.
 #
 # Only the owner decides a Release: a tag is pushed after the owner's review, never by an agent on its own.
@@ -49,10 +49,8 @@ jobs:
       - name: dist/ is current
         run: |
           set -euo pipefail
-          if [ -n "$(git status --porcelain -- dist)" ]; then
-            echo "::error::The tagged commit's dist/ is not what npm run build makes, so the tag would install stale code."
-            exit 1
-          fi
+          npm run bundle
+          git diff --exit-code -- dist/
       - name: The Release files
         run: |
           set -euo pipefail

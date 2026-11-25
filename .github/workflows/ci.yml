@@ -53,11 +53,9 @@ jobs:
         run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
       - run: npm ci --ignore-scripts
       - run: npm run check
-      # dist/ is committed, so a release tag installs with no build. The build must be the committed one.
+      # dist/ is committed, so a release tag installs with no build. The bundle must be the committed one.
       - name: dist/ is current
         run: |
           set -euo pipefail
-          if [ -n "$(git status --porcelain -- dist)" ]; then
-            echo "::error::The committed dist/ is not what npm run build makes. Run npm run build and commit dist/."
-            exit 1
-          fi
+          npm run bundle
+          git diff --exit-code -- dist/
