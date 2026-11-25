@@ -21912,15 +21912,8 @@ var src_default = Plugin.define({
     const registration = await register(context, manifest, handlers);
     const status = async () => {
       const agents = await context.agent.list().catch(() => ({ data: [] }));
-      const signals = await accountSignals(context.integration, profiles);
-      return statusAnswer({
-        manifest,
-        version: pkg.version,
-        hostVersion: context.app.version,
-        accounts: accountStatuses(profiles, signals),
-        problems: accountProblems,
-        unguardedAgents: unguardedAgents(agents.data, registration.access.rules)
-      });
+      const call = { unguardedAgents: async () => unguardedAgents(agents.data, registration.access.rules) };
+      return await handlers.status.run({}, call);
     };
     const stops = [];
     try {

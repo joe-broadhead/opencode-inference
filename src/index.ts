@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { Plugin } from "@opencode/plugin"
-import { accountsOf, accountStatuses, statusAnswer, type AccountProfile, type AccountSignal } from "@we-the-rebel-alliance/plugin-contract/accounts"
+import { accountsOf, type AccountProfile } from "@we-the-rebel-alliance/plugin-contract/accounts"
 import { unguardedAgents, type AgentLike } from "@we-the-rebel-alliance/plugin-contract/access"
 import type { Manifest } from "@we-the-rebel-alliance/plugin-contract/manifest"
-import { assertHost, register } from "@we-the-rebel-alliance/plugin-contract/register"
-import { accountSignals, register as registerAccounts } from "./accounts.js"
+import { assertHost, register, type MethodCall } from "@we-the-rebel-alliance/plugin-contract/register"
+import { register as registerAccounts } from "./accounts.js"
 import { createAuthorize } from "./authorize.js"
 import { commandTransform } from "./commands.js"
 import { loadConfig } from "./domain/config.js"
@@ -79,18 +79,11 @@ export default Plugin.define({
 
     const registration = await register(context, manifest, handlers)
 
-    // The command's status text is the same answer the status method returns, built from the registration's rules.
+    // The command posts the same answer the status method returns: one status answer, one place it is built.
     const status = async (): Promise<StatusView> => {
       const agents = await context.agent.list().catch(() => ({ data: [] as readonly AgentLike[] }))
-      const signals: Readonly<Record<string, AccountSignal>> = await accountSignals(context.integration, profiles)
-      return statusAnswer({
-        manifest,
-        version: pkg.version,
-        hostVersion: context.app.version,
-        accounts: accountStatuses(profiles, signals),
-        problems: accountProblems,
-        unguardedAgents: unguardedAgents(agents.data as readonly AgentLike[], registration.access.rules),
-      })
+      const call = { unguardedAgents: async () => unguardedAgents(agents.data as readonly AgentLike[], registration.access.rules) }
+      return (await handlers.status!.run({}, call as unknown as MethodCall)) as StatusView
     }
 
     const stops: { dispose(): Promise<void> | void }[] = []
