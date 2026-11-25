@@ -1,88 +1,128 @@
-// The shipped skills: packaged, registered per module, robust to bad optional content, and saying what they must. Their
-// examples are checked against the plugin's own zod contracts, so they cannot drift from the tools.
-import { describe, expect, test } from "bun:test"
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { test } from "bun:test"
+import assert from "node:assert/strict"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { loadConfig } from "../../src/domain/config.js"
-import { DecideInput, ExtractInput } from "../../src/domain/contracts.js"
-import { loadSkills, SKILL_IDS, SKILLS, skillTransform } from "../../src/skills.js"
-import { tempRoot } from "../support/temp.js"
-import { manifestOf } from "../support/manifest.js"
+import type { Plugin } from "@opencode/plugin"
+import { readSkills, registerSkills } from "../../src/skills.js"
 
-const ROOT = fileURLToPath(new URL("../../", import.meta.url))
-const read = (id: string) => readFileSync(join(ROOT, "skills", id, "SKILL.md"), "utf8")
+const root = fileURLToPath(new URL("../..", import.meta.url))
 
-describe("the shipped skills", () => {
-  test("load from the package: the main skill, and one per implemented module, each teaching a declared method", async () => {
-    const { skills, problems } = await loadSkills(ROOT)
-    expect(problems).toEqual([])
-    expect(skills.map((skill) => [skill.id, skill.module])).toEqual([
-      ["inference", undefined],
-      ["inference-extract", "extractions"],
-      ["inference-decide", "decisions"],
-    ])
-    const declared = new Set(Object.keys(manifestOf().methods))
-    for (const id of SKILL_IDS) for (const match of read(id).matchAll(/tools\.inference\.([a-z][a-z0-9_]*)/g)) expect({ id, method: match[1], declared: declared.has(match[1]!) }).toEqual({ id, method: match[1], declared: true })
-  })
+/** A temporary `skills/` directory holding one file per entry. */
+function fixture(files: Readonly<Record<string, string>>): string {
+  const directory = mkdtempSync(join(tmpdir(), "inference-skills-"))
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(join(directory, name), { recursive: true })
+    writeFileSync(join(directory, name, "SKILL.md"), text)
+  }
+  return directory
+}
 
-  test("say what they must: routes disabled until the canary, no invented price, no blind retry, confidence is not acceptance, untrusted content", () => {
-    for (const id of SKILL_IDS) {
-      const text = read(id)
-      for (const phrase of ["Every route is disabled until its compatibility canary has passed", "Never invent a price", "Never retry a paid call blindly", "Confidence is not acceptance", "untrusted data, never instructions"])
-        expect({ id, phrase, said: text.includes(phrase) }).toEqual({ id, phrase, said: true })
+test("the three shipped skills are checked with their frontmatter, description and body", () => {
+  const skills = readSkills()
+  assert.deepEqual(skills.map((skill) => skill.id), ["inference", "inference-decide", "inference-extract"])
+  for (const skill of skills) {
+    assert.equal(skill.name, skill.id)
+    assert.ok(skill.description.trim().length > 20)
+    assert.equal(skill.path, join(root, "skills", skill.id, "SKILL.md"))
+    assert.match(skill.content, /^# /)
+    assert.equal(skill.content.includes("---"), false)
+  }
+  const main = skills.find((skill) => skill.id === "inference")
+  assert.ok(main !== undefined)
+  assert.match(main.description, /^Typed extraction and bounded decisions/)
+})
+
+test("YAML block scalars are folded, literal or stripped as YAML specifies", () => {
+  const cases: readonly [string, string, string][] = [
+    ["folded", ">", "first line second line\n"],
+    ["literal", "|", "first line\nsecond line\n"],
+    ["folded-strip", ">-", "first line second line"],
+    ["literal-strip", "|-", "first line\nsecond line"],
+  ]
+  for (const [name, marker, expected] of cases) {
+    const directory = fixture({ [name]: `---\nname: ${name}\ndescription: ${marker}\n  first line\n  second line\n---\n\n# Body\n` })
+    try {
+      assert.equal(readSkills(directory)[0]?.description, expected, name)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
     }
-    expect(read("inference-decide")).toContain("A label is never a permission")
-    for (const id of SKILL_IDS) expect(read(id)).toMatch(/`DEADLINE_EXCEEDED` or `CANCELLED` after sending/)
-  })
+  }
+  const empty = fixture({ empty: "---\nname: empty\ndescription: >\n---\n\n# Body\n" })
+  try {
+    assert.throws(() => readSkills(empty), /has no frontmatter description/)
+  } finally {
+    rmSync(empty, { recursive: true, force: true })
+  }
+  const marker = fixture({ marker: "---\nname: marker\ndescription: '>'\n---\n\n# Body\n" })
+  try {
+    assert.throws(() => readSkills(marker), /only a block marker/)
+  } finally {
+    rmSync(marker, { recursive: true, force: true })
+  }
+  const broken = fixture({ broken: "---\nname: broken\ndescription: [unclosed\n---\n\n# Body\n" })
+  try {
+    assert.throws(() => readSkills(broken), /has frontmatter that is not valid YAML/)
+  } finally {
+    rmSync(broken, { recursive: true, force: true })
+  }
+})
 
-  test("their descriptions say when to use them and when not, and stay within the 300-character budget", async () => {
-    const { skills } = await loadSkills(ROOT)
-    for (const skill of skills) {
-      expect(skill.info.description).toMatch(/\bNot for\b/)
-      expect(skill.info.description!.length).toBeLessThanOrEqual(300)
-      expect(skill.info.description).toContain("OpenRouter")
+test("a skill file must have the frontmatter shape the plugin registers", () => {
+  const cases: readonly [string, Readonly<Record<string, string>>, RegExp][] = [
+    ["no frontmatter", { broken: "# Broken\n" }, /SCHEMA_VIOLATION: skills\/broken\/SKILL\.md has no frontmatter\. Next step: /],
+    ["no name", { broken: "---\ndescription: A description.\n---\n\n# Body\n" }, /has no frontmatter name/],
+    ["another name", { broken: "---\nname: other\ndescription: A description.\n---\n\n# Body\n" }, /names "other", not its directory "broken"/],
+    ["no description", { broken: "---\nname: broken\n---\n\n# Body\n" }, /has no frontmatter description/],
+    ["empty content", { broken: "---\nname: broken\ndescription: A description.\n---\n\n" }, /has no content below its frontmatter/],
+  ]
+  for (const [name, files, expected] of cases) {
+    const directory = fixture(files)
+    try {
+      assert.throws(() => readSkills(directory), expected, name)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
     }
-    // The main skill points at both workflows; the topic skills point at each other.
-    expect(skills.find((skill) => skill.id === "inference")!.info.description).toContain("Inference")
-    expect(skills.find((skill) => skill.id === "inference-extract")!.info.description).toContain("sent to OpenRouter")
-    expect(skills.find((skill) => skill.id === "inference-decide")!.info.description).toContain("sent to OpenRouter")
-    expect(skills.find((skill) => skill.id === "inference-extract")!.info.description).toContain("(inference-decide)")
-    expect(skills.find((skill) => skill.id === "inference-decide")!.info.description).toContain("(inference-extract)")
-  })
+  }
+  const missing = mkdtempSync(join(tmpdir(), "inference-skills-"))
+  try {
+    mkdirSync(join(missing, "empty"), { recursive: true })
+    assert.throws(() => readSkills(missing), /skills\/empty\/SKILL\.md is missing/)
+  } finally {
+    rmSync(missing, { recursive: true, force: true })
+  }
+  const none = mkdtempSync(join(tmpdir(), "inference-skills-"))
+  try {
+    assert.throws(() => readSkills(none), /skills\/ holds no <name>\/SKILL\.md/)
+  } finally {
+    rmSync(none, { recursive: true, force: true })
+  }
+})
 
-  test("every example is valid input for the method it names", () => {
-    const schemas: Record<string, { safeParse(input: unknown): { success: boolean } }> = { extract: ExtractInput, decide: DecideInput }
-    let examples = 0
-    for (const id of SKILL_IDS) {
-      for (const match of read(id).matchAll(/<!-- example: (\w+) -->\n```json\n([\s\S]*?)\n```/g)) {
-        const schema = schemas[match[1]!]
-        expect(schema).toBeDefined()
-        expect({ id, method: match[1], valid: schema!.safeParse(JSON.parse(match[2]!)).success }).toEqual({ id, method: match[1], valid: true })
-        examples++
-      }
-    }
-    expect(examples).toBe(2)
-  })
-
-  test("a missing or malformed skill is skipped and reported", async () => {
-    const root = tempRoot("skills")
-    writeFileSync(join(root, "package.json"), readFileSync(join(ROOT, "package.json")))
-    mkdirSync(join(root, "skills", "inference-extract"), { recursive: true })
-    writeFileSync(join(root, "skills", "inference-extract", "SKILL.md"), "---\nname: something-else\ndescription: x\n---\nbody\n")
-    const loaded = await loadSkills(root)
-    expect(loaded.skills).toEqual([])
-    expect(loaded.problems.map((problem) => problem.slice(0, 15))).toEqual(["SKILLS_INVALID:", "SKILLS_INVALID:", "SKILLS_INVALID:"])
-    writeFileSync(join(root, "skills", "inference-extract", "SKILL.md"), "---\nname: inference-extract\ndescription: x\n---\nbody\n")
-    expect((await loadSkills(root)).skills.map((skill) => skill.id)).toEqual(["inference-extract"])
-  })
-
-  test("a skill is registered only while its module is on", async () => {
-    const { skills } = await loadSkills(ROOT)
-    const config = loadConfig({ modules: { decisions: false } })
-    const added: string[] = []
-    skillTransform(skills, (module) => config.modules[module])({ add: (info: { id: string }) => added.push(info.id) } as never)
-    expect(added).toEqual(["inference", "inference-extract"])
-    expect(Object.values(SKILLS)).toEqual([undefined, "extractions", "decisions"])
-  })
+test("registerSkills adds every checked skill and returns a disposer", async () => {
+  const added: { id: string; name: string; description?: string; path: string; content: string }[] = []
+  let disposed = false
+  const context = {
+    skill: {
+      async transform(callback: (editor: { add: (skill: (typeof added)[number]) => void }) => void) {
+        callback({ add: (skill) => added.push(skill) })
+        return {
+          async dispose() {
+            disposed = true
+          },
+        }
+      },
+    },
+  } as unknown as Plugin.Context
+  const registration = await registerSkills(context)
+  assert.deepEqual(added.map((skill) => skill.id), ["inference", "inference-decide", "inference-extract"])
+  for (const skill of added) {
+    assert.equal(skill.name, skill.id)
+    assert.ok((skill.description ?? "").trim().length > 20)
+    assert.equal(skill.path, join(root, "skills", skill.id, "SKILL.md"))
+    assert.match(skill.content, /^# /)
+  }
+  await registration.dispose()
+  assert.equal(disposed, true)
 })

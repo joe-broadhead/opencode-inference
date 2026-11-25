@@ -42,11 +42,12 @@ const files = (directory: string): string[] => readdirSync(directory, { withFile
 const manifest = () => JSON.parse(readFileSync(join(installed, "package.json"), "utf8")) as Record<string, any>
 
 describe("the tarball", () => {
-  test("holds only dist, the three icons, the two skills, README, LICENSE, NOTICE and package.json", () => {
+  test("holds only dist, the three icons, the three skills, README, LICENSE, NOTICE and package.json", () => {
     const paths = packed.files.map((file) => file.path)
     expect(paths.filter((path) => !ALLOWED.test(path))).toEqual([])
     expect(REQUIRED.filter((path) => !paths.includes(path))).toEqual([])
-    expect(packed.unpackedSize).toBeLessThan(1024 * 1024)
+    // The bundled YAML parser adds about 270 KB to dist/index.js; the tarball stays under 2 MiB.
+    expect(packed.unpackedSize).toBeLessThan(2 * 1024 * 1024)
   })
 
   test("declares no dependencies or lifecycle scripts, the exact host range, and the two standard exports", () => {
@@ -81,10 +82,11 @@ describe("the install", () => {
     }
   })
 
-  test("the contract and zod are bundled into dist/index.js, and NOTICE covers each", () => {
+  test("the contract, zod and yaml are bundled into dist/index.js, and NOTICE covers each", () => {
     expect(readFileSync(join(installed, "dist/index.js"), "utf8")).toContain("// node_modules/zod/")
     expect(readFileSync(join(installed, "dist/index.js"), "utf8")).toContain("// node_modules/@we-the-rebel-alliance/plugin-contract/")
-    for (const name of ["zod", "@we-the-rebel-alliance/plugin-contract"]) expect(readFileSync(join(installed, "NOTICE"), "utf8")).toContain(`## ${name} `)
+    expect(readFileSync(join(installed, "dist/index.js"), "utf8")).toContain("// node_modules/yaml/")
+    for (const name of ["zod", "@we-the-rebel-alliance/plugin-contract", "yaml"]) expect(readFileSync(join(installed, "NOTICE"), "utf8")).toContain(`## ${name} `)
     expect(readFileSync(join(installed, "dist/tui.js"), "utf8")).not.toContain("node_modules/zod/")
   })
 

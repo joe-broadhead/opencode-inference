@@ -1,3 +1,7 @@
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+// @we-the-rebel-alliance/inference-plugin 0.0.0. Built by scripts/build.mjs; do not edit.
+
 // src/tui.tsx
 import { effect as _$effect } from "@opentui/solid";
 import { createComponent as _$createComponent } from "@opentui/solid";

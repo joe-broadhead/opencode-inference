@@ -6,14 +6,17 @@
 import { transformAsync } from "@babel/core"
 import { build } from "esbuild"
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { builtinModules } from "node:module"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = fileURLToPath(new URL("../", import.meta.url))
 const dist = join(root, "dist")
+const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 // The host provides these modules to plugins at run time, so they stay imports. Nothing else may stay external.
 const HOST = ["@opencode/plugin", "@opencode/plugin/*", "@opentui/*", "solid-js", "solid-js/*"]
-const allowed = path => path.startsWith("node:") || HOST.some(name => name.endsWith("/*") ? path.startsWith(name.slice(0, -1)) : path === name)
+const BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)])
+const allowed = path => path.startsWith("node:") || BUILTINS.has(path) || HOST.some(name => (name.endsWith("/*") ? path.startsWith(name.slice(0, -1)) : path === name))
 
 // The TUI view is Solid JSX for OpenTUI's universal renderer. It is compiled here, so no .tsx runs from node_modules.
 const solid = {
@@ -45,6 +48,8 @@ const result = await build({
   legalComments: "none",
   metafile: true,
   logLevel: "warning",
+  // The YAML parser is CommonJS and reads `process` with require(); the bundle is ESM, so give it a real require.
+  banner: { js: `import { createRequire } from "node:module";\nconst require = createRequire(import.meta.url);\n// ${pkg.name} ${pkg.version}. Built by scripts/build.mjs; do not edit.` },
 })
 
 const outputs = Object.keys(result.metafile.outputs).sort()

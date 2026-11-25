@@ -46,9 +46,10 @@ import ts from "typescript"
 export const TRANSPORT = /^src\/provider\/http\.ts$/
 /** The Node builtins src/ uses today, outside the transport boundary. */
 export const BUILTINS = new Set(["node:crypto", "node:fs", "node:fs/promises", "node:os", "node:path", "node:url"])
-/** The packages src/ imports: zod (bundled) and what the host provides. package.json has no `dependencies`. */
+/** The packages src/ imports: zod and yaml (both bundled) and what the host provides. package.json has no `dependencies`. */
 export const PACKAGES = new Set([
   "zod",
+  "yaml",
   "@opencode/plugin",
   "@opencode/plugin/promise/tool",
   "@opencode/plugin/rpc",
