@@ -19203,7 +19203,6 @@ var FAILURES = {
   STATUS_UNAVAILABLE: ["Inference status could not be read.", "Run /inference in a session to see the error, or check the OpenCode server log."],
   OUTPUT_INVALID: ["The tool produced a result that does not match its own schema.", "Report it with the inference_status output; this is a bug in the plugin."],
   RULES_NOT_ADDED: ["The default permission rules could not be added.", "Restart OpenCode."],
-  SKILLS_INVALID: ["A shipped skill is missing or malformed, so it was skipped.", "Reinstall the plugin; the tools still work without the skill."],
   INTEGRATION_NOT_REGISTERED: ["The OpenRouter key entry could not be added to /connect.", "Restart OpenCode."],
   // The operation path (handoff §7, §11.4).
   ROUTE_NOT_VERIFIED: ["The route's compatibility canary passed against another wire revision, so it is not verified for this one.", "Re-run the compatibility canary for this revision; a reviewed change records the new pass."],
@@ -27908,7 +27907,6 @@ var CONTRACT_CODE = {
   STATUS_UNAVAILABLE: "UNAVAILABLE",
   OUTPUT_INVALID: "SCHEMA_VIOLATION",
   RULES_NOT_ADDED: "UNAVAILABLE",
-  SKILLS_INVALID: "UNAVAILABLE",
   INTEGRATION_NOT_REGISTERED: "NEEDS_SIGN_IN",
   ROUTE_NOT_VERIFIED: "INPUT_INVALID",
   CAPABILITY_UNSUPPORTED: "INPUT_INVALID",
