@@ -1,32 +1,32 @@
 name: Release
 
-# A tag v<package.json version> on a master commit whose CI passed makes the GitHub Release. Releases are not published
-# to npm: a consumer pins the tag, github:we-the-rebel-alliance/inference-plugin#v0.0.0, and dist/ is committed, so
-# that install runs no build.
+# A tag v<package.json version> on a master commit whose CI passed creates the GitHub Release. Releases are not
+# published to npm: a consumer pins the tag, github:we-the-rebel-alliance/inference-plugin#v<version>, and the committed
+# dist/ is what that tag installs, with no build. Only the owner decides a release; an agent never pushes a tag on its
+# own.
 #
-# Only the owner decides a Release: a tag is pushed after the owner's review, never by an agent on its own.
-#
-# Least privilege: `build` runs the repository's code and holds no write token; `publish` runs no repository code, checks
-# the files against SHA256SUMS, and creates the Release with contents: write.
+# The Release carries exactly three files: the package tarball (`release/*.tgz`), `release/conformance.json` and
+# `release/SHA256SUMS`. Never a bare `release/*` glob: a directory in `release/` fails `gh release create`.
 
 on:
   push:
     tags:
       - "v*"
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build the Release files
+  release:
+    name: release
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 20
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,14 +35,13 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-          token: ""
+      # Bun runs the tests: 1.4.4 is the Bun inside stock OpenCode 2.4.1.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.4
           no-cache: true
           token: ""
       - name: Fetch the contract over HTTPS
-        # The contract is a public repository, and npm records its GitHub dependency over ssh. A runner has no key.
         run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
       - run: npm ci --ignore-scripts
       # The stock binary the skill-host and host suites spawn.
@@ -54,46 +53,30 @@ jobs:
           (cd "$dir" && npm init -y >/dev/null && npm install "@opencode/cli@2.4.1" "@opencode/cli-$platform@2.4.1" --omit=optional --ignore-scripts --no-audit --no-fund)
           echo "OPENCODE_BIN_2_4_1=$dir/node_modules/@opencode/cli-$platform/bin/opencode" >> "$GITHUB_ENV"
       - run: npm run check
+      - name: The tag names this package's version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          test "v${version}" = "$TAG"
       - name: dist/ is current
         run: |
           set -euo pipefail
           npm run bundle
           git diff --exit-code -- dist/
-      - name: The Release files
+      - name: Pack the release files
         run: |
           set -euo pipefail
-          mkdir -p release/dist
-          cp dist/index.js dist/tui.js release/dist/
-          npx plugin-kit conformance --json > release/conformance.json
-          (cd release && sha256sum dist/index.js dist/tui.js conformance.json > SHA256SUMS)
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: release
-          path: release/
-          if-no-files-found: error
-
-  publish:
-    name: Publish the GitHub Release
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: release
-          path: release
-      - name: Check the files against SHA256SUMS
-        working-directory: release
-        run: sha256sum -c SHA256SUMS
-      - name: Create the Release
+          mkdir -p release
+          npx plugin-kit check --json > release/conformance.json
+          npm pack --pack-destination release
+          sha256sum release/*.tgz release/conformance.json > release/SHA256SUMS
+      - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          prerelease=""
-          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "$TAG" release/* --repo "$REPO" --verify-tag --title "$TAG" --generate-notes $prerelease
+          gh release create "$TAG" release/*.tgz release/conformance.json release/SHA256SUMS --repo "$REPO" --verify-tag --title "$TAG" --generate-notes

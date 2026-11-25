@@ -69,5 +69,6 @@ evidence for one adapter wire revision only.
 ## Releasing
 
 The owner cuts a release with `npx plugin-kit release 0.0.0` from a clean `master` whose `ci` check passed, then pushes
-the tag. CI publishes the GitHub release with `dist/`, `SHA256SUMS` and the conformance report. Agents never tag, push a
-tag, or publish a release on their own.
+the tag. The release workflow publishes exactly three files: the package tarball (`release/*.tgz`), `release/conformance.json`
+and `release/SHA256SUMS` — never a bare `release/*` glob, since a directory there fails the upload. Agents never tag,
+push a tag, or publish a release on their own.
