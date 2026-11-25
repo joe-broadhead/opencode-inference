@@ -730,7 +730,7 @@
     "@opentui/core": "0.8.0",
     "@opentui/solid": "0.8.0",
     "@types/bun": "1.4.4",
-    "@we-the-rebel-alliance/plugin-contract": "github:we-the-rebel-alliance/plugin-contract#79da83cfa1668c30a673e6bb392d3122155e6dc1",
+    "@we-the-rebel-alliance/plugin-contract": "github:we-the-rebel-alliance/plugin-contract#39ff71501e83ef73a437e19fd3b6e50bd5b7a734",
     "babel-preset-solid": "1.9.16",
     "effect": "4.1.0",
     "esbuild": "0.28.2",

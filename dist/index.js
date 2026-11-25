@@ -9395,7 +9395,7 @@ function fromJSONSchema(schema, params) {
   return convertSchema(normalized, ctx);
 }
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-MNSDPFNH.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-OJKZGBMB.js
 import { hostname as hostname3, userInfo } from "node:os";
 var DEFAULT_ALIAS = "default";
 var ALIAS_PATTERN = /^[a-z][a-z0-9]{0,31}$/;
@@ -9600,7 +9600,9 @@ function accountStatuses(accounts, signals = {}) {
 var NO_ACCOUNTS = [];
 var SIGN_IN_NEXT = "Sign in to the account that needs it, then read status again.";
 function statusAnswer(input) {
-  const problems = input.problems ?? [];
+  const problems = [...input.problems ?? []];
+  const unguarded = input.unguardedAgents;
+  if (!unguarded.ok) problems.push(unguarded.error);
   const needsSignIn2 = input.accounts.some((account) => account.state === "needs_sign_in");
   return {
     name: input.manifest.plugin.name,
@@ -9608,7 +9610,7 @@ function statusAnswer(input) {
     host: { version: input.hostVersion, range: input.manifest.plugin.host.opencode, tested: [...input.manifest.plugin.host.tested] },
     state: problems.length > 0 ? "error" : needsSignIn2 ? "needs_sign_in" : "ready",
     accounts: [...input.accounts],
-    unguardedAgents: [...input.unguardedAgents],
+    unguardedAgents: unguarded.ok ? [...unguarded.agents] : [],
     nextStep: problems.length > 0 ? redactReason(problems[0]) : needsSignIn2 ? SIGN_IN_NEXT : null
   };
 }
@@ -9755,7 +9757,7 @@ function secretKinds(text3) {
   return [...kinds];
 }
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-VAFQUKZ3.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-YTAZMRBO.js
 var MANIFEST_VERSION = 1;
 var OPENCODE_RANGE = ">=2.4.1 <2.5.0";
 var TESTED_OPENCODE = "2.4.1";
@@ -9867,7 +9869,7 @@ function validator(name, schema) {
   };
 }
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-236PJ6AN.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-KDEHNYY7.js
 var text = (max) => string2().max(max);
 var httpsUrl = string2().max(2048).refine((value) => {
   try {
@@ -10009,7 +10011,7 @@ function isExtensionOutput(name) {
   return typeof name === "string" && EXTENSION_NAME.test(name);
 }
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-RUROPP57.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-WUXTQJJP.js
 import { createHash } from "node:crypto";
 function canonicalJson(value) {
   return write(value, /* @__PURE__ */ new Set());
@@ -10234,7 +10236,7 @@ var top = looseObject({
   events: eventsField
 });
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-A6V4KQTI.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-HSYZDBOW.js
 var ACCESS_LEVELS = ["all", "ask-changes", "read-only"];
 var DEFAULT_ACCESS = "all";
 function accessLevel(options = {}) {
@@ -10373,7 +10375,7 @@ async function applyAccess(context, request3) {
   };
 }
 
-// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-6EQKU7LR.js
+// node_modules/@we-the-rebel-alliance/plugin-contract/dist/chunks/chunk-OWUXQ6GV.js
 var BUS_EVENTS = ["changed", "status", "account"];
 var BUS_STATES = ["ready", "needs_sign_in", "error"];
 var REASON_MAX2 = 160;
@@ -11455,8 +11457,13 @@ async function execute(environment, entry, prepared, call, bus) {
         account: prepared.account,
         ...prepared.plan === void 0 ? {} : { plan: prepared.plan },
         bus: bus(),
-        access: environment.access,
-        unguardedAgents: async () => unguardedAgents(await environment.agents(), environment.access.rules)
+        unguardedAgents: async () => {
+          try {
+            return { ok: true, agents: unguardedAgents(await environment.agents(), environment.access.rules) };
+          } catch (error3) {
+            return { ok: false, error: reasonOf(error3) };
+          }
+        }
       })
     );
     if (entry.item.plans === true) {
@@ -11754,7 +11761,6 @@ async function register(context, manifest2, handlers, wiring = {}) {
       return {
         name,
         access,
-        events: rpc.events,
         bus,
         async dispose() {
           await rpc.dispose().catch(() => void 0);
@@ -21320,12 +21326,6 @@ function statusHandler(deps) {
     output: STATUS_SCHEMA,
     async run(_input, call) {
       const problems = [...deps.accountProblems];
-      let unguarded = [];
-      try {
-        unguarded = await call.unguardedAgents();
-      } catch (error3) {
-        problems.push(redactReason(error3 instanceof Error ? error3.message : String(error3)));
-      }
       let accounts = NO_ACCOUNTS;
       if (deps.profiles.length > 0) {
         const signals = await accountSignals(deps.integration, deps.profiles);
@@ -21338,7 +21338,7 @@ function statusHandler(deps) {
         hostVersion: deps.hostVersion,
         accounts,
         problems,
-        unguardedAgents: unguarded
+        unguardedAgents: await call.unguardedAgents()
       });
     }
   };
@@ -21912,7 +21912,7 @@ var src_default = Plugin.define({
     const registration = await register(context, manifest, handlers);
     const status = async () => {
       const agents = await context.agent.list().catch(() => ({ data: [] }));
-      const call = { unguardedAgents: async () => unguardedAgents(agents.data, registration.access.rules) };
+      const call = { unguardedAgents: async () => ({ ok: true, agents: unguardedAgents(agents.data, registration.access.rules) }) };
       return await handlers.status.run({}, call);
     };
     const stops = [];

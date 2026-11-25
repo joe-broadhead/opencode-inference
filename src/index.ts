@@ -82,7 +82,7 @@ export default Plugin.define({
     // The command posts the same answer the status method returns: one status answer, one place it is built.
     const status = async (): Promise<StatusView> => {
       const agents = await context.agent.list().catch(() => ({ data: [] as readonly AgentLike[] }))
-      const call = { unguardedAgents: async () => unguardedAgents(agents.data as readonly AgentLike[], registration.access.rules) }
+      const call = { unguardedAgents: async () => ({ ok: true as const, agents: unguardedAgents(agents.data as readonly AgentLike[], registration.access.rules) }) }
       return (await handlers.status!.run({}, call as unknown as MethodCall)) as StatusView
     }
 

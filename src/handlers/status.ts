@@ -1,4 +1,4 @@
-import { accountStatuses, NO_ACCOUNTS, redactReason, STATUS_SCHEMA, statusAnswer } from "@we-the-rebel-alliance/plugin-contract/accounts"
+import { accountStatuses, NO_ACCOUNTS, STATUS_SCHEMA, statusAnswer } from "@we-the-rebel-alliance/plugin-contract/accounts"
 import { accountSignals } from "../accounts.js"
 import type { MethodHandler } from "@we-the-rebel-alliance/plugin-contract/register"
 import type { HandlerDeps } from "./deps.js"
@@ -17,13 +17,6 @@ export function statusHandler(deps: HandlerDeps): MethodHandler {
     output: STATUS_SCHEMA,
     async run(_input, call) {
       const problems = [...deps.accountProblems]
-      let unguarded: readonly string[] = []
-      try {
-        unguarded = await call.unguardedAgents()
-      } catch (error) {
-        // An unreadable agent list is unknown, never zero: status says error, with a redacted next step.
-        problems.push(redactReason(error instanceof Error ? error.message : String(error)))
-      }
       let accounts = NO_ACCOUNTS
       if (deps.profiles.length > 0) {
         const signals = await accountSignals(deps.integration, deps.profiles)
@@ -32,13 +25,14 @@ export function statusHandler(deps: HandlerDeps): MethodHandler {
         // status says error and its next step names the alias.
         for (const account of accounts) if (account.state === "error" && account.reason !== undefined) problems.push(`${account.alias}: ${account.reason}`)
       }
+      // The agent list is unknown, never zero, when it cannot be read: statusAnswer adds a failed result to problems.
       return statusAnswer({
         manifest: deps.manifest,
         version: deps.version,
         hostVersion: deps.hostVersion,
         accounts,
         problems,
-        unguardedAgents: unguarded,
+        unguardedAgents: await call.unguardedAgents(),
       })
     },
   }

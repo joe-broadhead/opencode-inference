@@ -41,7 +41,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
   }
 }
 
-const call = (unguardedAgents: () => Promise<readonly string[]> = async () => []): MethodCall =>
+const call = (unguardedAgents: () => Promise<{ ok: true; agents: readonly string[] } | { ok: false; error: string }> = async () => ({ ok: true, agents: [] })): MethodCall =>
   ({ account: "work", sessionID: "ses_1", agent: "build", messageID: "msg_1", id: "call_1", signal: new AbortController().signal, progress: async () => undefined, door: "rpc", unguardedAgents }) as unknown as MethodCall
 
 describe("status", () => {
@@ -73,7 +73,7 @@ describe("status", () => {
 
   test("an unreadable agent list is unknown, never zero: the state is error and the next step is redacted", async () => {
     const status = createHandlers(deps({ integration: connection("ready") })).status!
-    const answer = (await status.run({}, call(async () => Promise.reject(new Error("agents unavailable for ana@example.com?token=abc"))))) as {
+    const answer = (await status.run({}, call(async () => ({ ok: false as const, error: "agents unavailable for ana@example.com?token=abc" })))) as {
       state: string
       unguardedAgents: string[]
       nextStep: string
@@ -85,7 +85,7 @@ describe("status", () => {
   })
 
   test("unguarded agents and registration problems are reported, and a plugin with no accounts lists none", async () => {
-    const withAgents = (await createHandlers(deps({ integration: connection("ready") })).status!.run({}, call(async () => ["reviewer"]))) as { unguardedAgents: string[] }
+    const withAgents = (await createHandlers(deps({ integration: connection("ready") })).status!.run({}, call(async () => ({ ok: true as const, agents: ["reviewer"] })))) as { unguardedAgents: string[] }
     expect(withAgents.unguardedAgents).toEqual(["reviewer"])
     const problems = (await createHandlers(deps({ integration: connection("ready"), accountProblems: ["accounts.work: the integration could not be registered"] })).status!.run({}, call())) as {
       state: string

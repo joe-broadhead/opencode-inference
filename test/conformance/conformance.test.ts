@@ -56,7 +56,7 @@ describe("the recording", () => {
 
 describe("the recorded status", () => {
   test("is what the status handler answers with two aliases and neither signed in", async () => {
-    const answer = await createHandlers(deps()).status!.run({}, { unguardedAgents: async () => [] } as unknown as MethodCall)
+    const answer = await createHandlers(deps()).status!.run({}, { unguardedAgents: async () => ({ ok: true, agents: [] }) } as unknown as MethodCall)
     expect(answer).toEqual(fixture["events"]["status"])
   })
 })
@@ -65,7 +65,7 @@ describe("the recorded account nudge", () => {
   test("probe emits account/needs_sign_in, then refuses with NEEDS_SIGN_IN", async () => {
     const emitted: unknown[] = []
     const bus = { name: "inference", emit: async (event: string, data: unknown) => (emitted.push({ event, data }), { ok: true }) } as never
-    const call = { account: "work", bus, unguardedAgents: async () => [] } as unknown as MethodCall
+    const call = { account: "work", bus, unguardedAgents: async () => ({ ok: true, agents: [] }) } as unknown as MethodCall
     const probe = createHandlers(deps()).probe!
     await expect(probe.run({}, call)).rejects.toThrow(/^NEEDS_SIGN_IN:/)
     expect(emitted).toEqual([{ event: "account", data: { account: "work", state: "needs_sign_in" } }])
