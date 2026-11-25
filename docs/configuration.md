@@ -57,7 +57,7 @@ A task profile of your own, replacing the built-in profiles:
 ## `access`
 
 `all` (the default) runs reads and sends without asking. `ask-changes` runs every read and asks before each send.
-`read-only` runs every read and refuses every send. The three reads — `status`, `probe`, `capabilities` and `plan` —
+`read-only` runs every read and refuses every send. The four reads — `status`, `probe`, `capabilities` and `plan` —
 always run; `extract` and `decide` follow the level. The rules are generated into every agent's own permissions after
 its base allow, so a later rule of your own still decides one method.
 
