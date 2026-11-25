@@ -12,7 +12,7 @@ OpenRouter, Inc.; this unofficial plugin is not endorsed by them.
 ## Install
 
 ```sh
-opencode plugin add github:we-the-rebel-alliance/inference-plugin#v<version>
+opencode plugin add github:we-the-rebel-alliance/inference-plugin#v0.0.0
 ```
 
 The first release is v0.0.0. Pin an exact tag: `master` builds nothing and is not an install target.
@@ -139,6 +139,27 @@ Every failure reads `CODE: What happened. Next step: What to do.`
 - `probe` proves the integration is signed in; it does not verify whose OpenRouter account the key belongs to
   (`owner.verified` is `false`).
 
+## Troubleshooting
+
+- `NEEDS_SIGN_IN` — the account is not signed in. Run `/connect`, choose the integration for that alias (Inference or
+  Inference (work)), and paste an OpenRouter key. `probe` reports the alias's state without reading the key.
+- `ACCOUNT_REQUIRED` — several accounts are configured and the call named none. Pass `account` (such as `work`); the
+  next step in the error lists the aliases.
+- `ACCOUNT_UNKNOWN` — the alias is not in `options.accounts`. Add it and sign it in, or pass one of the listed aliases.
+- `HOST_UNTESTED` — the OpenCode release is outside `>=2.4.1 <2.5.0`. Use a tested release; this plugin is tested on
+  2.4.1.
+- `CAPABILITY_UNSUPPORTED` / `INPUT_INVALID` — the request cannot run on an enabled route. Call
+  `tools.inference.plan` with the same `{ task, input }` and `tools.inference.capabilities`; a disabled route says why
+  and sends nothing.
+- `PERMISSION_DENIED` — the agent's rules, the plugin's `access` level, or an unanswered ask refused the call. Change
+  `access` or the agent's rule; a saved "Always allow" does not confirm an RPC write.
+- `BUDGET_EXCEEDED` / `PRICE_UNKNOWN` — a spend cap or a truthful-cost guard refused the call. Adjust `spend` or choose
+  a priced route; `PRICE_UNKNOWN` sends nothing.
+- `UNAVAILABLE` — the provider could not be reached, or the call's outcome is unknown. Do not retry a paid call blindly;
+  a call that may have been charged keeps its reservation.
+- `status` names an agent without the generated rules — the agent was added after the plugin loaded, or its later rules
+  override them. Restart OpenCode or fix the agent's rules; the plugin never patches it.
+
 ## Docs
 
 - [Capabilities](docs/capabilities.md)
@@ -148,6 +169,7 @@ Every failure reads `CODE: What happened. Next step: What to do.`
 - [Automations](docs/automations.md)
 - [Security](docs/security.md)
 - [Contributing](CONTRIBUTING.md)
+- [The plugin contract](https://github.com/we-the-rebel-alliance/plugin-contract)
 
 ## License
 

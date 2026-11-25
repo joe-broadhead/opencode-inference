@@ -1,32 +1,28 @@
 # Changelog
 
-## 0.0.0
+## 0.0.0 (2026-11-25)
 
-The first release on plugin-contract v0: the plugin is rebuilt from `master` on the contract, with no compatibility with
-the old repository.
+The first release: `inference` on plugin-contract v0.0.0, with no earlier release to carry over.
 
-- **Manifest.** One `capabilities` key: `inference`, `status`, `probe`, `capabilities`, `plan`, `extract` and `decide`;
-  accounts through OpenCode integrations; no `sources`, no actions, and one bus event, `account`. No app key, `sources` or `opencode` key, and no runtime dependency.
-- **Doors.** One `contract.register` call wires the agent tool, Code Mode and RPC for every method. Handlers live in
-  `src/handlers/`, the provider client in `src/provider/`; the old tools RPC and its `describe` are gone.
+- **Capability manifest.** `status`, `probe`, `capabilities`, `plan`, `extract` and `decide`; one `account` bus event;
+  no sources, actions or pass-through MCP tools. The package has no runtime dependencies, and `dist/` is committed so
+  a release tag installs with no build.
 - **Accounts.** One OpenCode integration per alias (`inference` for the default, `inference-<alias>` otherwise), each
-  with its own key auth method, its own journal and its own permission resources. `extract`, `decide` and `probe` take
-  `account`; by default there is one `default` account.
-- **Access.** The contract's `access` module generates the rules from each method's class: the four reads always run,
-  `extract` and `decide` follow `all`, `ask-changes` or `read-only`.
-- **Status and probe.** Status is one contract answer shared by the tool, RPC and `/inference`: the host range, every
-  alias, the agents without the generated rules and one next step. `probe` proves an alias is signed in, emits the
-  `account` nudge, and reports an unverified owner: OpenCode knows the integration, not whose key it is.
-- **Planning.** `plan` stays a local quote read without a plan id; `extract` and `decide` are plain sends with their full
-  input. Each result keeps its cost in `usage`; `status` has no cost total.
-- **Provider.** One trusted origin and the reviewed alpha Extractions and Decisions paths, a key per alias, no redirects,
-  a deadline, byte caps and cancellation. A route runs only while its canary matches the adapter's wire revision.
-- **Spend and journal.** The operation-keyed reservation and the private journal are unchanged for the new alias model:
-  each alias's journal is keyed on its own connection, and a call whose cost is unknown keeps its reservation.
-- **Kit.** The copied release, drift, copy, icon, forbidden, tested-host, capture and changelog scripts are replaced by
-  `plugin-kit`. The two route canaries, the evaluation script and the transport-boundary check stay.
-- **Docs and skills.** README, AGENTS.md, the five docs, CONTRIBUTING.md, SECURITY.md and both skills are written fresh
-  for this release; generated sections come from `plugin-kit docs`.
-- **Tests.** Unit tests cover the pure rules and the operation pipeline; the conformance suite records two synthetic
-  accounts, the status answer and the account nudge; the host suite runs the built plugin on OpenCode 2.4.1; the pack
-  suite installs the tarball and starts it. `npx plugin-kit check` is the gate.
+  with its own OpenRouter key, journal and permission resources. `extract`, `decide` and `probe` take `account`; the
+  default is one account.
+- **Access.** The contract's `access` module generates every agent's rules from each method's class: the four reads
+  always run, and `extract` and `decide` follow `all`, `ask-changes` or `read-only`.
+- **Doors and bus.** One `contract.register` call wires the agent tool, Code Mode and RPC for every method. Handlers
+  live in `src/handlers/`, the provider in `src/provider/`, and `probe` emits the `account` nudge through `call.bus`.
+- **Status and probe.** One `statusAnswer`/`STATUS_SCHEMA` answer is shared by the tool, RPC, TUI and `/inference`;
+  `probe` proves an alias's sign-in without reading the key and reports an unverified owner.
+- **Planning and sends.** `plan` is a local quote and review without a plan id; `extract` and `decide` are plain sends
+  with their full input. Each result keeps its cost in `usage`, and `plan` quotes the route before a send.
+- **Provider.** One trusted origin and the reviewed alpha Extractions and Decisions paths, a key per alias resolved only
+  at the transport boundary, no redirects, a deadline, byte caps and cancellation. A route runs only while its
+  compatibility canary matches the adapter's wire revision.
+- **Spend and journal.** The operation-keyed reservation and the private journal are kept per account, and a call whose
+  cost is unknown keeps its reservation instead of being treated as free.
+- **Documentation and tests.** README, AGENTS.md, the five docs, CONTRIBUTING, SECURITY, both skills and the generated
+  sections are written for this release. Unit, conformance, host and pack suites cover the contract doors, two
+  synthetic accounts and the built package; `npx plugin-kit check` is the gate.

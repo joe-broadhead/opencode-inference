@@ -9,7 +9,7 @@
 export const FAILURES = {
   INPUT_INVALID: ["The tool input is invalid.", "Correct the named fields against the tool's schema and call it again."],
   OPTIONS_INVALID: ["The plugin options are invalid.", "Fix the named option in the Inference plugin options in opencode.json, then restart OpenCode."],
-  HOST_UNTESTED: ["This OpenCode version is outside the range Inference supports.", "Use a tested OpenCode release, or set the plugin option allowUntestedHost: true to run anyway."],
+  HOST_UNTESTED: ["This OpenCode version is outside the range Inference supports.", "Use a tested OpenCode release."],
   MODULE_DISABLED: ["The module behind this tool is turned off in the plugin options.", "Set modules.<name> to true in the Inference plugin options, then restart OpenCode."],
   TOOL_UNAVAILABLE: ["This tool is not available in this location right now.", "Call inference_status to see what is available, then retry."],
   CLOSED: ["The Inference plugin is shutting down.", "Retry after OpenCode has reloaded the plugin."],

@@ -26,7 +26,7 @@ src/
 
 `src/index.ts` reads `package.json` from the package root at load time (one level above `src/` or `dist/`), so the
 manifest the kit reads from disk is the manifest the handlers answer with. It calls `assertHost(ctx, manifest)` first, so
-an OpenCode outside `>=2.4.1 <2.5.0` leaves no half-wired plugin; `allowUntestedHost` is the one exception.
+an OpenCode outside `>=2.4.1 <2.5.0` leaves no half-wired plugin.
 
 ## One register call
 
@@ -113,7 +113,7 @@ into a session for people who work in the terminal.
   for reuse.
 - **No per-request hook.** The fixed context is the manifest's summary and the two skills; cost is in each result.
 - **No compatibility path.** The contract v0 shape is the only shape; the old repository's tools RPC, app keys and
-  copied kit are gone.
+  hand-written build scripts are gone.
 
 ## OpenCode APIs used
 

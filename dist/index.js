@@ -11829,7 +11829,7 @@ function ownerOf(alias) {
 var FAILURES = {
   INPUT_INVALID: ["The tool input is invalid.", "Correct the named fields against the tool's schema and call it again."],
   OPTIONS_INVALID: ["The plugin options are invalid.", "Fix the named option in the Inference plugin options in opencode.json, then restart OpenCode."],
-  HOST_UNTESTED: ["This OpenCode version is outside the range Inference supports.", "Use a tested OpenCode release, or set the plugin option allowUntestedHost: true to run anyway."],
+  HOST_UNTESTED: ["This OpenCode version is outside the range Inference supports.", "Use a tested OpenCode release."],
   MODULE_DISABLED: ["The module behind this tool is turned off in the plugin options.", "Set modules.<name> to true in the Inference plugin options, then restart OpenCode."],
   TOOL_UNAVAILABLE: ["This tool is not available in this location right now.", "Call inference_status to see what is available, then retry."],
   CLOSED: ["The Inference plugin is shutting down.", "Retry after OpenCode has reloaded the plugin."],
@@ -21602,7 +21602,7 @@ var OWNER = {
   instance: randomUUID4()
 };
 function stateRoot(env = process.env) {
-  return join2(env.XDG_STATE_HOME && env.XDG_STATE_HOME.startsWith("/") ? env.XDG_STATE_HOME : join2(homedir(), ".local", "state"), "opencode-inference");
+  return join2(env.XDG_STATE_HOME && env.XDG_STATE_HOME.startsWith("/") ? env.XDG_STATE_HOME : join2(homedir(), ".local", "state"), "inference-plugin");
 }
 var journalDirectory = (root, accountScope) => join2(root, "journals", accountScope.replace(/[^a-z0-9]/g, "-"));
 var sleep = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));

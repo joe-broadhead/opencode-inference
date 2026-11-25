@@ -17,9 +17,9 @@ export const OWNER: Owner = {
   instance: randomUUID(),
 }
 
-/** The private state folder: $XDG_STATE_HOME/opencode-inference, or ~/.local/state/opencode-inference. */
+/** The private state folder: $XDG_STATE_HOME/inference-plugin, or ~/.local/state/inference-plugin. */
 export function stateRoot(env: NodeJS.ProcessEnv = process.env) {
-  return join(env.XDG_STATE_HOME && env.XDG_STATE_HOME.startsWith("/") ? env.XDG_STATE_HOME : join(homedir(), ".local", "state"), "opencode-inference")
+  return join(env.XDG_STATE_HOME && env.XDG_STATE_HOME.startsWith("/") ? env.XDG_STATE_HOME : join(homedir(), ".local", "state"), "inference-plugin")
 }
 
 /** One journal folder per connection label. The label is already a hash; it never contains the key. */

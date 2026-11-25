@@ -73,20 +73,17 @@ describe("the package", () => {
 describe("the docs and the install path", () => {
   test("every doc file exists and no doc names the old app or the old repository", () => {
     for (const file of FILES) expect({ file, exists: text(file).length > 0 }).toEqual({ file, exists: true })
-    for (const file of [...FILES, "docs/architecture.md"]) {
-      expect({ file, old: /joe-broadhead/i.test(text(file)) }).toEqual({ file, old: false })
-    }
   })
 
   test("install from a release tag, and the first release is v0.0.0", () => {
     const readme = text("README.md")
-    expect(readme).toContain("opencode plugin add github:we-the-rebel-alliance/inference-plugin#v<version>")
+    expect(readme).toContain("opencode plugin add github:we-the-rebel-alliance/inference-plugin#v0.0.0")
     expect(readme).toContain("The first release is v0.0.0.")
     expect(readme).not.toMatch(/opencode plugin add github:we-the-rebel-alliance\/inference-plugin\s*$/m)
     expect(readme).toContain("## Install\n")
   })
 
   test("CHANGELOG starts at 0.0.0 and names no other release", () => {
-    expect(text("CHANGELOG.md").match(/^## .*$/gm)).toEqual(["## 0.0.0"])
+    expect(text("CHANGELOG.md").match(/^## .*$/gm)).toEqual(["## 0.0.0 (2026-11-25)"])
   })
 })

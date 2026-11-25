@@ -78,7 +78,7 @@ test/                   unit, conformance, host, pack
 ## Contract wiring
 
 - **Gate the host first.** Call `assertHost(ctx, manifest)` at the top of `setup`. It refuses an untested release with
-  `HOST_UNTESTED`, unless `options.allowUntestedHost` is true.
+  `HOST_UNTESTED`.
 - **Emit through `call.bus`.** `register` always builds the typed writer from its one RPC registration and gives every
   handler call `call.bus`. Do not keep a mutable placeholder, call `ctx.rpc.register` a second time, or wrap a
   registration yourself. Only the manifest's one declared event, `account`, is registered.
