@@ -48,6 +48,9 @@ jobs:
         with:
           bun-version: 1.4.4
           no-cache: true
+      - name: Fetch the contract over HTTPS
+        # The contract is a public repository, and npm records its GitHub dependency over ssh. A runner has no key.
+        run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
       - run: npm ci --ignore-scripts
       - run: npm run check
       # dist/ is committed, so a release tag installs with no build. The build must be the committed one.
