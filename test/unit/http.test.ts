@@ -4,9 +4,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { createTransport, TransportError, type Account } from "../../src/providers/openrouter/http.js"
+import { createTransport, TransportError, type Account } from "../../src/provider/http.js"
 
-const KEY = "sk-or-v1-TEST-KEY-NEVER-LEAKS-0000"
+const KEY = "test-key-value"
 const CONNECTION = { type: "credential", id: "cred_1", label: "test", method: "key" } as const
 
 interface Seen {
@@ -34,10 +34,18 @@ async function serve(handler: (request: IncomingMessage, response: ServerRespons
 const logged: unknown[] = []
 const consoleMethods = ["log", "info", "warn", "error", "debug"] as const
 const originals = consoleMethods.map((name) => console[name])
-beforeAll(() => consoleMethods.forEach((name) => (console[name] = (...args: unknown[]) => void logged.push(args))))
+beforeAll(() => {
+  consoleMethods.forEach((name) => {
+    console[name] = (...args: unknown[]) => void logged.push(args)
+  })
+})
 afterAll(() => {
-  servers.forEach((server) => server.close())
-  consoleMethods.forEach((name, index) => (console[name] = originals[index]!))
+  servers.forEach((server) => {
+    server.close()
+  })
+  consoleMethods.forEach((name, index) => {
+    console[name] = originals[index]!
+  })
   // The transport logs nothing, so it cannot log the key.
   expect(logged).toEqual([])
 })
@@ -86,7 +94,7 @@ describe("the transport boundary", () => {
     })
     const { integration: host, resolved } = integration()
     const transport = createTransport(host, api.origin)
-    const account = await transport.account()
+    const account = await transport.account("default")
     // (Read the field: Bun's toMatchObject with an asymmetric matcher writes the matcher into the object.)
     expect((account as Account).scope).toMatch(/^openrouter:[0-9a-f]{16}$/)
     expect(JSON.stringify(account)).not.toContain(KEY)
@@ -111,7 +119,7 @@ describe("the transport boundary", () => {
         response.end()
       })
       const transport = createTransport(integration().integration, api.origin)
-      const error = await failureOf(transport.post(request((await transport.account()) as Account)))
+      const error = await failureOf(transport.post(request((await transport.account("default")) as Account)))
       expect([error.kind, error.sent]).toEqual(["redirect", true])
       expect(error.message).not.toContain(KEY)
       expect(error.message).not.toContain(elsewhere.origin)
@@ -138,7 +146,7 @@ describe("the transport boundary", () => {
     })
     for (const api of [declared, streamed]) {
       const transport = createTransport(integration().integration, api.origin)
-      const error = await failureOf(transport.post(request((await transport.account()) as Account)))
+      const error = await failureOf(transport.post(request((await transport.account("default")) as Account)))
       expect([error.kind, error.sent]).toEqual(["response_too_large", true])
     }
   })
@@ -147,7 +155,7 @@ describe("the transport boundary", () => {
     const api = await serve(() => undefined)
     const transport = createTransport(integration().integration, api.origin)
     const started = Date.now()
-    const error = await failureOf(transport.post(request((await transport.account()) as Account, { deadlineMs: 150 })))
+    const error = await failureOf(transport.post(request((await transport.account("default")) as Account, { deadlineMs: 150 })))
     expect([error.kind, error.sent]).toEqual(["timeout", true])
     expect(Date.now() - started).toBeLessThan(1500)
   })
@@ -155,7 +163,7 @@ describe("the transport boundary", () => {
   test("cancellation stops the request: before sending nothing leaves; after, it may have been sent", async () => {
     const api = await serve(() => undefined)
     const transport = createTransport(integration().integration, api.origin)
-    const account = (await transport.account()) as Account
+    const account = (await transport.account("default")) as Account
     const early = new AbortController()
     early.abort()
     expect(await failureOf(transport.post(request(account, { signal: early.signal })))).toMatchObject({ kind: "cancelled", sent: false })
@@ -171,21 +179,21 @@ describe("the transport boundary", () => {
     await new Promise((resolve) => api.server.close(resolve))
     servers.splice(servers.indexOf(api.server), 1)
     const transport = createTransport(integration().integration, origin)
-    expect(await failureOf(transport.post(request((await transport.account()) as Account)))).toMatchObject({ kind: "not_sent", sent: false })
+    expect(await failureOf(transport.post(request((await transport.account("default")) as Account)))).toMatchObject({ kind: "not_sent", sent: false })
   })
 
   test("no key, a changed connection or a request over the cap: nothing leaves this process", async () => {
     const api = await serve((_request, response) => response.end("{}"))
     const missing = createTransport(integration(null).integration, api.origin)
-    expect(await failureOf(missing.post(request((await missing.account()) as Account)))).toMatchObject({ kind: "auth_missing", sent: false })
+    expect(await failureOf(missing.post(request((await missing.account("default")) as Account)))).toMatchObject({ kind: "auth_missing", sent: false })
     const original = createTransport(integration().integration, api.origin)
-    const account = (await original.account()) as Account
+    const account = (await original.account("default")) as Account
     const switched = createTransport(integration(KEY, { ...CONNECTION, id: "cred_2" }).integration, api.origin)
     expect(await failureOf(switched.post(request(account)))).toMatchObject({ kind: "auth_missing", sent: false })
     expect(await failureOf(original.post(request(account, { maxRequestBytes: 4 })))).toMatchObject({ kind: "request_too_large", sent: false })
     expect(api.seen).toEqual([])
-    expect(await createTransport(integration(KEY, null).integration, api.origin).account()).toBeUndefined()
-    expect(await createTransport(integration(KEY, { ...CONNECTION, status: { type: "needs_auth" } }).integration, api.origin).account()).toBe("needs_auth")
+    expect(await createTransport(integration(KEY, null).integration, api.origin).account("default")).toBeUndefined()
+    expect(await createTransport(integration(KEY, { ...CONNECTION, status: { type: "needs_auth" } }).integration, api.origin).account("default")).toBe("needs_auth")
   })
 
   test("the key lookup is under the same deadline and cancellation as the request; nothing is sent", async () => {
@@ -194,7 +202,7 @@ describe("the transport boundary", () => {
       connection: { active: async () => CONNECTION as never, resolve: () => new Promise<never>(() => undefined), status: async () => undefined },
     } as never
     const transport = createTransport(hanging, api.origin)
-    const account = (await transport.account()) as Account
+    const account = (await transport.account("default")) as Account
     const started = Date.now()
     expect(await failureOf(transport.post(request(account, { deadlineMs: 100 })))).toMatchObject({ kind: "timeout", sent: false })
     expect(Date.now() - started).toBeLessThan(1500)
@@ -208,7 +216,7 @@ describe("the transport boundary", () => {
     const api = await serve((_request, response) => response.end("{}"))
     const elsewhere = await serve((_request, response) => response.end("{}"))
     const transport = createTransport(integration().integration, api.origin)
-    const account = (await transport.account()) as Account
+    const account = (await transport.account("default")) as Account
     const includes = Array.prototype.includes
     const has = Set.prototype.has
     const origin = Object.getOwnPropertyDescriptor(URL.prototype, "origin")!
@@ -236,7 +244,7 @@ describe("the transport boundary", () => {
     expect(() => createTransport(integration().integration)).not.toThrow()
     const api = await serve((_request, response) => response.end("{}"))
     const transport = createTransport(integration().integration, api.origin)
-    const account = (await transport.account()) as Account
+    const account = (await transport.account("default")) as Account
     for (const path of ["/api/v1/chat/completions", "//evil.example/api/alpha/extractions", "https://evil.example/api/alpha/extractions", "/api/alpha/extractions?x=1"])
       expect(await failureOf(transport.post(request(account, { path })))).toMatchObject({ kind: "path_refused", sent: false })
     expect(api.seen).toEqual([])

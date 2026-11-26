@@ -17,7 +17,9 @@ export function spyNetwork() {
       calls.push(`${label} ${String(args[0]).slice(0, 80)}`)
       throw new Error(`network call blocked in a local test: ${label}`)
     }
-    restore.push(() => void ((target as Record<string, unknown>)[key] = original))
+    restore.push(() => {
+      ;(target as Record<string, unknown>)[key] = original
+    })
   }
   patch(globalThis, "fetch", "fetch")
   patch(http, "request", "http.request")
@@ -42,6 +44,13 @@ export function spyNetwork() {
       throw new Error("network call blocked in a local test: WebSocket")
     }
   } as unknown as typeof WebSocket
-  restore.push(() => void (globalThis.WebSocket = OriginalWebSocket))
-  return { calls, restore: () => restore.splice(0).reverse().forEach((undo) => undo()) }
+  restore.push(() => {
+    globalThis.WebSocket = OriginalWebSocket
+  })
+  return {
+    calls,
+    restore: () => {
+      for (const undo of restore.splice(0).reverse()) undo()
+    },
+  }
 }

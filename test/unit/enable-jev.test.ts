@@ -10,9 +10,9 @@ import { DecideInput, DecideResult, ExtractInput, ExtractResult, PlanInput } fro
 import { format, money } from "../../src/domain/money.js"
 import { implemented } from "../../src/domain/registry.js"
 import { plan } from "../../src/domain/routing.js"
-import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
-import { decisionsAdapter, WIRE_REVISION } from "../../src/providers/openrouter/decisions.js"
-import { extractionsAdapter } from "../../src/providers/openrouter/extractions.js"
+import { OPENROUTER_CAPABILITIES } from "../../src/provider/capabilities.js"
+import { decisionsAdapter, WIRE_REVISION } from "../../src/provider/decisions.js"
+import { extractionsAdapter } from "../../src/provider/extractions.js"
 import { probeHarness } from "../support/operation-kit.js"
 
 const JEV = OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "typesafe/jev-1.14")!

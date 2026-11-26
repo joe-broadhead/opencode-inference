@@ -1,19 +1,22 @@
 // Builds dist/ with esbuild: exactly two self-contained files, dist/index.js (the server part) and dist/tui.js (the TUI
 // part). Each inlines all of its first-party code, the RPC contract and zod, with no chunks and no relative imports, so
 // an in-place update can never mix a new entry with a cached old sibling module. No declarations ship.
-// Run it with `node scripts/build.mjs` (npm run build).
+// Run it with `node scripts/build.mjs` (npm run bundle).
 // Sources import zod as `import * as z`. A named `import { z }` makes the bundler keep every locale.
 import { transformAsync } from "@babel/core"
 import { build } from "esbuild"
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { builtinModules } from "node:module"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = fileURLToPath(new URL("../", import.meta.url))
 const dist = join(root, "dist")
+const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 // The host provides these modules to plugins at run time, so they stay imports. Nothing else may stay external.
 const HOST = ["@opencode/plugin", "@opencode/plugin/*", "@opentui/*", "solid-js", "solid-js/*"]
-const allowed = path => path.startsWith("node:") || HOST.some(name => name.endsWith("/*") ? path.startsWith(name.slice(0, -1)) : path === name)
+const BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)])
+const allowed = path => path.startsWith("node:") || BUILTINS.has(path) || HOST.some(name => (name.endsWith("/*") ? path.startsWith(name.slice(0, -1)) : path === name))
 
 // The TUI view is Solid JSX for OpenTUI's universal renderer. It is compiled here, so no .tsx runs from node_modules.
 const solid = {
@@ -45,6 +48,8 @@ const result = await build({
   legalComments: "none",
   metafile: true,
   logLevel: "warning",
+  // The YAML parser is CommonJS and reads `process` with require(); the bundle is ESM, so give it a real require.
+  banner: { js: `import { createRequire } from "node:module";\nconst require = createRequire(import.meta.url);\n// ${pkg.name} ${pkg.version}. Built by scripts/build.mjs; do not edit.` },
 })
 
 const outputs = Object.keys(result.metafile.outputs).sort()
@@ -61,7 +66,7 @@ if (unexpected.length) {
 // The RPC contract is plain JSON Schema, so the TUI bundle never inlines zod; only the server bundle may.
 const tuiZod = Object.keys(result.metafile.outputs["dist/tui.js"].inputs).filter(input => /node_modules\/zod\//.test(input))
 if (tuiZod.length) {
-  console.error("BUILD_TUI_ZOD: dist/tui.js inlines zod. Next step: Import only zod-free modules (src/domain/ids.ts, src/rpc.ts, src/host/versions.ts) from the TUI.")
+  console.error("BUILD_TUI_ZOD: dist/tui.js inlines zod. Next step: Import only zod-free modules (src/domain/ids.ts, src/status-text.ts) from the TUI.")
   process.exit(1)
 }
 

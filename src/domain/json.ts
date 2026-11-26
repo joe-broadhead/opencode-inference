@@ -18,7 +18,7 @@ export type Json = null | boolean | string | JsonNumber | Json[] | { [key: strin
 
 const MAX_DEPTH = 64
 const NUMBER = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y
-const STRING = /"(?:[^"\\\u0000-\u001f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"/y
+const STRING = /"(?:[^"\\]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"/y
 
 const malformed = (what: string) => new InferenceError("PROVIDER_CONTRACT_CHANGED", `OpenRouter's answer is not valid JSON: ${what}.`)
 
@@ -37,7 +37,10 @@ export function parseJson(text: string): Json {
       // A Map, then Object.fromEntries: every key, "__proto__" included, becomes an own property.
       const entries = new Map<string, Json>()
       space()
-      if (text[at] === "}") return at++, {}
+      if (text[at] === "}") {
+        at++
+        return {}
+      }
       for (;;) {
         space()
         const key = string()
@@ -55,7 +58,10 @@ export function parseJson(text: string): Json {
       at++
       const array: Json[] = []
       space()
-      if (text[at] === "]") return at++, array
+      if (text[at] === "]") {
+        at++
+        return array
+      }
       for (;;) {
         array.push(value(depth + 1))
         space()
@@ -65,12 +71,24 @@ export function parseJson(text: string): Json {
       }
     }
     if (char === '"') return string()
-    if (text.startsWith("true", at)) return (at += 4), true
-    if (text.startsWith("false", at)) return (at += 5), false
-    if (text.startsWith("null", at)) return (at += 4), null
+    if (text.startsWith("true", at)) {
+      at += 4
+      return true
+    }
+    if (text.startsWith("false", at)) {
+      at += 5
+      return false
+    }
+    if (text.startsWith("null", at)) {
+      at += 4
+      return null
+    }
     NUMBER.lastIndex = at
     const number = NUMBER.exec(text)
-    if (number) return (at += number[0].length), new JsonNumber(number[0])
+    if (number) {
+      at += number[0].length
+      return new JsonNumber(number[0])
+    }
     throw malformed("an unexpected character")
   }
   const string = (): string => {
@@ -78,7 +96,11 @@ export function parseJson(text: string): Json {
     const match = STRING.exec(text)
     if (!match) throw malformed("a malformed string")
     at += match[0].length
-    return JSON.parse(match[0]) as string
+    try {
+      return JSON.parse(match[0]) as string
+    } catch {
+      throw malformed("a malformed string")
+    }
   }
   const result = value(0)
   space()

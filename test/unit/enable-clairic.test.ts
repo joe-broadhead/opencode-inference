@@ -11,8 +11,8 @@ import { ExtractInput, ExtractResult, PlanInput } from "../../src/domain/contrac
 import { format, money } from "../../src/domain/money.js"
 import { implemented } from "../../src/domain/registry.js"
 import { plan } from "../../src/domain/routing.js"
-import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
-import { extractionsAdapter, WIRE_REVISION } from "../../src/providers/openrouter/extractions.js"
+import { OPENROUTER_CAPABILITIES } from "../../src/provider/capabilities.js"
+import { extractionsAdapter, WIRE_REVISION } from "../../src/provider/extractions.js"
 import { probeHarness } from "../support/operation-kit.js"
 
 const CLAIRIC = OPENROUTER_CAPABILITIES.routes.find((route) => route.model === "cloudflare/clairic")!
@@ -39,8 +39,8 @@ test("the committed route records its canary: passed on 2026-11-12, both reports
 
 test("the catalog price reproduces the canary's reported cost exactly: 125 input tokens at 0.0000001, output free", () => {
   // Run 3 reported usage { inputTokens: 125, outputTokens: 0 } and a charge of 0.0000125 (extractions-20261112T215014Z.json).
-  const perToken = (perMillion: string, tokens: bigint) => money(perMillion).units * tokens
-  const exact = perToken(CLAIRIC.pricing!.perMillionInputTokens!, 125n) + perToken(CLAIRIC.pricing!.perMillionOutputTokens!, 0n)
+  const rateTimes = (perMillion: string, tokens: bigint) => money(perMillion).units * tokens
+  const exact = rateTimes(CLAIRIC.pricing!.perMillionInputTokens!, 125n) + rateTimes(CLAIRIC.pricing!.perMillionOutputTokens!, 0n)
   expect(exact % 1_000_000n).toBe(0n)
   expect(format({ currency: "USD", units: exact / 1_000_000n })).toBe("0.0000125")
 })

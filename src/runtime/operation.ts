@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto"
+import { canonicalJson } from "@we-the-rebel-alliance/plugin-contract/manifest"
 import type * as z from "zod"
 import { profileModel, type Config } from "../domain/config.js"
 import { Usage, type Coverage, type Exclusion, type Operation, type Review, type SourceInput } from "../domain/contracts.js"
 import { fence, InferenceError } from "../domain/errors.js"
-import { actionOf } from "../domain/registry.js"
-import { canonical, exclusions, OPERATION_MODULE } from "../domain/routing.js"
-import type { CapabilityFixture, RouteCapability } from "../providers/openrouter/capabilities.js"
-import type { Account, Transport, TransportError, TransportResponse } from "../providers/openrouter/http.js"
+import { OPERATION_MODULE } from "../domain/registry.js"
+import { exclusions } from "../domain/routing.js"
+import type { CapabilityFixture, RouteCapability } from "../provider/capabilities.js"
+import type { Account, Transport, TransportError, TransportResponse } from "../provider/http.js"
 import { admit, reservationFor, type Quote } from "./budget.js"
 import type { Journal, OperationRecord, Outcome } from "./journal.js"
 import { locate, permissionRequests, snapshot, type FileAccess, type PermissionRequest, type Project, type Snapshot } from "./sources.js"
@@ -19,7 +20,7 @@ import { locate, permissionRequests, snapshot, type FileAccess, type PermissionR
 //     (its presence only: the key itself is read at the transport boundary). Unsupported requests fail here, before
 //     any file is touched;
 //  2. the source is identified from its descriptor and file metadata only;
-//  4. the host decides. The tool's own action (`inference_extract`, `inference_decide`) is asserted first, so
+//  4. the host decides. The tool's own action (`inference.extract`, `inference.decide`) is asserted first, so
 //     `access` holds for every source, text included, before any byte is read or anything is sent; then the file
 //     effects (read, external_directory) with the plain one-argument assert, raced against cancellation and fenced
 //     after it settles. A denial reads no byte and sends nothing;
@@ -65,13 +66,13 @@ export interface AdapterResult {
   readonly providerRequestId?: string
 }
 
-/** Everything an operation needs from the host. Built once in setup (src/host/plugin.ts). */
+/** Everything an operation needs from the host. Built once in setup (src/index.ts). */
 export interface OperationRuntime {
   readonly config: Config
   readonly fixture: CapabilityFixture
   readonly project: Project
   readonly files: FileAccess
-  /** The one-argument assert, raced against the signal and fenced after (src/host/permissions.ts createAuthorize). */
+  /** The file-effect assert, raced against the signal and fenced after (src/authorize.ts createAuthorize). */
   readonly authorize: (requests: readonly PermissionRequest[], call: Call) => Promise<void>
   readonly transport: Transport
   /** The journal for one connection label. */
@@ -84,6 +85,7 @@ export interface OperationRuntime {
 }
 
 interface Call {
+  readonly account: string
   readonly sessionID: string
   readonly agent: string
   readonly messageID: string
@@ -101,7 +103,7 @@ interface OperationInput {
 
 export const MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 
-const digest = (value: unknown) => `sha256:${createHash("sha256").update(canonical(value)).digest("hex")}`
+const digest = (value: unknown) => `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`
 
 const UNSUPPORTED: readonly Exclusion[] = [
   "ROUTE_DISABLED",
@@ -247,7 +249,7 @@ export async function runOperation(tool: { readonly name: string }, adapter: Ada
   // What the input names in the trusted options, resolved first: an unknown question set or profile sends nothing.
   const prepared = adapter.prepare ? adapter.prepare(input, config) : input
   const route = resolveRoute(adapter.operation, input, config, fixture, adapter.revision)
-  const connected = await runtime.transport.account()
+  const connected = await runtime.transport.account(call.account)
   if (connected === undefined) throw new InferenceError("AUTH_REQUIRED")
   if (connected === "needs_auth") throw new InferenceError("AUTH_REJECTED")
   const account: Account = connected
@@ -257,10 +259,10 @@ export async function runOperation(tool: { readonly name: string }, adapter: Ada
   const located = await locate(input.source, runtime.project, runtime.files, now)
   fence(call.signal)
 
-  // 4. The host decides. The tool's own action comes first, so `access: "ask-changes"` and `"read-only"` hold for
-  // every source, text included; then the source's file effects. A denial propagates unchanged, before any byte is
-  // read.
-  await runtime.authorize([{ action: actionOf(tool.name), resources: ["*"] }, ...permissionRequests(located)], call)
+  // 4. The host decides the file effects: the contract register already asserted the method's own action on
+  // `<alias>:<operation>` before this handler ran, so only the read and external_directory requests remain. A denial
+  // propagates unchanged, before any byte is read.
+  await runtime.authorize(permissionRequests(located), call)
 
   // 5. Read and freeze the approved bytes.
   const source = await snapshot(located, runtime.files, route, call.signal)

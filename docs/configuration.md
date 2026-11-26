@@ -1,201 +1,116 @@
 # Configuration
 
-Unofficial plugin. Not affiliated with OpenCode or OpenRouter.
+The plugin's options live under the plugin's entry in `opencode.json`. Every option is validated when the plugin starts;
+an invalid option is refused with `OPTIONS_INVALID` and every offending key named, never its value.
 
-This page is the contract for the plugin's options, its default permission rules and its errors. The tables marked
-generated are written from the source; `test/unit/registry.test.ts` fails while they differ.
+<!-- generated:configuration -->
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `access` | `all` \| `ask-changes` \| `read-only` | `"all"` | How much the plugin's methods may do without asking. |
+| `accounts` | object | — | One profile per account alias; a sign-in holds the OpenRouter key for that alias. |
+| `allowUntestedHost` | boolean | `false` | Start outside the tested OpenCode range. |
+| `modules` | object | — | Which operations are on. understanding is reserved and has no method in this version. |
+| `profiles` | object | — | Task profiles, each naming a reviewed model. Setting it replaces the built-in profiles. |
+| `limits` | object | — | The trusted limits a method input can only lower. |
+| `spend` | object | — | The spend caps and the truthful-cost guards. |
+| `data` | object | — | Data-handling options. |
+| `questionSets` | object | — | Versioned question sets, by name, that decide may use instead of inline questions. |
+| `acceptanceProfiles` | object | — | Versioned acceptance profiles, by name. review-first-v1 is built in. |
+<!-- /generated:configuration -->
 
-## Options
+## Examples
 
-Every option is optional. Unknown keys fail setup with each one named. A key-like option (any name containing `apiKey`,
-`token`, `secret`, `password`, `credential`, `authorization` or `bearer`) fails setup too, named by its path and never
-by value: the OpenRouter key goes in `/connect`.
+One account, the defaults:
 
-<!-- generated:options -->
+```json
+{ "plugins": ["github:we-the-rebel-alliance/inference-plugin#v0.0.0"] }
+```
 
-| Option | Default |
-| --- | --- |
-| `access` | `"all"` |
-| `modules.extractions` | `true` |
-| `modules.decisions` | `true` |
-| `modules.understanding` | `false` |
-| `profiles` | `{"extract-typed":{"model":"cloudflare/clairic"},"extract-pdf":{"model":"scaledown/extract"},"decide-text":{"model":"typesafe/jev-1.14"}}` |
-| `routing.mode` | `"explicit"` |
-| `routing.fallbacks` | `[]` |
-| `limits.concurrency` | `2` |
-| `limits.maxFields` | `32` |
-| `limits.deadlineMs` | `60000` |
-| `spend.requestUsd` | `null` |
-| `spend.sessionUsd` | `null` |
-| `spend.rolling24hUsd` | `null` |
-| `spend.requirePricedRoute` | `true` |
-| `spend.requireUpperBound` | `false` |
-| `data.requireZdr` | `false` |
-| `cache.enabled` | `false` |
-| `allowUntestedHost` | `false` |
-| `questionSets` | `{}` |
-| `acceptanceProfiles` | `{}` |
+Two accounts, asking before each send, with a per-call cap:
 
-<!-- /generated:options -->
+```json
+{
+  "plugins": [
+    [
+      "github:we-the-rebel-alliance/inference-plugin#v0.0.0",
+      {
+        "access": "ask-changes",
+        "accounts": { "work": {}, "personal": {} },
+        "spend": { "requestUsd": "0.05" }
+      }
+    ]
+  ]
+}
+```
 
-- `access`: `all`, `ask-changes` or `read-only`. Decides the default rules below.
-- `modules`: switches for the operations. `extractions` and `decisions` turn `inference_extract` and
-  `inference_decide` on or off (refused with `MODULE_DISABLED` at execution when off); `understanding` changes only what
-  capabilities and plan report and status's `state`, as its tool does not exist yet.
-- `profiles`: named routes, `{ "<name>": { "model": "<provider>/<model>" } }`. Setting it replaces the three defaults.
-  A profile names a model; it never overrides a permission.
-- `routing.mode` is `explicit` and `routing.fallbacks` must be empty: automatic fallback stays off until evaluated.
-- `limits`: `concurrency` (1-8), `maxFields` (1-64; the schema's hard limit is 64), `deadlineMs` (1000-600000). A tool
-  input can lower them, never raise them.
-- `limits.concurrency` caps requests in flight in one process; more wait their turn. `limits.deadlineMs` bounds the
-  provider request.
-- `spend`: exact decimal USD strings, never floats. `requirePricedRoute` makes a route with no known price ineligible;
-  `requireUpperBound` requires a genuine ceiling. The three caps, `requestUsd`, `sessionUsd` and `rolling24hUsd`,
-  default to `null`: no cap is set, and a call runs at whatever it costs, each result reporting that cost. A cap you set
-  is a budget, not a price. See [Spend](#spend). Only
-  `inference_extract` and `inference_decide` can spend, and only on an enabled route (see `inference_capabilities`).
-- `data.requireZdr`: `true` makes a route without documented zero data retention ineligible. `false` means you have not
-  asked for that restriction; it does not claim a provider retains nothing.
-- `cache.enabled` must be `false`: the result cache is not implemented.
-- `questionSets`: versioned question sets for `inference_decide`, `{ "<name>-v<n>": { "questions": { ... } } }`. The
-  version is part of the name: change a set's labels, prompts or option order under a new name.
-- `acceptanceProfiles`: versioned acceptance profiles, `{ "<name>-v<n>": { "mode": "review" | "automatic", "rules":
-  { "noul": { "accept" }, "choice": { "minProbability", "minMargin" }, "score": { "minProbability" } }, ... } }`.
-  `review-first-v1` is built in and accepts nothing. An `automatic` profile also needs `model`, `questionSet`,
-  `maxFalseAcceptRate` and a held-out `report` from `scripts/evaluate-decisions.ts` for exactly that profile, model,
-  question set, adapter wire revision and thresholds, with at least 30 held-out cases and a false-accept rate within
-  the maximum; otherwise setup fails with `OPTIONS_INVALID`. Thresholds belong to the task and its consequences: there
-  is no universal one. A report is unauthenticated JSON, and its dataset hash is not re-checked by the plugin (see
-  docs/architecture.md): review changes to `acceptanceProfiles` like code.
-- `allowUntestedHost`: run on an OpenCode outside `>=2.4.1 <2.5.0`, with a warning as the next step.
+A task profile of your own, replacing the built-in profiles:
 
-## Spend
+```json
+{
+  "profiles": {
+    "invoice-text": { "model": "cloudflare/clairic" },
+    "contract-text": { "model": "scaledown/extract" }
+  }
+}
+```
 
-No spend cap is set by default, so a call is never refused for its price (only `requirePricedRoute` refuses a route with
-no known price), and each result reports what it cost. Every cap is opt-in, and one you set works as below.
-`inference_extract` and `inference_decide` reserve before they send (on an enabled route):
+## `access`
 
-- **Request.** The reservation is the route's upper bound when one is known. An estimate is not a cap, so with only an
-  estimate, or with no price when `requirePricedRoute` is off, the call reserves the whole per-request budget
-  (`spend.requestUsd`, or a lower `limits.maxEstimatedCostUsd` from the tool input). That budget is an admission limit,
-  not a spend ceiling: OpenRouter does not enforce it. With no per-request budget, the call reserves the top of its
-  estimate, and an unpriced call reserves nothing, unless a session or rolling cap is set, which refuses it
-  (`PRICE_UNKNOWN`) because nothing could count it against that cap.
-- **Session and rolling 24 hours.** When set, a call is admitted only if its reservation, plus everything already
-  counted, fits `spend.sessionUsd` for its session and `spend.rolling24hUsd` for the last 24 hours. Without a request
-  cap, a call reserves only the top of its estimate, and an estimate is not a ceiling: the reported charge can be
-  higher, so the session or rolling cap can be overrun by the estimate's error. Set `spend.requestUsd` alongside them;
-  the call then reserves that whole per-request budget, as above. Counted are settled charges,
-  reservations in flight, and reservations kept for calls whose cost is unknown.
-- **Settlement.** Reported charges replace the reservation, platform and upstream charges kept separate. A call that
-  failed after it may have been sent, timed out, was cancelled mid-request or got a malformed answer keeps its
-  reservation: failure does not mean zero cost. Only a call that certainly never left releases it. Credits are never
-  added to dollars.
-- **Scope.** One journal per OpenRouter connection on this machine (`$XDG_STATE_HOME/opencode-inference`, or
-  `~/.local/state/opencode-inference`), shared by every project and process here. It is not an account-wide limit
-  across machines or other clients; OpenRouter's own key limits are the stronger, independent boundary.
+`all` (the default) runs reads and sends without asking. `ask-changes` runs every read and asks before each send.
+`read-only` runs every read and refuses every send. The four reads — `status`, `probe`, `capabilities` and `plan` —
+always run; `extract` and `decide` follow the level. The rules are generated into every agent's own permissions after
+its base allow, so a later rule of your own still decides one method.
 
-## Default permission rules
+## `accounts`
 
-The plugin inserts one block directly after each agent's base `* * allow`, so the agent's own later rules, your rules
-and saved approvals still win. Agents without a base allow are left alone. An agent counts as guarded only when the
-whole block appears contiguously after its base allow; a partial block does not count. Status names an agent without
-the block only when its own rules would run a send without asking, with the fix: put the block first in that agent's
-own `permissions`, followed by your top-level `inference_*` rules.
+A map of alias to profile. See [accounts](accounts.md). With no `accounts` option there is one `default` account.
 
-<!-- generated:rules-all -->
+## `modules`
 
-`access: "all"`
+`extractions` and `decisions` (both on) turn `extract` and `decide` on or off. A send whose module is off is refused
+with `SOURCE_DISABLED` before a file is read or anything is sent. `understanding` is reserved: it changes what
+`capabilities` and `plan` describe, and has no method in this version.
 
-| Action | Resource | Effect |
-| --- | --- | --- |
-| `inference_*` | `*` | `allow` |
-| `inference_status` | `*` | `allow` |
-| `inference_capabilities` | `*` | `allow` |
-| `inference_plan` | `*` | `allow` |
-| `inference_extract` | `*` | `allow` |
-| `inference_decide` | `*` | `allow` |
+## `profiles`
 
-<!-- /generated:rules-all -->
+A task profile names a reviewed model. `extract-typed`, `extract-pdf` and `decide-text` are built in; setting
+`profiles` replaces them. The plan and the send name a profile or a model, never both.
 
-<!-- generated:rules-ask-changes -->
+## `limits`
 
-`access: "ask-changes"`
+- `concurrency` (2): provider calls in flight at once, 1 to 8.
+- `maxFields` (32): the most fields or questions one call may name, up to the schema's 64.
+- `deadlineMs` (60000): the deadline for one provider call, 1 second to 10 minutes.
 
-| Action | Resource | Effect |
-| --- | --- | --- |
-| `inference_*` | `*` | `ask` |
-| `inference_status` | `*` | `allow` |
-| `inference_capabilities` | `*` | `allow` |
-| `inference_plan` | `*` | `allow` |
-| `inference_extract` | `*` | `ask` |
-| `inference_decide` | `*` | `ask` |
+A method input may lower `deadlineMs` and `maxEstimatedCostUsd`; it can never raise a trusted limit.
 
-<!-- /generated:rules-ask-changes -->
+## `spend`
 
-<!-- generated:rules-read-only -->
+Every cap is opt-in and `null` by default, so no cap is set: each call still reports its cost.
 
-`access: "read-only"`
+- `requestUsd`: the most one call may reserve. An upper bound is reserved exactly; an estimate reserves the cap, which
+  is then an admission limit, not a ceiling.
+- `sessionUsd`: the most one session may spend, across settled, reserved and unknown-cost calls.
+- `rolling24hUsd`: the most any rolling 24 hours may spend.
+- `requirePricedRoute` (on): refuse a route with no price. This is a truthful-cost guard, not a cap.
+- `requireUpperBound` (off): refuse a route whose price is only an estimate.
 
-| Action | Resource | Effect |
-| --- | --- | --- |
-| `inference_*` | `*` | `deny` |
-| `inference_status` | `*` | `allow` |
-| `inference_capabilities` | `*` | `allow` |
-| `inference_plan` | `*` | `allow` |
-| `inference_extract` | `*` | `deny` |
-| `inference_decide` | `*` | `deny` |
+## `data` and `requireZdr`
 
-<!-- /generated:rules-read-only -->
+`requireZdr: true` refuses a route that does not document zero data retention. It is off by default.
 
-`inference_extract` and `inference_decide` get the send effect of `access`; the namespace rule covers the send tools a later release adds; the
-three local reads are always allowed. Each call asserts its tool's own action before anything is read or sent, so the
-effect holds for every source, a text source included. Reading a file for `inference_extract` also asks the host's own
-`read` (and `external_directory` outside the project).
+## `questionSets` and `acceptanceProfiles`
 
-## Errors
+A versioned question set names questions once, in the trusted options, and `decide` may pass `questionSet` instead of
+inline `questions`. Its name carries its version (`document-kind-v1`), and its exact questions are digested into every
+result.
 
-Every failure is `CODE: what happened. Next step: …`, with one next step, and never contains a key, source text or a
-field value. Host permission errors pass through unchanged. Operation failures name the operation id when its
-reservation is kept, so it can be reconciled instead of resubmitted. `REVIEW_REQUIRED` is not a failure: it is
-`review.required` on a successful result. `OUTPUT_EXPIRED`, `OUTPUT_UNAVAILABLE` and `CANCEL_UNSUPPORTED` arrive with
-asynchronous operations.
+An acceptance profile is `review` or `automatic`. `review-first-v1` is built in and accepts nothing: every answer is
+reviewed. An `automatic` profile accepts an answer only when it carries a held-out report for the same profile, model,
+question set (by digest), adapter wire revision and thresholds; anything else turns the answer back to review. A label
+is never a permission.
 
-<!-- generated:errors -->
+## Secrets
 
-| Code | What happened | Next step |
-| --- | --- | --- |
-| `INPUT_INVALID` | The tool input is invalid. | Correct the named fields against the tool's schema and call it again. |
-| `OPTIONS_INVALID` | The plugin options are invalid. | Fix the named option in the Inference plugin options in opencode.json, then restart OpenCode. |
-| `HOST_UNTESTED` | This OpenCode version is outside the range Inference supports. | Use a tested OpenCode release, or set the plugin option allowUntestedHost: true to run anyway. |
-| `MODULE_DISABLED` | The module behind this tool is turned off in the plugin options. | Set modules.<name> to true in the Inference plugin options, then restart OpenCode. |
-| `TOOL_UNAVAILABLE` | This tool is not available in this location right now. | Call inference_status to see what is available, then retry. |
-| `CLOSED` | The Inference plugin is shutting down. | Retry after OpenCode has reloaded the plugin. |
-| `CANCELLED` | The call was cancelled. | Call the tool again if you still need the result. |
-| `STATUS_UNAVAILABLE` | Inference status could not be read. | Run /inference-status in a session to see the error, or check the OpenCode server log. |
-| `OUTPUT_INVALID` | The tool produced a result that does not match its own schema. | Report it with the inference_status output; this is a bug in the plugin. |
-| `RULES_NOT_ADDED` | The default permission rules could not be added. | Restart OpenCode. |
-| `SKILLS_INVALID` | A shipped skill is missing or malformed, so it was skipped. | Reinstall the plugin; the tools still work without the skill. |
-| `INTEGRATION_NOT_REGISTERED` | The OpenRouter key entry could not be added to /connect. | Restart OpenCode. |
-| `ROUTE_NOT_VERIFIED` | The route's compatibility canary passed against another wire revision, so it is not verified for this one. | Re-run the compatibility canary for this revision; a reviewed change records the new pass. |
-| `CAPABILITY_UNSUPPORTED` | The selected route cannot serve this request. | Choose a supported field, modality or profile with inference_plan, or prepare the source explicitly. |
-| `UNSAFE_PATH` | The source path is not a plain regular file this call may read. | Re-select the current regular file by a path without symbolic links or '..'. |
-| `SOURCE_CHANGED` | The source changed between approval and reading, or no longer matches its declaration. | Re-select the current regular file and call the tool again. |
-| `SOURCE_TYPE` | The source's bytes are not a type this call accepts, or do not match its declared type. | Select a file whose content matches its name, in a type the route accepts (see inference_capabilities). |
-| `SOURCE_LIMIT` | The source is larger than the route accepts. | Select a smaller range or use an evaluated chunking strategy. |
-| `CONTEXT_LIMIT` | The request is larger than the route accepts. | Select a smaller range or fewer fields, or use an evaluated chunking strategy. |
-| `AUTH_REQUIRED` | No OpenRouter key is connected for Inference. | Run /connect and choose OpenRouter key for Inference, then enter an OpenRouter API key. |
-| `AUTH_REJECTED` | OpenRouter did not accept the connected key. | Run /connect and choose OpenRouter key for Inference to replace the key. |
-| `PRICE_UNKNOWN` | No price, or no upper bound, is known for this route, and the spend options require one: requirePricedRoute, requireUpperBound, or a session or rolling cap set without a request cap. | Select a priced, affordable route; change spend.requirePricedRoute or spend.requireUpperBound in the trusted options; or, under a session or rolling cap with no request cap, set spend.requestUsd or remove that cap. |
-| `BUDGET_EXCEEDED` | This call would exceed a spend budget. | Select a priced, affordable route, wait for the rolling window, or raise the limit in the trusted spend options. |
-| `JOURNAL_LOCKED` | The operation journal is locked by another process and was not taken over. | Make sure no other OpenCode process is using Inference, then remove the lock file named above and retry. |
-| `JOURNAL_UNREADABLE` | The operation journal could not be read or written. | Check the Inference state folder's permissions and free space; do not delete the journal while operations are unsettled. |
-| `PROVIDER_ERROR` | OpenRouter answered with an error. | Retry later; a failed call may still have been charged, so check usage before retrying. |
-| `PROVIDER_CONTRACT_CHANGED` | OpenRouter's response did not match the reviewed contract for this route. | Disable that adapter revision and update its fixtures and schema; do not retry the same call. |
-| `SUBMISSION_UNKNOWN` | The request may have reached OpenRouter, but its outcome is unknown. | Reconcile the existing operation; do not resubmit. |
-| `DEADLINE_EXCEEDED` | The call ran past its deadline. | Check whether OpenRouter received it before calling again; its reservation is kept. |
-| `SESSION_UNKNOWN` | Refused by the tools RPC. | Create a session in the location you mean, such as POST /api/session with {"agent":"build"} sent with the header "x-opencode-directory: <dir>" or the location[directory] query, and pass its id. |
-| `SESSION_AGENT_REQUIRED` | Refused by the tools RPC. | Create a session that names an agent this project has, with its project as the location, such as POST /api/session with {"agent":"build","location":{"directory":"/path/to/project"}}, and pass its id. |
-| `PERMISSION_DENIED` | Refused by the tools RPC. | Add an allow rule for the action to the session's agent or to the session, or use a session whose agent allows it. |
-
-<!-- /generated:errors -->
+No key is a plugin option. An option whose name looks like a secret is refused with a pointer to `/connect`, and the
+value is never echoed. Add OpenRouter keys as account sign-ins, not as configuration.

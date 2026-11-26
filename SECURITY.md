@@ -2,27 +2,31 @@
 
 Unofficial plugin. Not affiliated with OpenCode or OpenRouter.
 
-Report a vulnerability privately through GitHub's security advisories for this repository, not in a public issue.
+## Report a vulnerability
 
-## What this version does
+Report it privately through GitHub's security advisories for this repository
+(<https://github.com/we-the-rebel-alliance/inference-plugin/security/advisories/new>), not in a public issue. Include the
+version (`package.json`), the OpenCode release, what an attacker can do and the smallest reproduction you have. Do not
+include a real API key, source text or personal data: rotate any key you believe was exposed.
 
-- `inference_status`, `inference_capabilities` and `inference_plan` are local: they read the plugin options, a committed
-  capability fixture and the host's own state.
-- `inference_extract` and `inference_decide` send the source to OpenRouter and can be charged, but only on an enabled
-  route: on a disabled one they refuse before reading a file, resolving the key or sending anything. A route is enabled
-  only in a reviewed change after the opt-in canary has passed.
-- The OpenRouter transport (`src/providers/openrouter/http.ts`) is the only code that reaches the network or resolves
-  the key: one trusted origin, two reviewed paths, the key in one `Authorization` header, no redirects followed, a
-  deadline, byte caps and cancellation. `npm run lint` checks that boundary on the syntax tree.
-- Before reading a file the host is asked (`read`, and `external_directory` outside the project, by the real folder).
-  No byte is read before that answer; symbolic links inside the project, `..` and a file replaced or changed after
-  approval are refused, and the type comes from the bytes.
-- The operation journal is private (a 0700 folder, a 0600 file) and holds hashes, ids, the route, timing, amounts and
-  error codes: never a key, source text, a request or response body, or a URL.
-- A decision's accepted label is information, never a permission: no label, probability or acceptance grants a file
-  read, a send, a budget or any other action.
-- No key is an option. The canary scripts read a key only from `OPENROUTER_CANARY_KEY`, refuse in CI and without a
-  budget, a per-call worst case and an explicit acknowledgement, and are never run by the checks.
-- Errors follow `CODE: what happened. Next step: …` and carry no key, source text or field value.
+We aim to answer within seven days. We will credit you in the advisory unless you ask us not to.
 
-Content a caller supplies, and anything a provider returns in a later release, is untrusted data, never instructions.
+## Scope
+
+- The plugin's code in `src/`, the built `dist/`, the manifest in `package.json`, the skills and the docs.
+- Out of scope: OpenCode itself, OpenRouter's API, and the coding model's own provider credentials (the plugin never
+  reads them).
+
+## What the plugin handles
+
+- **Credentials:** one OpenRouter API key per account alias, held by OpenCode's integration (`inference` or
+  `inference-<alias>`). The key is read only at the transport boundary for a send on an enabled route, sent only to
+  `https://openrouter.ai`, and never logged, returned or stored.
+- **Content:** what a call supplies — text, a file's bytes or an artifact — goes to OpenRouter on a send. The four reads
+  send nothing. Every result is untrusted data.
+- **Local files:** read only after the host approves `read` (and `external_directory` outside the project, by the real
+  folder), through a descriptor, verified against the file that was approved.
+- **Spend:** opt-in caps reserve before a call is sent; a call whose cost is unknown keeps its reservation. The journal
+  holds hashes, ids, the route, timing, amounts and error codes, never a key or content.
+
+See [docs/security.md](docs/security.md) for the mechanism.

@@ -1,16 +1,16 @@
 import { createHash } from "node:crypto"
+import { canonicalJson } from "@we-the-rebel-alliance/plugin-contract/manifest"
 import type * as z from "zod"
-import { canonical } from "./canonical.js"
 import { acceptanceProfileOf, profileModel, questionSetOf, type Config } from "./config.js"
 import { FIELD_TYPES, type DecideInput, type Exclusion, type ExtractInput, type Operation, type PlanInput, type PlanResult, type ReadInput, type SourceInput } from "./contracts.js"
-import { INTEGRATION_ID, type Module } from "./ids.js"
-import { fixtureAgeDays, STALE_AFTER_DAYS, type CapabilityFixture, type RouteCapability } from "../providers/openrouter/capabilities.js"
+import { OPERATION_MODULE } from "./registry.js"
+import { PLUGIN_NAME } from "./ids.js"
+import { fixtureAgeDays, STALE_AFTER_DAYS, type CapabilityFixture, type RouteCapability } from "../provider/capabilities.js"
 
 // Deterministic eligibility and the local plan (handoff §5, §15.2). Pure: no file system, no network, no clock except
 // the `now` passed in. Routing is explicit: the requested profile or model is the only candidate; every other reviewed
 // route is listed as an alternative with its reasons and is never chosen automatically.
 
-export const OPERATION_MODULE: { readonly [O in Operation]: Module } = { extract: "extractions", decide: "decisions", read: "understanding" }
 /** The question types this version implements. Box is documented for Jev but not adopted (no region representation). */
 export const IMPLEMENTED_QUESTION_TYPES: readonly string[] = ["noul", "choice", "score"]
 
@@ -56,8 +56,8 @@ export function modalityOf(source: Source): { modality: Modality; mimeType?: str
   }
 }
 
-export { canonical } from "./canonical.js"
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex")
+const canonical = (value: unknown) => canonicalJson(value)
 
 /** The task's digest: everything but source content, which a plan never reads beyond supplied text. */
 export function taskDigest(request: PlanRequest) {
@@ -201,7 +201,9 @@ export const fromMicros = (value: bigint) => {
   return fraction ? `${whole}.${fraction}` : `${whole}`
 }
 
-const TOOL_OF: { readonly [O in Operation]: string } = { extract: "inference_extract", decide: "inference_decide", read: "inference_read" }
+const TOOL_OF: { readonly [O in Operation]: string } = { extract: `${PLUGIN_NAME}.extract`, decide: `${PLUGIN_NAME}.decide`, read: `${PLUGIN_NAME}.read` }
+/** What the plan says the key scope is: the base integration, then the account's own for a call. */
+export const CREDENTIAL_SCOPE = `${PLUGIN_NAME} (per-account: ${PLUGIN_NAME}-<alias>)`
 
 /** The local plan. It never opens a file, calls a provider, refreshes a catalog or reads a key. */
 export function plan(request: PlanRequest, context: PlanContext): PlanResult {
@@ -268,7 +270,7 @@ export function plan(request: PlanRequest, context: PlanContext): PlanResult {
     },
     preparation,
     transmission: chosen
-      ? { provider: chosen.provider, apiRoute: chosen.apiRoute, representation: modality === "text" ? "text" : modality === "unknown" ? "unknown until execution" : modality, credentialScope: INTEGRATION_ID }
+      ? { provider: chosen.provider, apiRoute: chosen.apiRoute, representation: modality === "text" ? "text" : modality === "unknown" ? "unknown until execution" : modality, credentialScope: CREDENTIAL_SCOPE }
       : null,
     limits: {
       maxFields: config.limits.maxFields,

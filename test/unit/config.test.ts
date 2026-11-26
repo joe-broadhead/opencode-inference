@@ -1,18 +1,21 @@
 import { describe, expect, test } from "bun:test"
-import { DEFAULT_PROFILES, loadConfig } from "../../src/domain/config.js"
+import { DEFAULT_PROFILES, loadConfig, OPTIONS_JSON_SCHEMA } from "../../src/domain/config.js"
+import { packageOf } from "../support/manifest.js"
 
 describe("the plugin options", () => {
+  test("the manifest carries exactly the domain's options schema", () => {
+    expect(packageOf().capabilities.options).toEqual(OPTIONS_JSON_SCHEMA)
+  })
+
   test("default to no spend cap, with every module except reading on and no secrets", () => {
     const config = loadConfig(undefined)
     expect(config).toEqual({
       access: "all",
       modules: { extractions: true, decisions: true, understanding: false },
       profiles: DEFAULT_PROFILES,
-      routing: { mode: "explicit", fallbacks: [] },
       limits: { concurrency: 2, maxFields: 32, deadlineMs: 60_000 },
       spend: { requestUsd: null, sessionUsd: null, rolling24hUsd: null, requirePricedRoute: true, requireUpperBound: false },
       data: { requireZdr: false },
-      cache: { enabled: false },
       allowUntestedHost: false,
       questionSets: {},
       acceptanceProfiles: {},
@@ -25,11 +28,9 @@ describe("the plugin options", () => {
       access: "ask-changes",
       modules: { decisions: false },
       profiles: { "invoice-text": { model: "cloudflare/clairic" } },
-      routing: { mode: "explicit", fallbacks: [] },
       limits: { maxFields: 8 },
       spend: { requestUsd: "0.01", requireUpperBound: true },
       data: { requireZdr: true },
-      cache: { enabled: false },
     })
     expect(config.access).toBe("ask-changes")
     expect(config.modules).toEqual({ extractions: true, decisions: false, understanding: false })
@@ -62,12 +63,12 @@ describe("the plugin options", () => {
   })
 
   test("refuse what is not implemented: automatic fallback and the result cache", () => {
-    expect(() => loadConfig({ routing: { fallbacks: ["scaledown/extract"] } })).toThrow(/automatic fallback is not supported/)
-    expect(() => loadConfig({ cache: { enabled: true } })).toThrow(/the result cache is not implemented yet/)
+    expect(() => loadConfig({ routing: { fallbacks: ["scaledown/extract"] } })).toThrow(/options\.routing is not an Inference option/)
+    expect(() => loadConfig({ cache: { enabled: true } })).toThrow(/options\.cache is not an Inference option/)
   })
 
   test("never take a secret: a key-like option is refused by path, and its value is never echoed", () => {
-    const value = "sk-or-v1-THIS-MUST-NOT-APPEAR"
+    const value = "placeholder-value"
     for (const options of [{ apiKey: value }, { openrouter: { api_key: value } }, { profiles: { p: { model: "a/b", token: value } } }, { authorization: value }]) {
       let message = ""
       try {

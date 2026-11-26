@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto"
 import * as z from "zod"
-import { AcceptanceRules, applyRules, HeldOutReport, questionSetDigest, type QuestionSet, type Unaccepted } from "./acceptance.js"
-import { canonical } from "./canonical.js"
+import { type AcceptanceRules, applyRules, HeldOutReport, questionSetDigest, type QuestionSet, type Unaccepted } from "./acceptance.js"
+import { canonicalJson } from "@we-the-rebel-alliance/plugin-contract/manifest"
+
+const canonical = (value: unknown) => canonicalJson(value)
 import { DecidedAnswer, Key, ModelId, VersionedName } from "./contracts.js"
 
 // The evaluation harness (handoff §17.2): measures a profile's thresholds on labelled cases and produces the held-out

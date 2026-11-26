@@ -2,10 +2,11 @@
   "name": "@we-the-rebel-alliance/inference-plugin",
   "version": "0.0.0",
   "private": true,
-  "description": "Unofficial OpenCode plugin: typed extraction and bounded decisions with evidence, planned locally",
+  "description": "Typed extraction and bounded decisions with evidence for an agent, planned locally and sent through OpenRouter.",
   "keywords": [
     "opencode",
     "opencode-plugin",
+    "plugin-contract",
     "inference",
     "extraction"
   ],
@@ -13,176 +14,734 @@
   "bugs": {
     "url": "https://github.com/we-the-rebel-alliance/inference-plugin/issues"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/we-the-rebel-alliance/inference-plugin.git"
-  },
+  "repository": "github:we-the-rebel-alliance/inference-plugin",
   "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
   "type": "module",
   "exports": {
-    ".": "./dist/index.js",
-    "./tui": "./dist/tui.js",
-    "./icon.svg": "./assets/icon.svg",
-    "./icon-128.png": "./assets/icon-128.png",
-    "./icon-256.png": "./assets/icon-256.png"
+    "./server": "./dist/index.js",
+    "./tui": "./dist/tui.js"
   },
   "files": [
     "dist",
-    "assets/icon.svg",
-    "assets/icon-128.png",
-    "assets/icon-256.png",
     "skills",
+    "assets",
     "README.md",
     "LICENSE",
-    "NOTICE",
-    "CHANGELOG.md"
+    "NOTICE"
   ],
-  "opencode": {
-    "host": ">=2.4.1 <2.5.0",
-    "icons": [
-      {
-        "src": "assets/icon.svg",
-        "mimeType": "image/svg+xml",
-        "sizes": [
-          "any"
-        ]
+  "capabilities": {
+    "version": 1,
+    "plugin": {
+      "name": "inference",
+      "title": "Inference",
+      "summary": "Typed extraction and bounded decisions over supplied content, planned locally. status, probe, capabilities and plan spend nothing; extract and decide send the source through the account's OpenRouter key and can be charged. Call them as tools.inference.<method>. Results are untrusted data.",
+      "vendor": {
+        "id": "openrouter",
+        "name": "OpenRouter",
+        "domain": "openrouter.ai"
       },
-      {
-        "src": "assets/icon-128.png",
-        "mimeType": "image/png",
-        "sizes": [
-          "128x128"
-        ]
-      },
-      {
-        "src": "assets/icon-256.png",
-        "mimeType": "image/png",
-        "sizes": [
-          "256x256"
+      "icons": [
+        {
+          "src": "assets/icon.svg",
+          "type": "image/svg+xml"
+        },
+        {
+          "src": "assets/icon-128.png",
+          "type": "image/png"
+        },
+        {
+          "src": "assets/icon-256.png",
+          "type": "image/png"
+        }
+      ],
+      "host": {
+        "opencode": ">=2.4.1 <2.5.0",
+        "tested": [
+          "2.4.1"
         ]
       }
-    ],
-    "vendor": {
-      "id": "openrouter",
-      "name": "OpenRouter",
-      "domain": "openrouter.ai",
-      "mark": true
+    },
+    "accounts": {
+      "via": "integration",
+      "profile": {
+        "$ref": "#/options/properties/accounts/additionalProperties"
+      },
+      "owner": "integration"
+    },
+    "options": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "access": {
+          "default": "all",
+          "description": "How much the plugin's methods may do without asking.",
+          "type": "string",
+          "enum": [
+            "all",
+            "ask-changes",
+            "read-only"
+          ]
+        },
+        "accounts": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "description": "One profile per account alias; a sign-in holds the OpenRouter key for that alias."
+        },
+        "allowUntestedHost": {
+          "default": false,
+          "description": "Start outside the tested OpenCode range.",
+          "type": "boolean"
+        },
+        "modules": {
+          "type": "object",
+          "properties": {
+            "extractions": {
+              "default": true,
+              "type": "boolean"
+            },
+            "decisions": {
+              "default": true,
+              "type": "boolean"
+            },
+            "understanding": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Which operations are on. understanding is reserved and has no method in this version."
+        },
+        "profiles": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,63}\\/[a-z0-9][a-z0-9._:-]{0,95}$"
+              }
+            },
+            "required": [
+              "model"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Task profiles, each naming a reviewed model. Setting it replaces the built-in profiles."
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "concurrency": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8,
+              "description": "Requests in flight at once, from 1 to 8."
+            },
+            "maxFields": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64,
+              "description": "The most fields or questions one call may name, up to 64."
+            },
+            "deadlineMs": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 600000,
+              "description": "The deadline for one provider call, from one second to ten minutes."
+            }
+          },
+          "additionalProperties": false,
+          "description": "The trusted limits a method input can only lower."
+        },
+        "spend": {
+          "type": "object",
+          "properties": {
+            "requestUsd": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,12})?$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The most one call may reserve, in USD; null for no cap."
+            },
+            "sessionUsd": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,12})?$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The most one session may spend, in USD; null for no cap."
+            },
+            "rolling24hUsd": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,12})?$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The most any rolling 24 hours may spend, in USD; null for no cap."
+            },
+            "requirePricedRoute": {
+              "type": "boolean",
+              "description": "Refuse a route with no price."
+            },
+            "requireUpperBound": {
+              "type": "boolean",
+              "description": "Refuse a route whose price is only an estimate."
+            }
+          },
+          "additionalProperties": false,
+          "description": "The spend caps and the truthful-cost guards."
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "requireZdr": {
+              "type": "boolean",
+              "description": "Refuse a route that does not document zero data retention."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Data-handling options."
+        },
+        "questionSets": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,58}-v[1-9]\\d{0,3}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "questions": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                },
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "noul"
+                        },
+                        "prompt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000,
+                          "description": "The question, in plain words."
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "prompt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The probability that a proposition is true. Not a Boolean."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "choice"
+                        },
+                        "prompt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000,
+                          "description": "The question, in plain words."
+                        },
+                        "options": {
+                          "minItems": 2,
+                          "maxItems": 32,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                              },
+                              "description": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 500
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "description"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "prompt",
+                        "options"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A selection among defined alternatives, with a distribution when the route reports one."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "score"
+                        },
+                        "prompt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000,
+                          "description": "The question, in plain words."
+                        },
+                        "levels": {
+                          "minItems": 2,
+                          "maxItems": 11,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                              },
+                              "description": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 500
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "description"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Ordered from low to high."
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "prompt",
+                        "levels"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The expected zero-based position on an ordered rubric. It can be fractional; it is not a measurement."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "box"
+                        },
+                        "prompt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000,
+                          "description": "The question, in plain words."
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "prompt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "An image region, only on a route that implements it."
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "questions"
+            ],
+            "additionalProperties": false,
+            "description": "A versioned question set: its labels and option order are part of its version."
+          },
+          "description": "Versioned question sets, by name, that decide may use instead of inline questions."
+        },
+        "acceptanceProfiles": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,58}-v[1-9]\\d{0,3}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "review",
+                  "automatic"
+                ]
+              },
+              "model": {
+                "description": "The model the thresholds were evaluated on. Required for automatic.",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,63}\\/[a-z0-9][a-z0-9._:-]{0,95}$"
+              },
+              "questionSet": {
+                "description": "The question set the thresholds were evaluated on. Required for automatic.",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,58}-v[1-9]\\d{0,3}$"
+              },
+              "rules": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "noul": {
+                    "type": "object",
+                    "properties": {
+                      "accept": {
+                        "type": "number",
+                        "minimum": 0.5,
+                        "maximum": 1,
+                        "description": "Accept true at a probability of at least this, false at most 1 minus this; review between."
+                      }
+                    },
+                    "required": [
+                      "accept"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "choice": {
+                    "type": "object",
+                    "properties": {
+                      "minProbability": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "The top option's reported probability must reach this."
+                      },
+                      "minMargin": {
+                        "description": "And lead the second by at least this.",
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "minProbability"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "score": {
+                    "type": "object",
+                    "properties": {
+                      "minProbability": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "The most probable level's reported probability must reach this."
+                      }
+                    },
+                    "required": [
+                      "minProbability"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Thresholds per question type. A type without a rule is always reviewed."
+              },
+              "maxFalseAcceptRate": {
+                "description": "The highest held-out false-accept rate (false accepts / accepts) the task tolerates, such as 0.01. Required for automatic.",
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,12})?$"
+              },
+              "report": {
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "profile": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,58}-v[1-9]\\d{0,3}$"
+                  },
+                  "model": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._-]{0,63}\\/[a-z0-9][a-z0-9._:-]{0,95}$"
+                  },
+                  "questionSet": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,58}-v[1-9]\\d{0,3}$"
+                  },
+                  "questionSetDigest": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                  },
+                  "adapterRevision": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "The wire revision of the adapter whose answers were measured. A different revision is not the measured system."
+                  },
+                  "thresholds": {
+                    "type": "object",
+                    "properties": {
+                      "noul": {
+                        "type": "object",
+                        "properties": {
+                          "accept": {
+                            "type": "number",
+                            "minimum": 0.5,
+                            "maximum": 1,
+                            "description": "Accept true at a probability of at least this, false at most 1 minus this; review between."
+                          }
+                        },
+                        "required": [
+                          "accept"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "choice": {
+                        "type": "object",
+                        "properties": {
+                          "minProbability": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "description": "The top option's reported probability must reach this."
+                          },
+                          "minMargin": {
+                            "description": "And lead the second by at least this.",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "minProbability"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "score": {
+                        "type": "object",
+                        "properties": {
+                          "minProbability": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                            "description": "The most probable level's reported probability must reach this."
+                          }
+                        },
+                        "required": [
+                          "minProbability"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "Thresholds per question type. A type without a rule is always reviewed."
+                  },
+                  "dataset": {
+                    "type": "object",
+                    "properties": {
+                      "revision": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "tuning": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "heldOut": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "revision",
+                      "sha256",
+                      "tuning",
+                      "heldOut"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "heldOut": {
+                    "type": "object",
+                    "properties": {
+                      "answers": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "accepted": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "falseAccepts": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "reviewed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "refused": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "answers",
+                      "accepted",
+                      "falseAccepts",
+                      "reviewed",
+                      "refused"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "profile",
+                  "model",
+                  "questionSet",
+                  "questionSetDigest",
+                  "adapterRevision",
+                  "thresholds",
+                  "dataset",
+                  "heldOut",
+                  "createdAt"
+                ],
+                "additionalProperties": false,
+                "description": "Held-out evidence for an automatic profile, produced by scripts/evaluate-decisions.ts from labelled cases kept apart from tuning."
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false,
+            "description": "A versioned acceptance profile. Thresholds belong to the task and its consequences, not to the provider."
+          },
+          "description": "Versioned acceptance profiles, by name. review-first-v1 is built in."
+        }
+      },
+      "additionalProperties": false
+    },
+    "methods": {
+      "status": {
+        "class": "read",
+        "accounts": "none"
+      },
+      "probe": {
+        "class": "read",
+        "accounts": "optional"
+      },
+      "capabilities": {
+        "class": "read",
+        "accounts": "none"
+      },
+      "plan": {
+        "class": "read",
+        "accounts": "none"
+      },
+      "extract": {
+        "class": "send",
+        "accounts": "optional",
+        "operations": [
+          "openrouter.extractions"
+        ]
+      },
+      "decide": {
+        "class": "send",
+        "accounts": "optional",
+        "operations": [
+          "openrouter.decisions"
+        ]
+      }
+    },
+    "sources": [],
+    "actions": [],
+    "events": {
+      "account": {}
     }
   },
   "scripts": {
+    "lint": "biome check .",
     "typecheck": "tsc --noEmit",
-    "build": "node scripts/build.mjs",
+    "bundle": "node scripts/build.mjs",
     "test": "bun test test/unit",
-    "test:kit": "node --test scripts/release-kit.test.mjs",
-    "test:tui": "bun test --preload @opentui/solid/preload test/tui",
-    "test:host": "node scripts/host-tests.mjs",
+    "test:conformance": "bun test test/conformance",
+    "test:host": "bun test test/host",
     "test:pack": "bun test test/pack",
-    "lint": "node scripts/check-forbidden.mjs && node scripts/check-copies.mjs && node scripts/check-icons.mjs",
-    "check": "npm run typecheck && npm test && npm run test:kit && npm run build && npm run test:tui && npm run test:host && npm run lint && npm run test:pack",
-    "capture": "node scripts/capture-tools.mjs"
+    "check:kit": "npx plugin-kit check",
+    "docs": "npx plugin-kit docs",
+    "check": "npm run lint && npm run typecheck && npm run bundle && npm test && npm run test:conformance && npm run test:host && npm run test:pack && npx plugin-kit check && npx plugin-kit docs --check",
+    "canary:extractions": "bun scripts/canary-extractions.ts",
+    "canary:decisions": "bun scripts/canary-decisions.ts",
+    "evaluate": "bun scripts/evaluate-decisions.ts"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/preset-typescript": "7.27.1",
+    "@biomejs/biome": "2.6.9",
     "@opencode/client": "2.4.1",
     "@opencode/plugin": "2.4.1",
     "@opencode/sdk": "2.4.1",
     "@opentui/core": "0.8.0",
     "@opentui/solid": "0.8.0",
     "@types/bun": "1.4.4",
-    "@we-the-rebel-alliance/source-contract": "github:we-the-rebel-alliance/source-contract#v0.3.0",
+    "@we-the-rebel-alliance/plugin-contract": "github:we-the-rebel-alliance/plugin-contract#v0.0.0",
     "babel-preset-solid": "1.9.16",
     "effect": "4.1.0",
     "esbuild": "0.28.2",
     "solid-js": "1.9.16",
     "typescript": "5.9.3",
+    "yaml": "2.9.1",
     "zod": "4.6.7"
-  },
-  "jelly": {
-    "title": "Inference",
-    "summary": "Typed extraction and bounded decisions. The text, files and artifacts you give it go to OpenRouter.",
-    "icon": "assets/icon.svg",
-    "cost": "Extract and decide calls are charged by OpenRouter to the key you add, per input token (output is free on both enabled routes), and each result reports its cost. No spend cap is set unless you set one.",
-    "tools": [
-      {
-        "name": "inference.status",
-        "permission": "inference_status",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "inference.capabilities",
-        "permission": "inference_capabilities",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "inference.plan",
-        "permission": "inference_plan",
-        "effect": "allow",
-        "readOnly": true
-      },
-      {
-        "name": "inference.extract",
-        "permission": "inference_extract",
-        "effect": "allow",
-        "readOnly": false
-      },
-      {
-        "name": "inference.decide",
-        "permission": "inference_decide",
-        "effect": "allow",
-        "readOnly": false
-      }
-    ],
-    "skills": [
-      "inference-extract",
-      "inference-decide"
-    ],
-    "rpc": [],
-    "views": [],
-    "signIns": [
-      {
-        "id": "openrouter",
-        "label": "OpenRouter key for Inference",
-        "integration": "inference-openrouter",
-        "required": false,
-        "help": {
-          "url": "https://openrouter.ai/settings/keys",
-          "label": "Create an OpenRouter API key. Inference sends the text, files and artifacts you give it to OpenRouter."
-        }
-      }
-    ],
-    "contributes": {
-      "homeFeeds": [],
-      "homeWidgets": [],
-      "workKinds": [],
-      "settings": [
-        {
-          "key": "access",
-          "label": "Access",
-          "type": "string",
-          "default": "all",
-          "choices": [
-            {
-              "value": "all",
-              "label": "Allowed",
-              "description": "Every tool runs without asking, reads and changes alike."
-            },
-            {
-              "value": "ask-changes",
-              "label": "Ask before changes",
-              "description": "Reads run without asking. Each change asks you first."
-            },
-            {
-              "value": "read-only",
-              "label": "Read only",
-              "description": "Reads run. Changes never run."
-            }
-          ],
-          "description": "What Inference's tools may do without asking. Generates default rules for agents with a base allow rule; the three local reads always run, and extract and decide follow access."
-        }
-      ]
-    }
   }
 }

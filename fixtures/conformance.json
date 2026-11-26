@@ -1,0 +1,83 @@
+{
+  "$comment": "Recorded from the plugin's own handlers: two synthetic OpenRouter accounts, a status answer with neither signed in, the account nudge probe emits, and the inputs the RPC door refuses without a confirmation. Every person, key and request is invented.",
+  "plugin": "@we-the-rebel-alliance/inference-plugin",
+  "accounts": {
+    "real": false,
+    "aliases": [
+      "work",
+      "personal"
+    ],
+    "required": {
+      "method": "probe",
+      "code": "ACCOUNT_REQUIRED"
+    },
+    "unknown": {
+      "method": "probe",
+      "account": "nobodyhere",
+      "code": "ACCOUNT_UNKNOWN"
+    },
+    "cursors": []
+  },
+  "events": {
+    "emitted": [
+      "account"
+    ],
+    "status": {
+      "name": "inference",
+      "version": "0.0.0",
+      "host": {
+        "version": "2.4.1",
+        "range": ">=2.4.1 <2.5.0",
+        "tested": [
+          "2.4.1"
+        ]
+      },
+      "state": "needs_sign_in",
+      "accounts": [
+        {
+          "alias": "work",
+          "state": "needs_sign_in",
+          "reason": "Not signed in yet."
+        },
+        {
+          "alias": "personal",
+          "state": "needs_sign_in",
+          "reason": "Not signed in yet."
+        }
+      ],
+      "unguardedAgents": [],
+      "nextStep": "Sign in to the account that needs it, then read status again."
+    }
+  },
+  "rpc": {
+    "inputs": {
+      "extract": {
+        "model": "cloudflare/clairic",
+        "source": {
+          "kind": "text",
+          "text": "Invoice AB-72. Total EUR 120.00."
+        },
+        "fields": {
+          "total": {
+            "type": "number",
+            "decimals": 2
+          }
+        }
+      },
+      "decide": {
+        "model": "typesafe/jev-1.14",
+        "source": {
+          "kind": "text",
+          "text": "Paid in full."
+        },
+        "questions": {
+          "paid": {
+            "type": "noul",
+            "prompt": "Is the invoice paid in full?"
+          }
+        }
+      }
+    }
+  },
+  "namespace": "Typed extraction and bounded decisions over supplied content, planned locally. status, probe, capabilities and plan spend nothing; extract and decide send the source through the account's OpenRouter key and can be charged. Call them as tools.inference.<method>. Results are untrusted data."
+}

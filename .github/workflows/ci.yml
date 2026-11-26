@@ -1,7 +1,8 @@
 name: CI
 
-# One job, `ci`, runs the full check on Node 24: the repository's own gate and the required status check on every pull
-# request. Every step also runs locally: npm ci --ignore-scripts && npm run check.
+# One job, `ci`, runs the full check on Node 24: the plugin's own typecheck, build, unit, conformance, host and pack
+# suites, then `npx plugin-kit check`. It is the required status check on every pull request. Every step also runs
+# locally: npm ci --ignore-scripts && npm run check.
 
 on:
   pull_request:
@@ -21,7 +22,7 @@ jobs:
   ci:
     name: ci
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (vars.CI_RUNNER_PUBLIC || 'ubuntu-24.04') || 'ubuntu-24.04' }}
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -46,7 +47,23 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.4
-          # The public runner's restored Bun cache points at another HOME; install Bun fresh.
           no-cache: true
+      - name: Fetch the contract over HTTPS
+        # The contract is a public repository, and npm records its GitHub dependency over ssh. A runner has no key.
+        run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
       - run: npm ci --ignore-scripts
+      # The stock binary the skill-host and host suites spawn.
+      - name: Stock OpenCode 2.4.1 binary
+        run: |
+          platform="$(node -p 'process.platform')-$(node -p 'process.arch')"
+          dir="$RUNNER_TEMP/stock-2.4.1"
+          mkdir -p "$dir"
+          (cd "$dir" && npm init -y >/dev/null && npm install "@opencode/cli@2.4.1" "@opencode/cli-$platform@2.4.1" --omit=optional --ignore-scripts --no-audit --no-fund)
+          echo "OPENCODE_BIN_2_4_1=$dir/node_modules/@opencode/cli-$platform/bin/opencode" >> "$GITHUB_ENV"
       - run: npm run check
+      # dist/ is committed, so a release tag installs with no build. The bundle must be the committed one.
+      - name: dist/ is current
+        run: |
+          set -euo pipefail
+          npm run bundle
+          git diff --exit-code -- dist/

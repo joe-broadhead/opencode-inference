@@ -8,7 +8,7 @@ const run = (args: string[], env: Record<string, string | undefined> = {}) => {
   const child = Bun.spawnSync([process.execPath, SCRIPT, ...args], { env: { ...base, ...env } as Record<string, string>, stdout: "pipe", stderr: "pipe" })
   return { code: child.exitCode, out: child.stdout.toString(), err: child.stderr.toString() }
 }
-const KEY = { OPENROUTER_CANARY_KEY: "sk-or-v1-canary-test-not-a-key" }
+const KEY = { OPENROUTER_CANARY_KEY: "test-key-value" }
 
 test("refuses without --yes-spend, a budget, a key, within the ceiling, and refuses in CI", () => {
   const cases: [string[], Record<string, string>, RegExp][] = [
@@ -98,8 +98,8 @@ test("the Decisions canary refuses the same way, and its dry run sends nothing",
 }, 30_000)
 
 test("every report names the wire revision it checks and the commit it ran from, and no path", async () => {
-  const { WIRE_REVISION: EXTRACTIONS } = await import("../../src/providers/openrouter/extractions.js")
-  const { WIRE_REVISION: DECISIONS } = await import("../../src/providers/openrouter/decisions.js")
+  const { WIRE_REVISION: EXTRACTIONS } = await import("../../src/provider/extractions.js")
+  const { WIRE_REVISION: DECISIONS } = await import("../../src/provider/decisions.js")
   const repo = new URL("../../", import.meta.url).pathname
   for (const [script, revision] of [["canary-extractions", EXTRACTIONS], ["canary-decisions", DECISIONS]] as const) {
     const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== "CI" && name !== "OPENROUTER_CANARY_KEY"))

@@ -1,9 +1,10 @@
 import * as z from "zod"
 import type { Config } from "./config.js"
-import { CapabilitiesInput, Exclusion, FIELD_TYPES, ModelId, OPERATIONS, ProfileName, QUESTION_TYPES, type Operation } from "./contracts.js"
-import { METHOD_CLASSES, MODULES, type MethodClass, type Module } from "./ids.js"
-import { OPERATION_MODULE } from "./routing.js"
-import { CapabilityFixture, fixtureAgeDays, RouteCapability, STALE_AFTER_DAYS } from "../providers/openrouter/capabilities.js"
+import { type CapabilitiesInput, Exclusion, FIELD_TYPES, ModelId, OPERATIONS, ProfileName, QUESTION_TYPES, type Operation } from "./contracts.js"
+import { METHOD_CLASSES, type MethodClass } from "@we-the-rebel-alliance/plugin-contract/manifest"
+import { MODULES, type Module } from "./ids.js"
+import { OPERATION_MODULE } from "./registry.js"
+import { CapabilityFixture, fixtureAgeDays, RouteCapability, STALE_AFTER_DAYS } from "../provider/capabilities.js"
 
 // The capabilities answer: what this version implements, what the reviewed fixture documents for each route, why each
 // route cannot run, and the trusted limits. Local only.

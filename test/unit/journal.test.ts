@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { join } from "node:path"
 import { InferenceError } from "../../src/domain/errors.js"
 import { add, compare, format, money, roundUp, sum } from "../../src/domain/money.js"
-import { createJournalStore, OWNER } from "../../src/host/journal-store.js"
+import { createJournalStore, OWNER } from "../../src/journal-store.js"
 import { admit, reservationFor, totals } from "../../src/runtime/budget.js"
 import { Journal, JournalDocument } from "../../src/runtime/journal.js"
 import { draft, limits, SCOPE } from "../support/journal-child.js"

@@ -86,7 +86,7 @@ export class LockHeld extends Error {
   }
 }
 
-/** The host's persistence: one exclusive transaction at a time across processes. Implemented in src/host/journal-store.ts. */
+/** The host's persistence: one exclusive transaction at a time across processes. Implemented in src/journal-store.ts. */
 export interface JournalStore {
   /**
    * Takes the cross-process lock (refusing with LockHeld after a bounded wait, never taking it over), reads the

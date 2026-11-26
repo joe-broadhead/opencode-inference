@@ -6,9 +6,9 @@ import { writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { loadConfig } from "../../src/domain/config.js"
 import { ExtractInput, ExtractResult } from "../../src/domain/contracts.js"
-import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
-import { WIRE_REVISION as DECISIONS_REVISION } from "../../src/providers/openrouter/decisions.js"
-import { extractionsAdapter, WIRE_REVISION } from "../../src/providers/openrouter/extractions.js"
+import { OPENROUTER_CAPABILITIES } from "../../src/provider/capabilities.js"
+import { WIRE_REVISION as DECISIONS_REVISION } from "../../src/provider/decisions.js"
+import { extractionsAdapter, WIRE_REVISION } from "../../src/provider/extractions.js"
 import { resolveRoute } from "../../src/runtime/operation.js"
 import { probeHarness } from "../support/operation-kit.js"
 
@@ -28,9 +28,9 @@ test("an adapter whose revision is not the canary's refuses with ROUTE_NOT_VERIF
   expect(probe.counts).toEqual({ inspect: 0, read: 0 })
   expect(probe.sent).toEqual([])
   expect(await probe.journal.list()).toEqual([])
-  // The tools RPC says the same, by code.
-  const scripted = (await probe.rpc({ profile: "probe", source: { kind: "text", text: "Total EUR 1.00" }, fields: { total: { type: "number" } } })) as { error: { data: { code: string } } }
-  expect(scripted.error.data.code).toBe("ROUTE_NOT_VERIFIED")
+  // The RPC path runs the same pipeline and refuses with the same code.
+  const scripted = await Promise.resolve(probe.rpc({ profile: "probe", source: { kind: "text", text: "Total EUR 1.00" }, fields: { total: { type: "number" } } })).then(() => undefined, (caught: Error) => caught)
+  expect(scripted?.message).toMatch(/^ROUTE_NOT_VERIFIED:/)
 })
 
 test("the committed route resolves under its adapter's own revision; any other revision, or none recorded, refuses", () => {

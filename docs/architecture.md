@@ -1,346 +1,124 @@
 # Architecture
 
-Unofficial plugin. Not affiliated with OpenCode or OpenRouter.
-
-This is the design of the shell that later releases build on. The tables marked generated are written from the source
-(`test/support/generated.ts`); `test/unit/registry.test.ts` fails while they differ.
-
-## Identities
-
-| Surface | Value |
-| --- | --- |
-| Package name | `@we-the-rebel-alliance/inference-plugin` |
-| Plugin | `inference.core` |
-| TUI | `inference.core.tui`, palette "Inference: Status", slash `/inference` |
-| Namespace | `inference` (Code Mode `tools.inference.<name>`) |
-| Status RPC | `inference.core`, method `status` |
-| Tools RPC | `inference.core.tools`, `describe` plus one method per tool |
-| Permission prefix | `inference_` |
-| Status command | `/inference-status` |
-| Key integration | `inference-openrouter` ("OpenRouter key for Inference" in `/connect`) |
+Inference is a plugin on `plugin-contract` v0. The contract owns the doors, the manifest, accounts, access, the bus,
+status, the error table and the plan/commit rules. This repository owns what only this provider knows: the routes, the
+wire adapters, the source handling, the budget and the journal. No module of the contract is re-implemented here.
 
 ## Layers
 
-```text
-src/index.ts                     Plugin.define entry
-src/domain/                      zod contracts and pure logic, no host
-  ids.ts                         identities and the status view types (zod-free; the TUI imports it)
-  contracts.ts                   the public plugin-domain schemas, exported as JSON Schema
-  config.ts                      strict trusted options
-  registry.ts                    the single tool registry, and the reserved operations
-  routing.ts                     deterministic eligibility and the local plan
-  capabilities.ts                the capabilities answer
-  status-schema.ts               the status view's zod schema (server only)
-  errors.ts                      CODE: what happened. Next step: …
-  money.ts                       exact decimal money (10^-12 units, never floats)
-  json.ts                        a strict JSON reader that keeps provider numbers as written
-  acceptance.ts                  acceptance profiles, question sets, the held-out report, deterministic acceptance
-  evaluation.ts                  held-out evaluation of a profile's thresholds
-  canonical.ts                   canonical JSON for digests
-src/providers/openrouter/
-  capabilities.ts                the dated, documentation-derived capability fixture (data only)
-  http.ts                        the transport boundary: the only fetch and the only key read
-  extractions.ts                 the alpha Extractions adapter: wire request, constraints, strict answer, quote
-  decisions.ts                   the alpha Decisions adapter: questions, exact distributions, refusal, effective context
-  wire.ts                        shared readers: probabilities, amounts, usage, the quote
-  catalog.ts                     catalog drift, reported as a compatibility status
-src/runtime/
-  dispatch.ts                    the one dispatcher both host surfaces call
-  handlers.ts                    status, capabilities and plan
-  operation.ts                   the ordered operation pipeline and the provider adapter interface
-  sources.ts                     source identification, permission requests, snapshots (policy; no fs)
-  budget.ts                      reservations and admission at the request, session and 24-hour scopes
-  journal.ts                     the operation journal: records, states, recovery, the process mutex
-src/host/                        everything that touches the host
-  plugin.ts                      setup, the cleanup stack, failure cleanup
-  tools.ts                       the registry projected onto the model's tools
-  scripting.ts                   the registry projected onto the tools RPC
-  tools-rpc.ts                   Inference's part of the tools RPC; the transport is source-contract's tools-rpc module
-  permissions.ts                 the default block, the exact-block matcher, the one-argument assert
-  files.ts                       file metadata before approval, descriptor reads after it
-  skills.ts                      the shipped skills, read from skills/ and registered per module
-  journal-store.ts               the journal's private files and the cross-process exclusive lock
-  integration.ts                 the plugin-owned OpenRouter key entry and its connected/not-connected state
-  status.ts, commands.ts         the status view and /inference-status
-  versions.ts, compat.ts         the host range and the tested releases
-src/rpc.ts                       the status RPC contract (plain JSON Schema) and every status row
-src/tui.tsx                      the status dialog
+```
+package.json            the capabilities manifest, version, exports and devDependencies
+src/
+  index.ts              Plugin.define: assertHost, accounts, one register call, skills and the /inference command
+  accounts.ts           one integration per alias, its key auth method, connection state and the probe owner
+  authorize.ts          the file-effect asserts (read, external_directory) and their contract refusal
+  commands.ts           /inference: the status answer as text
+  files.ts              metadata before approval, a descriptor read after it
+  journal-store.ts      the private 0700/0600 journal and its cross-process lock
+  skills.ts             the three shipped skills: the main one always, the topics while their module is on
+  status-text.ts        the status answer as people read it (TUI and command; no zod)
+  tui.tsx               the /inference status dialog, reading the status RPC under an open session
+  domain/               pure rules: options, contracts, planning, capabilities, acceptance, money, errors
+  handlers/             one file per method: status, probe, capabilities, plan, extract, decide
+  provider/             the provider client: the one origin, the API paths, the wire adapters, the fixture
+  runtime/              the operation pipeline, the budget, the journal and source handling
 ```
 
-`dist/` is exactly `index.js` (server, with zod bundled) and `tui.js` (no zod: the TUI imports only `src/domain/ids.ts`,
-`src/rpc.ts` and `src/host/versions.ts`). The build fails if the TUI bundle inlines zod.
+`src/index.ts` reads `package.json` from the package root at load time (one level above `src/` or `dist/`), so the
+manifest the kit reads from disk is the manifest the handlers answer with. It calls `assertHost(ctx, manifest)` first, so
+an OpenCode outside `>=2.4.1 <2.5.0` leaves no half-wired plugin.
 
-## One registry, one dispatcher
+## One register call
 
-`src/domain/registry.ts` defines each tool's name, class, effects, description and input and output schemas. From it:
+`register(ctx, manifest, handlers)` validates the handler table against the manifest, resolves the accounts, generates
+the access rules into every agent, registers one tool per method in the `inference` namespace, registers one RPC id
+`inference` with the declared `account` event, and returns the registration. It also gives every handler call
+`call.account`, `call.bus` and `call.unguardedAgents()`, so no handler keeps state between setup and a call. Each file in
+`src/handlers/` exports one method handler: its description, its input and output JSON Schemas, and its `run`.
 
-- the model tools (`src/host/tools.ts`): host tool `inference_<name>`, permission `inference_<name>`, namespace `inference`;
-- the tools RPC methods (`src/host/scripting.ts`): method `<name>`, the same class and action, JSON Schema from the same zod;
-- the default permission block (`src/host/permissions.ts`): the namespace rule, then each tool by its class;
-- the package declaration in `package.json` and the tables in these docs, checked by `test/unit/registry.test.ts`.
+## The provider client
 
-Both host surfaces call `runTool` from `src/runtime/dispatch.ts`. It checks that the plugin is open and the tool and
-its module are available at the moment of the call (the tools RPC's `available()` is for `describe` only), parses the
-input strictly, fences cancellation, runs the handler (or, for a non-read tool, the operation pipeline below) and
-validates the output against the tool's own schema. So a control added there holds for the model and for scripts alike.
+`src/provider/http.ts` is the only module that resolves a key or calls `fetch`. It names the one trusted origin once
+(`https://openrouter.ai`; a loopback origin is accepted for tests) and the reviewed API paths exactly. The key is
+resolved for the account's own integration (`inference` or `inference-<alias>`) at dispatch, put into one
+`Authorization` header and nowhere else. Redirects are never followed, so the key cannot reach another origin; a
+deadline, a request-byte cap, a response-byte cap and the call's cancellation all apply. Every failure says whether the
+request can have been sent, which is what the journal records.
 
-<!-- generated:tools -->
-
-| Tool | Host tool and permission | Code Mode | Tools RPC method | Class | Network | Uploads source | Billable |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `inference.status` | `inference_status` | `tools.inference.status(input)` | `inference.core.tools/status` | read | no | no | no |
-| `inference.capabilities` | `inference_capabilities` | `tools.inference.capabilities(input)` | `inference.core.tools/capabilities` | read | no | no | no |
-| `inference.plan` | `inference_plan` | `tools.inference.plan(input)` | `inference.core.tools/plan` | read | no | no | no |
-| `inference.extract` | `inference_extract` | `tools.inference.extract(input)` | `inference.core.tools/extract` | send | yes | yes | yes |
-| `inference.decide` | `inference_decide` | `tools.inference.decide(input)` | `inference.core.tools/decide` | send | yes | yes | yes |
-
-<!-- /generated:tools -->
-
-## Extraction
-
-`src/providers/openrouter/extractions.ts` is the alpha Extractions adapter. Its wire contract (`WIRE_REVISION`, part
-of every request fingerprint) follows OpenRouter's API reference (its OpenAPI `ExtractionsRequest` and
-`ExtractionsResponse`) and was checked against the structure of one live Clairic answer; no route is enabled until its
-canary passes:
-
-- **Request.** `model`, the text as `state` (or one image or PDF as the `assets` map's `source` entry, with `type`,
-  `format` and `data_base64`, and no `state`), `fields` with only the documented keys (`instructions` for the
-  description, `null_threshold`, `decimals`, `integer`, `unit`, a list's `items` as a string) and
-  `provider.allow_fallbacks: false`. Plugin-only options (`required`, a list's `maxItems`) are never sent. The route's
-  constraints are refused locally with coded errors: a null threshold where the route or the field kind does not take
-  it (Clairic lists, ScaleDown, unknown support), more than 6 decimals, a duration field (its answer is a number in a
-  unit the result cannot carry yet, so no route lists it as an eligible field type and plan reports it
-  `FIELD_TYPE_UNSUPPORTED` before any file is read), an image over Clairic's per-image or decoded-total limit or of a type it does not
-  take, a PDF on a route without PDF input, a body over the route's request limit.
-- **Answer.** Read with a strict JSON reader (`src/domain/json.ts`) that keeps each number's literal and refuses
-  duplicate keys. `answers` must have exactly the requested keys; each answer must name its field's `type` and its
-  `value` must have that type's JSON type; `confidence`, `p_null`, `spell_confidence` and a list's `confidences` must
-  lie in 0..1; a `span` (a list's `spans`, one per item, `null` for an item without one) must be a code-point range of
-  the exact text sent, and none may come back for a file; a top-level `state_text` (the text spans index) must be exactly
-  the text sent; `source` must be where the answer could be read from; `model` is required and must be the route's
-  model id or its reviewed canonical slug (`canonicalSlug` in the fixture, such as `cloudflare/clairic-20261029`). Any of these failing is `PROVIDER_CONTRACT_CHANGED`. Unknown metadata is ignored,
-  bounded and counted in coverage warnings.
-- **Result.** Per field: the nullable value (a number also as `exact`, its literal), `derivation`, the reported
-  confidence, null probability and spelling confidence when present (absent otherwise, never 0), the diagnostic guess
-  apart from the value, evidence (`exact-text` spans with the span's own hash; none for a file), list items
-  with their own evidence (an item without a span keeps an empty list), and review reasons: `FIELD_ABSENT`,
-  `REQUIRED_FIELD_ABSENT`, `CONFIDENCE_MISSING`, `EVIDENCE_UNAVAILABLE`, `EVIDENCE_MISMATCH`, `VALIDATION_FAILED`
-  (integer, decimals, calendar dates and times, list size) and `PROVIDER_TRUNCATED`. Checks never repair a value.
-  Coverage is complete for text unless the provider truncated, unknown for a file read natively. Every result is
-  reviewed under the uncalibrated `review-first-v1`.
-- **Money.** `usage.cost` is read from its literal and rounded UP to 12 places; its upstream breakdown is never added to
-  it, and only under BYOK is a reported upstream amount a separate charge. A per-request price that is the whole charge
-  is an exact upper bound. A per-token price is never bounded locally (a server-side prompt template can add tokens the
-  request does not contain): it is an estimate, so the call reserves the whole per-request budget, unless the fixture
-  records a provider-documented ceiling with its source (`pricing.ceiling`). Estimates are exact and rounded up.
-- **Routes.** A route is enabled only with a passed canary and a price; the fixture's schema refuses an enabled route
-  without a passed canary. `catalog.ts` compares OpenRouter's catalog with the fixture and reports drift (new candidates, missing
-  models) without enabling anything. `scripts/canary-extractions.ts` is the opt-in live check (see CONTRIBUTING.md).
-
-## Decisions
-
-`src/providers/openrouter/decisions.ts` is the alpha Decisions adapter. Its wire contract (`WIRE_REVISION`) follows
-OpenRouter's API reference (its OpenAPI `DecisionsRequest` and `DecisionsResponse`), adopted after the live canary
-refused the earlier, summary-derived request; no route is enabled until its canary passes:
-
-- **Request.** `model`, the text as `state`, named `questions` and `provider.allow_fallbacks: false`. Each question has
-  its `type` and `instructions` (the prompt); a choice has `criteria` mapping each option id to its description; a score
-  has `criteria`, the level descriptions in order, low to high. A versioned `questionSet` comes only from the
-  trusted options, and its digest (labels, prompts and option order) travels with the result. Refused locally: Box
-  (no reviewed region representation), images, an unknown set or profile, and a request that may not fit the route's
-  effective context: the state and questions must fit its reviewed token limit, net of a documented template allowance
-  (`contextAllowance`, with its source: a server-side prompt template adds tokens the request does not contain), counted
-  as UTF-8 bytes (no tokenizer emits more tokens than bytes). An unreviewed limit or an undocumented allowance refuses,
-  so the end of a long source is never cut off silently.
-- **Answer.** Each answer names its `type`: `{ type: "noul", noul }`, `{ type: "choice", choice, probabilities? }` keyed
-  by option id, `{ type: "score", score, probabilities?, legend? }` with `score` the expected zero-based level index and
-  `probabilities` keyed by level index (`"0"`, `"1"`, ...), each with an optional `confidence`, or `{ type: "refusal" }`.
-  A score's `legend`, when present, must echo the criteria sent: every level by index with exactly its description.
-  `model` is required and must be the route's model id or its reviewed canonical slug. Probabilities must lie in 0..1; `probabilities`
-  (stored as the result's `distribution`, by label) must name only asked labels and total at most 1; a complete score distribution must agree with its
-  expected index. All are stored exactly as reported: never renormalised, rounded or completed, and an unreported label
-  is absent, not 0. A refusal is its own outcome; a refusal that also answers is `PROVIDER_CONTRACT_CHANGED`.
-
-### Acceptance and evaluation
-
-`src/domain/acceptance.ts` decides acceptance in ordinary deterministic code. `review-first-v1` (built in) and any
-`mode: "review"` profile accept nothing. A `mode: "automatic"` profile accepts an answer only when its thresholds are
-met (noul: probability at least `accept`, or at most `1 - accept`; choice: top reported probability and margin; score:
-the most probable level), in exact decimal arithmetic. The mass a distribution leaves unreported counts as a possible
-runner-up (an unreported label is never zero), and a tie is never accepted. It uses the reported probability or
-distribution only: the reported confidence is derived from
-the distribution and is never counted again, and a missing probability cannot pass a threshold. It accepts only on the
-model and question set (by digest) its report measured; anything else is `CALIBRATION_MISMATCH`, and a truncated state
-is never accepted. The options are refused when an automatic profile has no held-out report for the same profile,
-model, question set and thresholds, with at least 30 held-out cases and a false-accept rate within its
-`maxFalseAcceptRate` (exact integer arithmetic). Accepted outcomes are labels: nothing in the plugin treats one as a
-permission.
-
-`src/domain/evaluation.ts` and `scripts/evaluate-decisions.ts` produce that report offline from labelled cases and
-recorded answers: thresholds are chosen on the tuning split, measured on the held-out split, and the splits are by
-document, so chunks of one document cannot leak from tuning into held-out. It reports accepts, false accepts, reviews,
-refusals and the noul Brier score. Recording the answers needs a key and spends; it is a separate, deliberate step.
-
-What a report does NOT establish, by design:
-
-- **It is not authenticated.** It is plain JSON in the trusted plugin options, so anyone who can edit `opencode.json`
-  can write one. The plugin checks that it is consistent with the profile; it cannot check that it is genuine. Treat a
-  change to `acceptanceProfiles` like a code change: review it.
-- **The dataset is not re-checked.** The report records the dataset's revision and SHA-256, but the plugin never has
-  the dataset, so it cannot verify the counts against it. Keep the dataset and recompute the report in review.
-- **What it matches:** the profile name, model, question set (by digest), the adapter's wire revision and the
-  thresholds. A change to any of them turns acceptance back into review (`CALIBRATION_MISMATCH`) or refuses the options.
-  It does not cover changes on the provider's side under the same model id and wire revision; the canary and a fresh
-  evaluation are how those are caught.
-
-## Reserved operations
-
-Named for capabilities, plan and these docs; not tools, methods or permission rules in this version. Each is `send`:
-cloud inference transmits supplied content and can spend, even when no business record changes.
-
-<!-- generated:planned -->
-
-| Operation | Reserved tool | Class | Module | Registered |
-| --- | --- | --- | --- | --- |
-| `inference.read` | `inference_read` | send | `understanding` | no |
-
-<!-- /generated:planned -->
-
-## Contracts
-
-`src/domain/contracts.ts` holds the plugin-domain schemas of handoff §5 and §15, version 1, strict and bounded. They are
-not provider wire schemas: an adapter maps them inside the adapter. Exported as JSON Schema (`CONTRACT_JSON_SCHEMAS`):
-
-<!-- generated:contracts -->
-
-- `ArtifactRef`
-- `SourceInput`
-- `EvidenceRef`
-- `Coverage`
-- `Usage`
-- `ExtractData`
-- `DecideData`
-- `InferenceResult`
-- `ExtractField`
-- `QuestionInput`
-- `ExtractInput`
-- `DecideInput`
-- `ReadInput`
-- `PlanInput`
-- `PlanResult`
-
-<!-- /generated:contracts -->
-
-## The capability fixture
-
-`src/providers/openrouter/capabilities.ts` is data only. Every value was transcribed from OpenRouter's public
-documentation, as summarised in the design handoff, on the date below, with canonical slugs and prices from OpenRouter's
-public catalog. A route is enabled only after its adapter exists and a compatibility canary has passed against the live
-API: its `canary` names the date, exactly one request report and one malformed-request report (both from the route's
-endpoint) and the wire revision they ran against. A call on a route whose recorded revision is not its adapter's
-refuses with `ROUTE_NOT_VERIFIED` before anything is read or sent, and a test fails until the fixture records a new
-pass. A newer catalog entry never enables a route by itself.
-
-<!-- generated:routes -->
-
-Fixture `openrouter-2026-11-13.2`, reviewed 2026-11-13, documentation-derived, verified: false.
-
-| Model | Operation | Route | Status | Enabled | Text | Images | PDF | Field or question types | Price |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `cloudflare/clairic` | extract | `POST /api/alpha/extractions` | documented | yes | yes | no | no | text, number, date, time, datetime, list, estimate, forecast | openrouter-catalog-2026-11-12 |
-| `scaledown/extract` | extract | `POST /api/alpha/extractions` | documented | no | yes | 1 (image/png, image/jpeg) | 1 file | text, list | unknown |
-| `inception/mercury-decide` | extract | `POST /api/alpha/extractions` | documented | no | yes | no | no | text, list | unknown |
-| `levanto/sage-2` | extract | `POST /api/alpha/extractions` | unconfirmed | no | unknown | no | no | unknown | unknown |
-| `typesafe/jev-1.14` | decide | `POST /api/alpha/decisions` | documented | yes | yes | no | no | noul, choice, score | openrouter-catalog-2026-11-12 |
-
-<!-- /generated:routes -->
-
-## Planning stays local
-
-`inference_plan` uses only the options, the fixture, the clock and what the caller supplied. For supplied text it
-counts bytes and Unicode code points and hashes the text. For a path it reads nothing: size, hash and type stay unknown,
-and preparation names the authorized snapshot execution would take. For an artifact it reports the declared size and
-hash as declared. It never refreshes a catalog, validates a key, asks a provider for an estimate or uploads.
-
-Routing is explicit: the requested profile or model is the only candidate. Other reviewed routes for the task are
-listed as alternatives with their own exclusion codes and are never chosen. A quote is `unavailable` when no price is
-known, `estimate` for a price that is not a ceiling, and `upper_bound` only for a fixed ceiling; money is an exact
-decimal string, computed with integer micro-dollars.
-
-## Status
-
-One view, built in `src/host/status.ts` and derived in `src/rpc.ts`, serves `/inference-status`, the status RPC, the
-TUI dialog and `inference_status` (with the unguarded agents as a count). The family's shared fields come first:
-`version`, `host { version, range, tested }`, `state`, `unguardedAgents`, `nextStep`. Then the connection (connected,
-not connected, needs sign-in or unknown, never the key), access, modules, tools, the fixture's age, the spend limits,
-operations and the permission block. `state` is `ready` with a connected key, `sign_in_required` when an enabled route
-of a module that is on needs the key and none is connected (connecting it is then the next step), `local_only` when no
-enabled route needs it, and `disabled` with every module off. Spend and operations report `tracking: "none"`.
-
-## Setup and cleanup
-
-Setup validates the options and the host version before registering anything. Every registration (the `/connect`
-entry, the agent rules, the tools, the status RPC, the tools RPC and its hook, the command) goes on one cleanup stack,
-disposed in reverse on cleanup and on a failure part-way through setup. The tools RPC's own registrations are tracked
-as they are made, so a failure inside the shared module leaves nothing behind. The agent transform skips agents that
-already carry the exact block, so a replayed or reloaded transform never doubles it. The server holds no timers or
-subscriptions; the TUI dialog subscribes to events only while open.
+`src/provider/capabilities.ts` is the reviewed fixture: each route's inputs, field and question kinds, limits, price and
+canary. A route runs only when it is enabled and its canary's wire revision is the adapter's own, so a changed adapter
+cannot keep a route enabled without a new canary. `catalog.ts` compares the fixture with OpenRouter's public catalog;
+`extractions.ts` and `decisions.ts` are the two wire adapters: a quote, the exact request, and a strict parse that never
+repairs a malformed answer into success.
 
 ## The operation pipeline
 
-`runTool` runs a read-class tool's local handler. Every other tool is an operation and runs one ordered pipeline
-(`src/runtime/operation.ts`, handoff §7), the same on the model path and the tools RPC. A non-read tool without a
-provider adapter cannot run. `inference_extract` is the one such tool, with the Extractions adapter in `ADAPTERS`
-(`src/host/plugin.ts`); the pipeline's own controls are also exercised by a test-only operation with a fake adapter and
-a fake transport (`test/support/operation-kit.ts`).
+`runtime/operation.ts` runs one send in a fixed order:
 
-1. The input is parsed strictly. The tool and its module are re-checked at the moment of the call.
-2. The route comes from the trusted options and the reviewed fixture: the requested profile or model, eligible now
-   (enabled, documented, module on, a type and field set it accepts, a price when `requirePricedRoute` is on). A key
-   must be connected; only its presence is checked. Unsupported requests fail here, before any file is touched.
-3. The source is identified from its descriptor and file metadata only (`lstat`, the parent's real path): no byte is
-   read, nothing is sniffed or hashed. `..`, a final symbolic link, a symbolic link anywhere inside the project, a
-   non-file, a foreign or expired artifact, and a bundle are refused here.
-4. The host decides: first the tool's own action (`inference_extract`, `inference_decide`), so the effect `access`
-   gives it holds for every source, a text source included; then `read` on the file (relative inside the project,
-   absolute outside), after `external_directory` outside the project. Outside the project both name the file's real
-   folder, never a linked one, and the file is read from there, in the host read tool's own actions, through the
-   one-argument assert raced against cancellation and fenced after it settles. A denial propagates unchanged; a
-   script's ask is refused by the tools RPC.
-5. The approved file is opened through a descriptor without following a final symbolic link, and must be the same file
-   that was approved (device, inode, size, change times) before and after the read; one byte past its size shows it
-   grew. Its type comes from its bytes and must agree with its name or declaration; an artifact must match its declared
-   size and hash. The bytes become an immutable private snapshot with their SHA-256.
-6. Type and size are re-validated against the snapshot; the adapter builds the exact request, which must fit the route.
-7. The reservation is admitted and persisted with a `planned` record in one locked step, then `dispatching` is
-   persisted. Requests in flight in one process are capped by `limits.concurrency`.
-8. The transport (`src/providers/openrouter/http.ts`) resolves the key, puts it in one header, and posts to the one
-   trusted origin and a reviewed path, with no redirects, the deadline, a request cap, a streamed 4 MiB response cap
-   and cancellation. Each failure says whether anything can have left.
-9. The adapter validates the answer strictly; a 2xx is only transport success.
-10. The journal settles: reported charges, or the reservation kept when the cost is unknown. The result carries the
-    operation id, route, coverage, review, usage and trace, and the text names no source content.
+1. resolve the requested profile or model and the route, from trusted options and the fixture only;
+2. resolve the account's key presence (not the key);
+3. identify the source from its descriptor and file metadata, reading no bytes;
+4. assert the file effects (`read`, and `external_directory` outside the project) on the real folder, raced against
+   cancellation;
+5. read the approved bytes through a descriptor, verify they are still the approved file, sniff the type and freeze a
+   private snapshot with its SHA-256;
+6. re-validate the route against the snapshot and build the exact request;
+7. reserve the budget and persist the `planned` and `dispatching` records;
+8. send through the one transport;
+9. parse the answer strictly and settle the journal with the reported charges, or keep the reservation when the cost is
+   unknown.
 
-### The journal and its lock
+A file replaced, grown or touched between approval and reading is refused; so is a symbolic link, a `..` segment, a
+foreign artifact and a file over the route's byte limit. The method's own action was already asserted by the contract's
+register on `<alias>:<operation>` before the handler ran, so the pipeline adds only the file effects.
 
-One private journal per OpenRouter connection on this machine: `journals/<label>/journal.json` (0600) in a 0700 folder
-under `$XDG_STATE_HOME/opencode-inference` (or `~/.local/state/opencode-inference`). Each record follows the handoff's
-`OperationRecord` for synchronous operations: project, account label, intent (the tool call), session and agent, route,
-source hashes, constraint and request digests, state, owner, reservation, charges, cost status, an error code and the
-submit attempt. It holds no key, source text, request or response body, or URL.
+## Budget and journal
 
-- States: `planned` → `dispatching` → `completed` | `failed` | `submission_unknown`; `planned` → `failed` when the
-  call never left. A record is dispatched only by the process that planned it, under the lock.
-- A process mutex serialises one process's transactions; an exclusive lock file (`O_CREAT|O_EXCL`, holding the
-  owner's pid, a host hash and a token) serialises processes. It is held only for the read-modify-write, never across
-  a network call, and the journal is replaced atomically (temporary file, flush, rename, folder flush).
-- A lock still held after a bounded wait is never taken over on a timer, whatever its age: the call fails with
-  `JOURNAL_LOCKED`, naming the lock file, its owner's pid and whether that process is running, and a person removes it.
-- Recovery runs inside each transaction: another process's `planned` record whose owner is confirmed not running is
-  released (it cannot have been sent), and its `dispatching` record becomes `submission_unknown` and keeps its
-  reservation. An owner that may be alive, on another host or with an unclear answer, is left alone.
-- A journal that does not parse, or belongs to another connection, is refused and left as it is, never reset.
-- Terminal records leave after 30 days; held reservations and `submission_unknown` records stay.
+`runtime/budget.ts` is opt-in and operation-keyed: a call reserves before it sends, and a cap is checked against
+committed, reserved and unknown spend at the request, session and rolling 24-hour scopes. `runtime/journal.ts` persists
+hashes, ids, the route, timing, amounts and error codes; `src/journal-store.ts` keeps the journal private (0700 folder,
+0600 file) and replaces it atomically under an exclusive lock. The journal never holds a key, source text, a request or
+response body, a URL or a query string. An account's journal folder is keyed on a hash of its connection, so two aliases
+never share a reservation ledger.
 
-Status reports `tracking: "none"` for spend and operations: it does not total the journal yet. The journal still holds
-every reservation and enforces the budgets at each call.
+## Accounts and access
+
+`src/accounts.ts` uses the contract's `accounts` module: `accountsOf` reads `options.accounts`, `registerAccounts`
+registers one integration per alias with a `key` auth method, and `accountStatuses`/`statusAnswer` build the status
+answer. The plugin never resolves a key to make status; it reads the connection's presence and status only.
+
+The access rules are the contract's `access` module's: reads always run, sends follow `access`. The plugin names no rule
+and patches no agent. `status` reports an agent whose later rules no longer give every generated rule its effect, and
+never fixes it behind the person's back.
+
+## Status, probe and the bus
+
+`status` passes the manifest, the installed and host versions, every alias's state, the setup problems and
+`await call.unguardedAgents()` to `statusAnswer`; it keeps no state of its own. An unreadable agent list is unknown, never
+zero, so it becomes a problem and the state says `error`. `probe` reads the alias's connection and answers the
+contract's probe shape; it emits `account` when the alias is ready or needs a sign-in. `rpc.inference.account` is the one
+declared event: a nudge with no content. There is no `changed` event, because there is no source.
+
+## The TUI and the command
+
+`src/tui.tsx` registers `/inference` in the palette and the slash commands. It calls the status RPC under the active
+session's rules and renders the answer; it changes nothing and polls nothing. `src/commands.ts` posts the same answer
+into a session for people who work in the terminal.
+
+## What is not here
+
+- **No source, cursor or scope.** The plugin reads what a call supplies. There is no feed to page through and no cursor
+  to bind, so no source is declared.
+- **No result cache.** A repeated call is a repeated send and a repeated charge; the journal is for reconciliation, not
+  for reuse.
+- **No per-request hook.** The fixed context is the manifest's summary and the three skills; cost is in each result.
+- **No compatibility path.** The contract v0 shape is the only shape; the old repository's tools RPC, app keys, and
+  release, drift, copy, icon, forbidden, tested-host, capture and changelog scripts are gone. `scripts/build.mjs` remains
+  the plugin's own build.
+
+## OpenCode APIs used
+
+Public `@opencode/plugin` 2.4.1 only: `ctx.app.version` for the host gate, `ctx.tool`, `ctx.rpc`, `ctx.session`,
+`ctx.agent`, `ctx.permission`, `ctx.integration`, `ctx.skill`, `ctx.command` and `ctx.location`. The contract's
+`register` narrows those types structurally, so the plugin's published declarations name no host type. No internal
+OpenCode module is imported.

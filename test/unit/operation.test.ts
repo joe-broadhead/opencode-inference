@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { createHash } from "node:crypto"
 import { mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync, appendFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
-import { createTransport, TransportError } from "../../src/providers/openrouter/http.js"
+import { createTransport, TransportError } from "../../src/provider/http.js"
 import { InferenceError } from "../../src/domain/errors.js"
 import { spyNetwork } from "../support/network-spy.js"
-import { ACCOUNT, pathInput, probeAdapter, probeHarness, probeRoute, PROBE, textInput } from "../support/operation-kit.js"
+import { ACCOUNT, pathInput, probeAdapter, probeHarness, probeRoute, textInput } from "../support/operation-kit.js"
 import { tempRoot } from "../support/temp.js"
 
 let network: ReturnType<typeof spyNetwork>
@@ -22,7 +22,9 @@ beforeEach(() => {
 })
 afterEach(() => {
   network.restore()
-  consoleMethods.forEach((name, index) => (console[name] = originals[index]!))
+  consoleMethods.forEach((name, index) => {
+    console[name] = originals[index]!
+  })
   expect(network.calls).toEqual([])
 })
 
@@ -34,8 +36,6 @@ const failure = async (work: Promise<unknown>) => {
   }
   throw new Error("expected a failure")
 }
-/** An RPC failure as a script reads it. */
-const rpcError = (value: unknown) => (value as { error: { message: string; data: { code: string } } }).error
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82])
 const sha = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex")
 
@@ -56,33 +56,27 @@ describe("the happy path on both surfaces", () => {
     ])
     expect(records[0]!.sourceRefs).toEqual([{ sha256: sha("Invoice AB-72. Total EUR 120.00.") }])
     expect(records[0]!.attempts).toEqual([{ kind: "submit", at: expect.any(String), result: "completed" }])
-    // A text source has no file effect, but each call still asserts the tool's own action first.
-    expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([
-      ["inference_probe", ["*"]],
-      ["inference_probe", ["*"]],
-    ])
+    // A text source has no file effect: the contract register owns the method action, so the pipeline asks nothing.
+    expect(harness.fake.asserted).toEqual([])
   })
 
-  test("a path inside the project: the tool's own action, then read on the host's own relative resource, then the bytes are snapshotted", async () => {
+  test("a path inside the project asks for read on the host's own relative resource, then snapshots the bytes", async () => {
     const harness = await probeHarness()
     writeFileSync(join(harness.project, "note.txt"), "Hello there")
     await harness.model(pathInput("note.txt"))
-    expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([
-      ["inference_probe", ["*"]],
-      ["read", ["note.txt"]],
-    ])
+    expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([["read", ["note.txt"]]])
     expect(harness.counts.read).toBe(1)
     const [record] = await harness.journal.list()
     expect(record!.sourceRefs).toEqual([{ sha256: sha("Hello there") }])
   })
 
-  test("a path outside the project also asserts external_directory, after the tool's own action", async () => {
+  test("a path outside the project also asserts external_directory", async () => {
     const harness = await probeHarness()
     mkdirSync(join(harness.root, "outside"))
     writeFileSync(join(harness.root, "outside", "a.txt"), "outside text")
     await harness.model(pathInput(join(harness.root, "outside", "a.txt")))
-    expect(harness.fake.asserted.map((item) => item.action)).toEqual(["inference_probe", "external_directory", "read"])
-    expect(harness.fake.asserted[1]!.resources).toEqual([`${join(harness.root, "outside")}/*`])
+    expect(harness.fake.asserted.map((item) => item.action)).toEqual(["external_directory", "read"])
+    expect(harness.fake.asserted[0]!.resources).toEqual([`${join(harness.root, "outside")}/*`])
   })
 
   test("outside the project, a linked folder is asked for, and read from, by its real path, never the link path", async () => {
@@ -93,7 +87,6 @@ describe("the happy path on both surfaces", () => {
     const harness = await probeHarness()
     await harness.model(pathInput(join(outside, "extdir", "secret.txt")))
     expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([
-      ["inference_probe", ["*"]],
       ["external_directory", [`${join(outside, "realdir")}/*`]],
       ["read", [join(outside, "realdir", "secret.txt")]],
     ])
@@ -105,7 +98,7 @@ describe("the happy path on both surfaces", () => {
         { action: "external_directory", resource: `${join(outside, "extdir")}/*`, effect: "allow" },
       ],
     })
-    expect((await failure(guarded.model(pathInput(join(outside, "extdir", "secret.txt"))))).message).toBe("Permission denied: external_directory")
+    expect((await failure(guarded.model(pathInput(join(outside, "extdir", "secret.txt"))))).message).toMatch(/^PERMISSION_DENIED: The host refused the external_directory access/)
     expect(guarded.counts.read).toBe(0)
     expect(guarded.sent).toEqual([])
   })
@@ -122,43 +115,15 @@ describe("the happy path on both surfaces", () => {
 describe("authorization", () => {
   const denyRead = [{ action: "*", resource: "*", effect: "allow" as const }, { action: "read", resource: "*", effect: "deny" as const }]
 
-  test("a denied file read, on the model path and the tools RPC: no byte read, no reservation, nothing sent", async () => {
+  test("a denied file read: no byte read, no reservation, nothing sent", async () => {
     const harness = await probeHarness({ agentRules: denyRead })
     writeFileSync(join(harness.project, "secret.txt"), "do not read")
     const error = await failure(harness.model(pathInput("secret.txt")))
-    // The host's permission error propagates unchanged.
-    expect(error._tag).toBe("Tool.Error")
-    expect(error.message).toBe("Permission denied: read")
-    const script = rpcError(await harness.rpc(pathInput("secret.txt")))
-    expect(script.data.code).toBe("PERMISSION_DENIED")
+    // A host denial becomes the contract's PERMISSION_DENIED.
+    expect(error.message).toMatch(/^PERMISSION_DENIED: The host refused the read access/)
     expect(harness.counts.read).toBe(0)
     expect(harness.sent).toEqual([])
     expect(await harness.journal.list()).toEqual([])
-  })
-
-  test("a script whose agent denies or would be asked for the tool itself is refused before the dispatcher runs", async () => {
-    for (const effect of ["deny", "ask"] as const) {
-      const harness = await probeHarness({ agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: "inference_probe", resource: "*", effect }] })
-      writeFileSync(join(harness.project, "a.txt"), "text")
-      expect(rpcError(await harness.rpc(pathInput("a.txt"))).data.code).toBe("PERMISSION_DENIED")
-      expect(harness.counts.inspect + harness.counts.read).toBe(0)
-      expect(harness.sent).toEqual([])
-    }
-  })
-
-  test("ask refuses unattended: a script's file-read ask becomes a deny, no one is prompted, nothing is read", async () => {
-    let prompted = 0
-    const harness = await probeHarness({ agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: "read", resource: "*", effect: "ask" }], onAsk: async () => (prompted++, "once") })
-    writeFileSync(join(harness.project, "a.txt"), "text")
-    const script = rpcError(await harness.rpc(pathInput("a.txt")))
-    expect(script.data.code).toBe("PERMISSION_DENIED")
-    expect(prompted).toBe(0)
-    expect(harness.counts.read).toBe(0)
-    expect(harness.sent).toEqual([])
-    // The same ask on the model path is a prompt, and an approval runs.
-    await harness.model(pathInput("a.txt"))
-    expect(prompted).toBe(1)
-    expect(harness.sent).toHaveLength(1)
   })
 
   test("a late approval after cancellation starts nothing", async () => {
@@ -192,141 +157,17 @@ describe("authorization", () => {
     }
   })
 
-  test("availability is re-checked at execution: a module turned off, or a tool withdrawn after discovery, is refused", async () => {
+  test("availability is re-checked at execution: a module turned off is refused", async () => {
     let open = true
     const harness = await probeHarness({ available: () => (open ? undefined : new InferenceError("MODULE_DISABLED")) })
     await harness.model(textInput())
     open = false
     expect((await failure(harness.model(textInput()))).message).toMatch(/^MODULE_DISABLED:/)
-    expect(rpcError(await harness.rpc(textInput())).data.code).toBe("MODULE_DISABLED")
+    expect((await failure(harness.rpc(textInput()))).message).toMatch(/^MODULE_DISABLED:/)
     expect(harness.sent).toHaveLength(1)
     const off = await probeHarness({ options: { modules: { extractions: false } } })
     expect((await failure(off.model(textInput()))).message).toMatch(/^MODULE_DISABLED:/)
     expect(off.sent).toEqual([])
-  })
-})
-
-/**
- * The probe operation registered under a real tool's name. `actionOf` reads only the name, so this asserts exactly the
- * action the registry's `inference_decide` and `inference_extract` get, on the same pipeline.
- */
-const named = (name: string) => ({ ...PROBE, name })
-
-// The tool's own action. At `access: "ask-changes"` and `"read-only"` it is what holds for every source: a text source
-// has no file effect, so without this assert the default rule block never takes effect and the call would be sent.
-describe("the tool's own action", () => {
-  test("decide and extract on a text source assert it before the transport and before the journal or a reservation", async () => {
-    for (const name of ["decide", "extract"]) {
-      let atPrompt: { sent: number; records: number } | undefined
-      let harness!: Awaited<ReturnType<typeof probeHarness>>
-      harness = await probeHarness({
-        tool: named(name),
-        agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: `inference_${name}`, resource: "*", effect: "ask" }],
-        onAsk: async () => {
-          atPrompt = { sent: harness.sent.length, records: (await harness.journal.list()).length }
-          return "once"
-        },
-      })
-      await harness.model(textInput())
-      expect(harness.fake.asserted.map((item) => [item.action, item.resources])).toEqual([[`inference_${name}`, ["*"]]])
-      expect(atPrompt).toEqual({ sent: 0, records: 0 })
-      expect(harness.sent).toHaveLength(1)
-      expect(await harness.journal.list()).toHaveLength(1)
-    }
-  })
-
-  test("a declined or unanswered ask for the tool's own action propagates unchanged: nothing read, reserved, journaled or sent", async () => {
-    for (const name of ["decide", "extract"]) {
-      // A deny.
-      const denied = await probeHarness({
-        tool: named(name),
-        agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: `inference_${name}`, resource: "*", effect: "deny" }],
-      })
-      const error = await failure(denied.model(textInput()))
-      expect(error._tag).toBe("Tool.Error")
-      expect(error.message).toBe(`Permission denied: inference_${name}`)
-      expect(denied.fake.asserted.map((item) => item.action)).toEqual([`inference_${name}`])
-      // An ask the person declines: the host's own error, unchanged.
-      const declined = await probeHarness({
-        tool: named(name),
-        agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: `inference_${name}`, resource: "*", effect: "ask" }],
-        onAsk: async () => "reject",
-      })
-      const refused = await failure(declined.model(textInput()))
-      expect(refused._tag).toBe("Tool.Error")
-      expect(refused.message).toBe(`The user rejected inference_${name}`)
-      for (const harness of [denied, declined]) {
-        expect(harness.counts.inspect + harness.counts.read).toBe(0)
-        expect(harness.sent).toEqual([])
-        expect(await harness.journal.list()).toEqual([])
-      }
-    }
-  })
-
-  test("no key connected, or one that needs sign-in: refused before the own action is asserted", async () => {
-    for (const [account, code] of [[undefined, "AUTH_REQUIRED"], ["needs_auth", "AUTH_REJECTED"]] as const) {
-      const harness = await probeHarness({ tool: named("decide"), account })
-      expect((await failure(harness.model(textInput()))).message).toMatch(new RegExp(`^${code}:`))
-      expect(harness.fake.asserted).toEqual([])
-      expect(harness.sent).toEqual([])
-      expect(await harness.journal.list()).toEqual([])
-    }
-  })
-
-  test("a path source still asserts its read after the tool's own action", async () => {
-    const harness = await probeHarness({ tool: named("decide") })
-    writeFileSync(join(harness.project, "note.txt"), "Hello there")
-    await harness.model(pathInput("note.txt"))
-    mkdirSync(join(harness.root, "outside"))
-    writeFileSync(join(harness.root, "outside", "a.txt"), "outside text")
-    await harness.model(pathInput(join(harness.root, "outside", "a.txt")))
-    expect(harness.fake.asserted.map((item) => item.action)).toEqual([
-      "inference_decide",
-      "read",
-      "inference_decide",
-      "external_directory",
-      "read",
-    ])
-  })
-
-  test("the tools RPC asserts it too, and refuses an ask or a deny for extract and decide before dispatch", async () => {
-    const { profile: _profile, ...unprofiled } = textInput()
-    const unknownRoute = { ...unprofiled, model: "test/none" }
-    for (const name of ["extract", "decide"]) {
-      // The sentinels are live on an allowing session: the dispatcher runs, the route resolves, and one request is sent.
-      const allowed = await probeHarness({ tool: named(name) })
-      await allowed.rpc(textInput())
-      expect(allowed.fake.asserted.map((item) => [item.action, item.resources])).toEqual([[`inference_${name}`, ["*"]]])
-      expect(allowed.sent).toHaveLength(1)
-      expect(rpcError(await allowed.rpc({})).data.code).toBe("INPUT_INVALID")
-      expect(rpcError(await allowed.rpc(unknownRoute)).data.code).toBe("CAPABILITY_UNSUPPORTED")
-      for (const effect of ["ask", "deny"] as const) {
-        let prompted = 0
-        const harness = await probeHarness({
-          tool: named(name),
-          agentRules: [{ action: "*", resource: "*", effect: "allow" }, { action: `inference_${name}`, resource: "*", effect }],
-          onAsk: async () => (prompted++, "once"),
-        })
-        const refused = rpcError(await harness.rpc(textInput()))
-        expect(refused.data.code).toBe("PERMISSION_DENIED")
-        expect(refused.message).toMatch(
-          effect === "ask" ? new RegExp(`inference_${name} would ask for this session's agent, and a script cannot answer`) : new RegExp(`inference_${name} is hidden from this session's agent by a deny rule`),
-        )
-        // No prompt, no dispatcher assert, no file read, no reservation or journal record and nothing sent.
-        expect(prompted).toBe(0)
-        expect(harness.fake.asserted).toEqual([])
-        expect(harness.counts.inspect + harness.counts.read).toBe(0)
-        expect(harness.sent).toEqual([])
-        expect(await harness.journal.list()).toEqual([])
-        // The dispatcher's parse and the route resolution would each answer with their own code on an allowing
-        // session, so the own-action refusal on the same inputs proves neither ran.
-        expect(rpcError(await harness.rpc({})).data.code).toBe("PERMISSION_DENIED")
-        expect(rpcError(await harness.rpc(unknownRoute)).data.code).toBe("PERMISSION_DENIED")
-        expect(harness.fake.asserted).toEqual([])
-        expect(harness.sent).toEqual([])
-        expect(await harness.journal.list()).toEqual([])
-      }
-    }
   })
 })
 
@@ -564,7 +405,7 @@ describe("spend and the journal", () => {
   test("a path off the reviewed list is refused by the real transport as failed, nothing sent, reservation released", async () => {
     const base = probeAdapter()
     const adapter = { ...base, request: (...args: Parameters<typeof base.request>) => ({ ...base.request(...args), path: "/api/v1/chat/completions" }) }
-    const integration = { connection: { active: async () => ACCOUNT.connection, resolve: async () => ({ type: "key", key: "sk-test" }), status: async () => undefined } } as never
+    const integration = { connection: { active: async () => ACCOUNT.connection, resolve: async () => ({ type: "key", key: "test-key-value" }), status: async () => undefined } } as never
     const harness = await probeHarness({ adapter, transport: createTransport(integration, "http://127.0.0.1:9") })
     expect((await failure(harness.model(textInput()))).message).toMatch(/^PROVIDER_CONTRACT_CHANGED: The adapter asked for an API path that is not reviewed .*nothing was sent\./)
     const [record] = await harness.journal.list()

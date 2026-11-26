@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
-import { catalogDrift, catalogModels } from "../../src/providers/openrouter/catalog.js"
-import { CapabilityFixture, OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
+import { catalogDrift, catalogModels } from "../../src/provider/catalog.js"
+import { CapabilityFixture, OPENROUTER_CAPABILITIES } from "../../src/provider/capabilities.js"
 
 describe("catalog drift is a compatibility status, never an enablement", () => {
   test("new catalog models are disabled candidates; reviewed models missing from the catalog are reported", () => {

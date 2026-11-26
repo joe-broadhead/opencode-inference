@@ -1,175 +1,94 @@
-// The docs and skills cannot drift from what is registered: every tool name, Code Mode path, tools RPC method and Jobs
-// manifest entry they mention is real; every tagged example is valid input by the registry's own schema; the plan
-// example's documented outcome is what plan returns; every error code they mention exists.
+// The package and the docs that a reader installs from: the manifest is the one the kit reads, nothing legacy is left,
+// the fixed-context text stays within budget, and every install line names a release tag.
 import { describe, expect, test } from "bun:test"
-import { readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { loadConfig } from "../../src/domain/config.js"
-import { EXCLUSIONS, PlanInput } from "../../src/domain/contracts.js"
-import { FAILURES } from "../../src/domain/errors.js"
-import { implemented, PLANNED, TOOLS } from "../../src/domain/registry.js"
-import { plan } from "../../src/domain/routing.js"
-import { NEXT_STEPS } from "../../src/host/tools-rpc.js"
-import { OPENROUTER_CAPABILITIES } from "../../src/providers/openrouter/capabilities.js"
+import { checkManifest } from "@we-the-rebel-alliance/plugin-contract/manifest"
+import { packageOf } from "../support/manifest.js"
+import { readdirSync } from "node:fs"
+import { join } from "node:path"
 
-const ROOT = fileURLToPath(new URL("../../", import.meta.url))
-const FILES = ["README.md", "SECURITY.md", "CONTRIBUTING.md", ...readdirSync(join(ROOT, "docs")).filter((name) => name.endsWith(".md")).map((name) => `docs/${name}`), ...readdirSync(join(ROOT, "skills")).map((id) => `skills/${id}/SKILL.md`)]
-const text = (file: string) => readFileSync(join(ROOT, file), "utf8")
-const REGISTERED = new Set<string>(TOOLS.map((tool) => tool.name))
-const RESERVED = new Set<string>(PLANNED.map((operation) => operation.name))
-
-describe("the docs and skills name only what is registered", () => {
-  test("tool names, Code Mode paths, tools RPC methods and Jobs manifest entries", () => {
-    const problems: string[] = []
-    for (const file of FILES) {
-      const content = text(file)
-      const check = (pattern: RegExp, allowReserved: boolean) => {
-        for (const match of content.matchAll(pattern)) {
-          const name = match[1]!
-          if (REGISTERED.has(name) || (allowReserved && RESERVED.has(name))) continue
-          problems.push(`${file}: ${match[0]}`)
-        }
-      }
-      // The host tool id; a reserved one may be named as reserved.
-      check(/\binference_([a-z]+)\b/g, true)
-      check(/\btools\.inference\.(?!core\.)([a-z_]+)\b/g, true)
-      check(/\binference\.core\.tools\/([a-z_]+)\b/g, false)
-      check(/\btools\.inference\.core\.([a-z_]+)\b/g, false)
-      check(/(?<![/.\w])inference\.core\.(?!tools\b|tui\b)([a-z_]+)\b/g, false)
-    }
-    expect(problems).toEqual([])
-    // A reserved name is never presented as a tool that runs.
-    for (const name of RESERVED) expect(implemented(name)).toBe(false)
-  })
-
-  test("every tagged example is valid input for its tool, by the registry's own schema", () => {
-    const seen: string[] = []
-    for (const file of FILES)
-      for (const match of text(file).matchAll(/<!-- example: (\w+) -->\n```json\n([\s\S]*?)\n```/g)) {
-        const tool = TOOLS.find((item) => item.name === match[1])
-        const valid = tool !== undefined && tool.input.safeParse(JSON.parse(match[2]!)).success
-        expect({ file, tool: match[1], valid }).toEqual({ file, tool: match[1], valid: true })
-        seen.push(`${file}:${match[1]}`)
-      }
-    expect(seen.sort()).toEqual(["docs/scripting.md:decide", "docs/scripting.md:extract", "docs/scripting.md:plan", "skills/inference-decide/SKILL.md:decide", "skills/inference-extract/SKILL.md:extract"])
-  })
-
-  test("the plan example's documented outcome is what plan returns", () => {
-    const doc = text("docs/scripting.md")
-    const input = JSON.parse(/<!-- example: plan -->\n```json\n([\s\S]*?)\n```/.exec(doc)![1]!)
-    const outcome = /<!-- outcome: plan -->\n([\s\S]*?)\n\n/.exec(doc)![1]!
-    const result = plan(PlanInput.parse(input), { config: loadConfig({}), fixture: OPENROUTER_CAPABILITIES, implemented, now: new Date() })
-    const exclusions = result.route.selected!.exclusions
-    for (const code of EXCLUSIONS) expect({ code, documented: outcome.includes(`\`${code}\``) }).toEqual({ code, documented: exclusions.includes(code) })
-  })
-
-  test("every error code the docs and skills mention exists", () => {
-    const known = new Set([...Object.keys(FAILURES), ...Object.keys(NEXT_STEPS), ...EXCLUSIONS, "REVIEW_REQUIRED", "OUTPUT_EXPIRED", "OUTPUT_UNAVAILABLE", "CANCEL_UNSUPPORTED"])
-    const problems: string[] = []
-    for (const file of FILES)
-      for (const match of text(file).matchAll(/`([A-Z][A-Z_]{4,})`/g)) if (!known.has(match[1]!) && !REASONS.has(match[1]!) && !IDENTIFIERS.has(match[1]!)) problems.push(`${file}: ${match[1]}`)
-    expect(problems).toEqual([])
-  })
-})
-
-/** Names in backticks that are not codes: files, constants and environment variables. */
-const IDENTIFIERS = new Set(["NOTICE", "WIRE_REVISION", "CONTRACT_JSON_SCHEMAS", "ADAPTERS", "OPENROUTER_CANARY_KEY", "TESTED_HOSTS", "XDG_STATE_HOME", "TMPDIR", "OPENCODE_TEST_HOME", "OPENCODE_BIN_2_4_1"])
-
-/** Review and acceptance reason codes, which the docs also name. */
-const REASONS = new Set(["FIELD_ABSENT", "REQUIRED_FIELD_ABSENT", "CONFIDENCE_MISSING", "EVIDENCE_UNAVAILABLE", "EVIDENCE_MISMATCH", "VALIDATION_FAILED", "PROVIDER_TRUNCATED", "CALIBRATION_UNAVAILABLE", "CALIBRATION_MISMATCH", "REFUSED", "LOW_PROBABILITY", "AMBIGUOUS", "INCONSISTENT", "ACCEPTANCE_PROFILE_UNKNOWN", "RECOVERED_UNSENT", "RECOVERED_UNKNOWN"])
-
-describe("operations.md keeps the no-retry and privacy lists complete", () => {
-  test("a cancellation after sending is not retried, and every request field the adapters send is listed as sent", () => {
-    const doc = text("docs/operations.md")
-    expect(doc).toContain("`SUBMISSION_UNKNOWN` / `DEADLINE_EXCEEDED` / `CANCELLED` after sending")
-    // Every top-level key an adapter puts in a request body is named in the privacy list.
-    const privacy = /- \*\*What is sent:\*\*([\s\S]*?)\n- \*\*/.exec(doc)![1]!
-    for (const file of ["src/providers/openrouter/extractions.ts", "src/providers/openrouter/decisions.ts"]) {
-      const source = text(file)
-      const keys = new Set([...source.matchAll(/body\["([a-z_]+)"\]/g)].map((match) => match[1]!))
-      for (const key of ["reference_date"]) if (source.includes(`"${key}"`)) keys.add(key)
-      for (const key of keys) expect({ file, key, listed: privacy.includes(key) || (key === "state" && privacy.includes("text")) || (key === "assets" && privacy.includes("image")) }).toEqual({ file, key, listed: true })
-    }
-  })
-})
-
-describe("the spend caps are opt-in, and every doc says so", () => {
-  test("loadConfig sets no cap; configuration.md, operations.md, README and AGENTS.md say none is set by default, and none states the old caps as defaults", () => {
-    const { spend } = loadConfig(undefined)
-    expect({ requestUsd: spend.requestUsd, sessionUsd: spend.sessionUsd, rolling24hUsd: spend.rolling24hUsd }).toEqual({ requestUsd: null, sessionUsd: null, rolling24hUsd: null })
-    // requirePricedRoute is a truthful-cost guard, not a limit, so it stays on.
-    expect(spend.requirePricedRoute).toBe(true)
-    for (const file of ["docs/configuration.md", "docs/operations.md", "README.md"]) expect({ file, stated: /no (?:spend )?cap is set by default/i.test(text(file).replace(/\s+/g, " ")) }).toEqual({ file, stated: true })
-    expect(text("AGENTS.md").replace(/\s+/g, " ")).toContain("Every spend cap is opt-in")
-    // The configuration table gives the same values.
-    for (const key of ["requestUsd", "sessionUsd", "rolling24hUsd"]) expect(text("docs/configuration.md")).toContain(`| \`spend.${key}\` | \`null\` |`)
-    // No user doc or guide still states the earlier default caps, and none speaks of the owner.
-    for (const file of [...FILES, "AGENTS.md", "src/runtime/budget.ts", "src/domain/config.ts"]) expect({ file, old: /0\.05 per request|USD 0\.05, 1\.00|\.requestUsd`? 0\.05/.test(text(file).replace(/\s+/g, " ")) }).toEqual({ file, old: false })
-    for (const file of ["README.md", "docs/configuration.md", "docs/operations.md"]) expect({ file, owner: /owner-confirmed|by the owner/i.test(text(file)) }).toEqual({ file, owner: false })
-    // No doc, guide or source comment calls them proposed, under review or unconfirmed.
-    const stale = /(?:proposed|proposals?|awaiting review|under review|not confirmed|has not confirmed)/i
-    for (const file of [...FILES, "AGENTS.md", "src/runtime/budget.ts", "src/domain/config.ts", "src/host/status.ts"])
-      for (const line of text(file).split("\n")) if (/spend|budget|cap\b/i.test(line) || /defaults/i.test(line)) expect({ file, line, stale: stale.test(line) }).toEqual({ file, line, stale: false })
-  })
-})
-
-
-/** Orders two `x.y.z` versions. */
-const compare = (left: string, right: string) => {
-  const [a, b] = [left, right].map((value) => value.split(".").map(Number))
-  for (let index = 0; index < 3; index++) if (a![index] !== b![index]) return a![index]! - b![index]!
-  return 0
+/** Every skills/<id>/SKILL.md and its front-matter description, read the way the kit reads it. */
+function skillsOf(root: string): { file: string; name?: string; description?: string }[] {
+  const found: { file: string; name?: string; description?: string }[] = []
+  for (const entry of readdirSync(join(root, "skills"), { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const file = join("skills", entry.name, "SKILL.md")
+    const lines = readFileSync(join(root, file), "utf8").replace(/\r\n/g, "\n").split("\n")
+    if (lines[0]?.trim() !== "---") continue
+    const end = lines.indexOf("---", 1)
+    const matter = lines.slice(1, end).join("\n")
+    const field = (key: string) => new RegExp(`^${key}\\s*:\\s*(.+)$`, "m").exec(matter)?.[1]?.trim()
+    found.push({ file, ...(field("name") === undefined ? {} : { name: field("name")! }), ...(field("description") === undefined ? {} : { description: field("description")! }) })
+  }
+  return found
 }
 
-describe("the release", () => {
-  test("installs from a release tag, states the first release is 4b, and states its known limits", () => {
-    const { version } = JSON.parse(text("package.json")) as { version: string }
+const ROOT = fileURLToPath(new URL("../../", import.meta.url))
+const text = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8")
+const FILES = ["README.md", "AGENTS.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "docs/capabilities.md", "docs/accounts.md", "docs/configuration.md", "docs/architecture.md", "docs/automations.md", "docs/security.md"]
+
+describe("the package", () => {
+  test("carries a valid capabilities manifest, version 0.0.0, the standard name and exports, and no runtime dependency", () => {
+    const { version, capabilities } = packageOf()
     expect(version).toBe("0.0.0")
-    for (const file of [...FILES, "AGENTS.md"]) {
-      expect({ file, old: /joe-broadhead/.test(text(file)) }).toEqual({ file, old: false })
-    }
-    const readme = text("README.md")
-    expect(readme).toContain("opencode plugin add github:we-the-rebel-alliance/inference-plugin#v<version>")
-    expect((readme.match(/inference-plugin#v<version>/g) ?? []).length).toBeGreaterThanOrEqual(3)
-    expect(readme).toContain("The first release on plugin-contract is v0.0.0 (phase 4b).")
-    // No install line names the default branch or an untagged repository.
-    expect(readme).not.toMatch(/opencode plugin add github:we-the-rebel-alliance\/inference-plugin\s*$/m)
-    expect(readme).not.toMatch(/"github:we-the-rebel-alliance\/inference-plugin"/)
-    expect(readme).toContain("## Install\n")
-    // The known limits name both enabled routes and what each covers, and the spend defaults the options actually have.
-    const limits = readme.slice(readme.indexOf("## Known limits"), readme.indexOf("## License"))
-    for (const route of OPENROUTER_CAPABILITIES.routes.filter((item) => item.enabled)) expect(limits).toContain(`\`${route.model}\``)
-    for (const key of ["requestUsd", "sessionUsd", "rolling24hUsd"]) expect(limits).toContain(`\`spend.${key}\``)
-    for (const phrase of ["text only", "noul, choice and score over text", "32 KB", "`review-first-v1`", "`ROUTE_NOT_VERIFIED`", "No cap is set by default"]) expect(limits).toContain(phrase)
+    expect(checkManifest(capabilities)).toEqual({ ok: true, value: capabilities })
+    const pkg = JSON.parse(text("package.json")) as Record<string, unknown> & { exports: Record<string, string>; files: string[]; devDependencies: Record<string, string> }
+    expect(pkg["name"]).toBe("@we-the-rebel-alliance/inference-plugin")
+    expect(pkg["repository"]).toBe("github:we-the-rebel-alliance/inference-plugin")
+    expect(pkg["exports"]).toEqual({ "./server": "./dist/index.js", "./tui": "./dist/tui.js" })
+    expect(pkg["files"]).toEqual(["dist", "skills", "assets", "README.md", "LICENSE", "NOTICE"])
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies", "overrides", "sources", "opencode"]) expect(pkg[field]).toBeUndefined()
+    expect(Object.keys(pkg.devDependencies).sort()).toContain("@we-the-rebel-alliance/plugin-contract")
+    expect(pkg.devDependencies["@we-the-rebel-alliance/plugin-contract"]).toMatch(/^github:we-the-rebel-alliance\/plugin-contract#(?:v\d+\.\d+\.\d+|[0-9a-f]{40})$/)
+  })
+
+  test("keeps the fixed context inside budget: the namespace line, every skill description, and no pinned method", () => {
+    const { capabilities } = packageOf()
+    expect(capabilities.plugin.summary.length).toBeLessThanOrEqual(400)
+    expect(capabilities.plugin.summary.includes("\n")).toBe(false)
+    for (const skill of skillsOf(ROOT)) expect({ file: skill.file, length: skill.description?.length }).toEqual({ file: skill.file, length: expect.any(Number) })
+    for (const skill of skillsOf(ROOT)) expect(skill.description!.length).toBeLessThanOrEqual(300)
+    expect(Object.values(capabilities.methods).filter((method) => method.pinned === true)).toEqual([])
+    // No method carries an effect override: the class and the access level decide every call.
+    expect(Object.values(capabilities.methods).filter((method) => method.effect !== undefined)).toEqual([])
+  })
+
+  test("every declared method is a contract method and status is present; no pass-through MCP server exists", () => {
+    const { capabilities } = packageOf()
+    expect(Object.keys(capabilities.methods).sort()).toEqual(["capabilities", "decide", "extract", "plan", "probe", "status"])
+    expect(capabilities.methods["status"]).toEqual({ class: "read", accounts: "none" })
+    expect(capabilities.methods["probe"]).toEqual({ class: "read", accounts: "optional" })
+    expect(capabilities.methods["extract"]?.class).toBe("send")
+    expect(capabilities.methods["decide"]?.class).toBe("send")
+    expect(capabilities.methods["extract"]?.plans).toBeUndefined()
+    expect(capabilities.methods["decide"]?.commits).toBeUndefined()
+    expect(capabilities.sources).toEqual([])
+    expect(capabilities.actions).toEqual([])
+    expect(capabilities.events).toEqual({ account: {} })
+    expect(Object.keys(capabilities.methods).filter((method) => method.startsWith("mcp:"))).toEqual([])
   })
 })
 
-describe("the 0.0.0 release notes", () => {
-  const notes = () => {
-    const changelog = text("CHANGELOG.md")
-    const start = changelog.indexOf("## 0.0.0 (unreleased)")
-    const next = changelog.indexOf("\n## ", start + 1)
-    expect(start).toBeGreaterThan(-1)
-    return changelog.slice(start, next === -1 ? undefined : next)
-  }
+describe("the docs and the install path", () => {
+  test("every doc file exists and no doc names the old app or the old repository", () => {
+    for (const file of FILES) expect({ file, exists: text(file).length > 0 }).toEqual({ file, exists: true })
+  })
 
-  test("describe what ships: the key is read for enabled routes, the send tools are registered, two routes are enabled", () => {
-    const section = notes()
-    expect(section).toStartWith("## 0.0.0 (unreleased)")
-    // Statements an earlier stage made true and a later one made false.
-    for (const stale of [/never reads? the key/i, /no registered tool/i, /reached by no/i, /every route (?:is|stays) disabled/i, /not (?:yet )?released/i, /no prices?\b/i, /never (?:been )?run against/i, /after the (?:first|second|third|fourth|live)/i, /\bowner\b/i, /one-option choice, is valid/i])
-      expect({ stale: String(stale), found: stale.test(section) }).toEqual({ stale: String(stale), found: false })
-    // Every registered tool and every enabled route is named, with the wire revisions this version's adapters use.
-    for (const tool of TOOLS) expect(section).toContain(`\`inference_${tool.name}\``)
-    for (const route of OPENROUTER_CAPABILITIES.routes.filter((item) => item.enabled)) {
-      expect(section).toContain(`\`${route.model}\``)
-      expect(section).toContain(`\`${route.canary.wireRevision}\``)
-    }
-    // No superseded wire revision is named.
-    for (const revision of section.match(/openrouter-alpha-(?:extractions|decisions)-\d{4}-\d{2}-\d{2}\.\d+/g) ?? [])
-      expect(OPENROUTER_CAPABILITIES.routes.some((route) => route.canary.wireRevision === revision)).toBe(true)
-    // One section, at 0.0.0: the earlier releases are gone with the old repository.
-    expect(text("CHANGELOG.md").match(/^## .*$/gm)).toEqual(["## 0.0.0 (unreleased)"])
+  test("install from a release tag, and the first release is v0.0.0", () => {
+    const readme = text("README.md")
+    expect(readme).toContain("opencode plugin add github:we-the-rebel-alliance/inference-plugin#v0.0.0")
+    expect(readme).toContain("The first release is v0.0.0.")
+    expect(readme).not.toMatch(/opencode plugin add github:we-the-rebel-alliance\/inference-plugin\s*$/m)
+    expect(readme).toContain("## Install\n")
+  })
+
+  test("CHANGELOG has one 0.0.0 section and no older-version reference", () => {
+    const changelog = text("CHANGELOG.md")
+    expect(changelog.match(/^## .*$/gm)).toEqual(["## 0.0.0 (2026-11-25)"])
+    expect(changelog).not.toMatch(/^### .*v0\.0\.[1-9]\d*/m)
+    expect(changelog).not.toMatch(/Removed since v0\.0\./i)
+    expect(changelog).not.toMatch(/\bv0\.0\.[1-9]\d*\b/)
+    expect(changelog).not.toMatch(/earlier release/i)
   })
 })
